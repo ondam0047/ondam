@@ -37,4 +37,42 @@ model Child {
 
   therapistId      Int?
   therapist        Therapist? @relation(fields: [therapistId], references: [id])
+
+  schedules        Schedule[]
+}
+
+model Schedule {
+  id          Int      @id @default(autoincrement())
+  childId     Int
+  child       Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+  year        Int
+  month       Int      // 1-12
+  // 작성 시점 스냅샷 (나중에 아동·치료사 정보가 바뀌어도 보존)
+  therapist   String
+  serviceType String
+  target      Int
+  mgmtNumber  String?
+  pvOrg       String
+  pvTel       String?
+  pvCharge    String?
+  pvType      String
+  costUnit    String   // "65,000" 형식 그대로
+  costSelf    String   // "0"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sessions    ScheduleSession[]
+
+  @@unique([childId, year, month])
+}
+
+model ScheduleSession {
+  id         Int      @id @default(autoincrement())
+  scheduleId Int
+  schedule   Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  day        Int      // 1-31
+  time       String   // "16:00~16:50"
+  makeup     Boolean  @default(false)
+
+  @@unique([scheduleId, day])
 }

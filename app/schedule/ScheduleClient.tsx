@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   WEEK, SLOTS, SERVICE_TYPES, holiday, pad,
 } from "@/lib/constants";
@@ -76,6 +76,17 @@ export default function ScheduleClient({
   const [costUnit, setCostUnit] = useState("65,000");
   const [costSelf, setCostSelf] = useState("0");
   const [downloading, setDownloading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savedMsg, setSavedMsg] = useState("");
+
+  // 저장된 일정표 목록 (선택된 아동 기준으로 fetch)
+  type SavedRow = {
+    id: number; year: number; month: number;
+    target: number; updatedAt: string;
+    _count: { sessions: number };
+  };
+  const [savedList, setSavedList] = useState<SavedRow[]>([]);
+  const [loadedScheduleId, setLoadedScheduleId] = useState<number | null>(null);
 
   // day editor modal
   const [editDay, setEditDay] = useState<number | null>(null);
@@ -90,7 +101,12 @@ export default function ScheduleClient({
   function loadChild(idStr: string) {
     const id = idStr === "" ? "" : Number(idStr);
     setSelectedChildId(id);
-    if (id === "") return;
+    setLoadedScheduleId(null);
+    setSavedMsg("");
+    if (id === "") {
+      setSavedList([]);
+      return;
+    }
     const c = childrenOpts.find((x) => x.id === id);
     if (!c) return;
     setName(c.name);
@@ -105,6 +121,103 @@ export default function ScheduleClient({
     }
     if (c.defaultUnit) setCostUnit(c.defaultUnit.toLocaleString("ko-KR"));
     if (c.defaultTarget) setTarget(c.defaultTarget);
+  }
+
+  // 아동 변경 시 저장된 일정표 목록 fetch
+  const refreshSavedList = useCallback(async (childId: number) => {
+    const res = await fetch(`/api/schedule/list?childId=${childId}`);
+    if (!res.ok) { setSavedList([]); return; }
+    setSavedList((await res.json()) as SavedRow[]);
+  }, []);
+
+  useEffect(() => {
+    if (typeof selectedChildId === "number") {
+      refreshSavedList(selectedChildId);
+    } else {
+      setSavedList([]);
+    }
+  }, [selectedChildId, refreshSavedList]);
+
+  async function loadSavedSchedule(idStr: string) {
+    if (!idStr) return;
+    const id = Number(idStr);
+    const res = await fetch(`/api/schedule/load?id=${id}`);
+    if (!res.ok) { alert("불러오기 실패"); return; }
+    const s = await res.json();
+    // 폼 값 채우기
+    setYm(`${s.year}-${s.month}`);
+    setTherapist(s.therapist);
+    setServiceType(s.serviceType);
+    setTarget(s.target);
+    setMgmt(s.mgmtNumber ?? "");
+    setPvOrg(s.pvOrg);
+    setPvTel(s.pvTel ?? "");
+    setPvCharge(s.pvCharge ?? "");
+    setPvType(s.pvType);
+    setCostUnit(s.costUnit);
+    setCostSelf(s.costSelf);
+    // 회기 세팅
+    const sessMap: SessionMap = {};
+    for (const sess of s.sessions) {
+      sessMap[sess.day] = { time: sess.time, makeup: sess.makeup };
+    }
+    setSessions(sessMap);
+    setGenY(s.year);
+    setGenM(s.month);
+    setLoadedScheduleId(id);
+    setSavedMsg(`✓ ${s.year}년 ${s.month}월 일정표를 불러왔어요.`);
+    requestAnimationFrame(() => {
+      document.getElementById("schedCard")?.scrollIntoView({ behavior: "smooth" });
+    });
+  }
+
+  async function saveSchedule() {
+    if (!sessions || typeof selectedChildId !== "number") return;
+    setSaving(true);
+    setSavedMsg("");
+    try {
+      const payload = {
+        childId: selectedChildId,
+        year: genY,
+        month: genM,
+        therapist,
+        serviceType,
+        target,
+        mgmtNumber: mgmt,
+        pvOrg, pvTel, pvCharge, pvType,
+        costUnit, costSelf,
+        sessions: days.map((d) => ({
+          day: d, time: sessions[d].time, makeup: sessions[d].makeup,
+        })),
+      };
+      const res = await fetch("/api/schedule/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) { alert("저장 실패"); return; }
+      const j = await res.json();
+      setLoadedScheduleId(j.scheduleId);
+      setSavedMsg(`✓ ${genY}년 ${genM}월 일정표가 저장되었어요.`);
+      await refreshSavedList(selectedChildId);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteSaved(id: number) {
+    if (!confirm("이 일정표를 정말 삭제할까요?")) return;
+    const res = await fetch("/api/schedule/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    if (!res.ok) { alert("삭제 실패"); return; }
+    if (typeof selectedChildId === "number") await refreshSavedList(selectedChildId);
+    if (loadedScheduleId === id) {
+      setLoadedScheduleId(null);
+      setSavedMsg("");
+    }
   }
 
   function generate() {
@@ -237,6 +350,36 @@ export default function ScheduleClient({
           <div className="hint" style={{ marginBottom: 14 }}>
             💡 <Link href="/children/new" style={{ color: "var(--forest)", fontWeight: 700 }}>아동을 미리 등록</Link>해두면 매월 정보 입력 없이 한 번에 불러올 수 있어요.
           </div>
+        )}
+
+        {typeof selectedChildId === "number" && savedList.length > 0 && (
+          <div style={{ marginBottom: 14 }}>
+            <label className="fl">이 아동의 저장된 일정표 ({savedList.length}개)</label>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <select
+                value={loadedScheduleId ?? ""}
+                onChange={(e) => loadSavedSchedule(e.target.value)}
+                style={{ flex: 1 }}
+              >
+                <option value="">— 선택 —</option>
+                {savedList.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.year}년 {s.month}월 · {s._count.sessions}회 · {new Date(s.updatedAt).toLocaleDateString("ko-KR")}
+                  </option>
+                ))}
+              </select>
+              {loadedScheduleId !== null && (
+                <button
+                  type="button"
+                  className="btn ghost sm danger"
+                  onClick={() => deleteSaved(loadedScheduleId)}
+                >이 일정표 삭제</button>
+              )}
+            </div>
+          </div>
+        )}
+        {savedMsg && (
+          <div className="flash ok" style={{ marginBottom: 14 }}>{savedMsg}</div>
         )}
 
         <div className="field-grid">
@@ -395,13 +538,19 @@ export default function ScheduleClient({
           </div>
 
           <div className="actions">
+            {typeof selectedChildId === "number" ? (
+              <button className="btn ghost" onClick={saveSchedule} disabled={saving}>
+                {saving ? "저장 중..." : (loadedScheduleId ? "이 일정표 덮어쓰기 저장" : "이 일정표 저장")}
+              </button>
+            ) : (
+              <span className="hint" style={{ margin: 0 }}>
+                💾 저장하려면 위에서 “저장된 아동 불러오기”로 아동을 먼저 선택해주세요.
+              </span>
+            )}
             <button className="btn" onClick={downloadDocx} disabled={downloading}>
               {downloading ? "생성 중..." : "한글파일(.docx) 다운로드"}
             </button>
             <button className="btn ghost sm" onClick={() => window.print()}>인쇄 / PDF 저장</button>
-            <span className="hint" style={{ margin: 0 }}>
-              .docx 파일은 한글에서 바로 열어 편집·저장할 수 있어요.
-            </span>
           </div>
         </div>
       )}
