@@ -304,7 +304,9 @@ function rewriteCalendar(
         const t = sessionMap.get(day);
         if (t) text = t.padEnd(11, " ").slice(0, 11);
       }
-      return setCellText(cellXml, text);
+      // 시간 텍스트는 항상 작은 시간폰트(charPrIDRef=2)로. 빈 셀의 원래
+      // charPrIDRef(38=큰 폰트, 39=빨강, 등) 가 그대로 쓰이면 어색.
+      return setCellText(cellXml, text, 2);
     }
 
     // 그 외(헤더 등) 셀은 그대로
@@ -313,16 +315,33 @@ function rewriteCalendar(
 }
 
 // 셀 안의 hp:t 내용 교체. 두 패턴 처리:
-//   A) <hp:run X><hp:t>이전</hp:t></hp:run>  → 텍스트만 교체
-//   B) <hp:run X/>                            → <hp:run X><hp:t>새</hp:t></hp:run>
-function setCellText(cellXml: string, text: string): string {
+//   A) <hp:run X><hp:t>이전</hp:t></hp:run>  → 텍스트(필요시 X 도) 교체
+//   B) <hp:run X/>                            → <hp:run X|forcedPid><hp:t>새</hp:t></hp:run>
+// forceCharPrIDRef 가 주어지면 원래 charPrIDRef 와 무관하게 그 값으로 덮어씀.
+function setCellText(cellXml: string, text: string, forceCharPrIDRef?: number): string {
   const escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  if (forceCharPrIDRef !== undefined) {
+    const pid = String(forceCharPrIDRef);
+    if (/<hp:run\s+charPrIDRef="\d+"\s*>\s*<hp:t>[^<]*<\/hp:t>\s*<\/hp:run>/.test(cellXml)) {
+      return cellXml.replace(
+        /<hp:run\s+charPrIDRef="\d+"\s*>\s*<hp:t>[^<]*<\/hp:t>\s*<\/hp:run>/,
+        `<hp:run charPrIDRef="${pid}"><hp:t>${escaped}</hp:t></hp:run>`
+      );
+    }
+    if (/<hp:run\s+charPrIDRef="\d+"\s*\/>/.test(cellXml)) {
+      return cellXml.replace(
+        /<hp:run\s+charPrIDRef="\d+"\s*\/>/,
+        `<hp:run charPrIDRef="${pid}"><hp:t>${escaped}</hp:t></hp:run>`
+      );
+    }
+  }
+  // 원래 charPrIDRef 유지 모드 (날짜셀에서 주말 빨/파 보존용)
   if (/<hp:t>[^<]*<\/hp:t>/.test(cellXml)) {
     return cellXml.replace(/<hp:t>[^<]*<\/hp:t>/, `<hp:t>${escaped}</hp:t>`);
   }
-  if (/<hp:run charPrIDRef="\d+"\/>/.test(cellXml)) {
+  if (/<hp:run\s+charPrIDRef="\d+"\s*\/>/.test(cellXml)) {
     return cellXml.replace(
-      /<hp:run charPrIDRef="(\d+)"\/>/,
+      /<hp:run\s+charPrIDRef="(\d+)"\s*\/>/,
       `<hp:run charPrIDRef="$1"><hp:t>${escaped}</hp:t></hp:run>`
     );
   }
