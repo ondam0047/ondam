@@ -260,8 +260,10 @@ function substituteSectionXml(xml: string, p: Payload): string {
     const calEnd = out.indexOf("</hp:tbl>", calStart) + "</hp:tbl>".length;
     let cal = out.slice(calStart, calEnd);
 
-    // 회기 시간 모두 비우기
-    cal = cal.replace(/<hp:t>\d{2}:\d{2}~\d{2}:\d{2}<\/hp:t>/g, `<hp:t></hp:t>`);
+    // 회기 시간 비우기 — 빈 태그(<hp:t></hp:t>) 나 1글자로 바꾸면 한글이 '문서
+    // 변조'로 판단하므로, 원본과 동일한 길이(11자) 공백으로 padding.
+    // (D=같은 길이 시간 / E=11칸 공백 둘 다 정상 동작 확인됨)
+    cal = cal.replace(/<hp:t>\d{2}:\d{2}~\d{2}:\d{2}<\/hp:t>/g, `<hp:t>           </hp:t>`);
 
     // 날짜 1..28을 새 달의 자리에 맞게 재배치
     const newDays = buildNewCalendarDays(p.year, p.month);
