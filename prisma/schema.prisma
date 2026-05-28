@@ -1,0 +1,40 @@
+// 온담말언어발달센터 통합관리 — 데이터 스키마
+// SQLite (개발/소규모 운영용) — Prisma 7
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Therapist {
+  id        Int      @id @default(autoincrement())
+  name      String
+  phone     String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  children  Child[]
+}
+
+model Child {
+  id               Int       @id @default(autoincrement())
+  name             String
+  birthDate        String?   // YY.MM.DD 또는 YYYY-MM-DD 형식 자유
+  serviceType      String    // "언어재활" 등
+  mgmtNumber       String?   // 사회복지서비스 관리번호 (있으면)
+  defaultSlot      String?   // "16:00~16:50"
+  defaultDays      String?   // "3,4" — 콤마 구분 요일 (0=일)
+  defaultUnit      Int       @default(65000) // 회당 단가
+  defaultTarget    Int       @default(5)     // 월 목표 회기
+  memo             String?
+  active           Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  therapistId      Int?
+  therapist        Therapist? @relation(fields: [therapistId], references: [id])
+}
