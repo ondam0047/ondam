@@ -300,18 +300,39 @@ function rewriteCalendar(
       const pos = week * 7 + dow;
       const day = pos - offset + 1;
       let text = "           "; // 11칸 공백 기본
+      let hasSession = false;
       if (day >= 1 && day <= dim) {
         const t = sessionMap.get(day);
-        if (t) text = t.padEnd(11, " ").slice(0, 11);
+        if (t) { text = t.padEnd(11, " ").slice(0, 11); hasSession = true; }
       }
-      // 시간 텍스트는 항상 작은 시간폰트(charPrIDRef=2)로. 빈 셀의 원래
-      // charPrIDRef(38=큰 폰트, 39=빨강, 등) 가 그대로 쓰이면 어색.
-      return setCellText(cellXml, text, 2);
+      // 시간 텍스트는 항상 작은 시간폰트(charPrIDRef=2)로.
+      let result = setCellText(cellXml, text, 2);
+      // 실제 회기 시간이 들어가는 칸은 줄바꿈 2줄 라인세그로 교체
+      // (양식 원본의 16:00~16:50 칸과 동일한 시각 효과)
+      if (hasSession) {
+        result = ensureTwoLineSeg(result);
+      }
+      return result;
     }
 
     // 그 외(헤더 등) 셀은 그대로
     return cellXml;
   });
+}
+
+// 시간 셀의 linesegarray 를 양식 원본 시간 셀(2줄로 wrap) 형태로 강제.
+// 단일 lineseg(textpos=0) 만 있는 경우 textpos=6(11자 중 후반) 두 번째 segment 추가.
+function ensureTwoLineSeg(cellXml: string): string {
+  // 이미 textpos="6" 라인세그가 있으면 그대로 둠
+  if (/textpos="6"/.test(cellXml)) return cellXml;
+  // 단일 라인세그를 2줄짜리로 교체
+  return cellXml.replace(
+    /<hp:linesegarray><hp:lineseg\s+textpos="0"[^/]*\/><\/hp:linesegarray>/,
+    `<hp:linesegarray>` +
+    `<hp:lineseg textpos="0" vertpos="0" vertsize="900" textheight="900" baseline="765" spacing="540" horzpos="0" horzsize="3156" flags="393216"/>` +
+    `<hp:lineseg textpos="6" vertpos="1440" vertsize="900" textheight="900" baseline="765" spacing="540" horzpos="0" horzsize="3156" flags="393216"/>` +
+    `</hp:linesegarray>`
+  );
 }
 
 // 셀 안의 hp:t 내용 교체. 두 패턴 처리:
