@@ -48,28 +48,28 @@ export default function ChildForm({
 
   return (
     <form action={action}>
-      <div className="field-grid">
-        <div>
-          <label className="fl">이름 *</label>
-          <input name="name" defaultValue={c.name} required />
+      <div className="form-grid">
+        <div className="field">
+          <label>이름<span className="req">*</span></label>
+          <input className="input" name="name" defaultValue={c.name} required />
         </div>
-        <div>
-          <label className="fl">생년월일 (자유 형식)</label>
-          <input name="birthDate" defaultValue={c.birthDate ?? ""} placeholder="예: 22.04.13" />
+        <div className="field">
+          <label>생년월일 (자유 형식)</label>
+          <input className="input" name="birthDate" defaultValue={c.birthDate ?? ""} placeholder="예: 22.04.13" />
         </div>
-        <div>
-          <label className="fl">서비스 종류</label>
-          <select name="serviceType" defaultValue={c.serviceType}>
+        <div className="field">
+          <label>서비스 종류</label>
+          <select className="select" name="serviceType" defaultValue={c.serviceType}>
             {SERVICE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>
-        <div>
-          <label className="fl">관리번호 (선택)</label>
-          <input name="mgmtNumber" defaultValue={c.mgmtNumber ?? ""} />
+        <div className="field">
+          <label>관리번호 (선택)</label>
+          <input className="input" name="mgmtNumber" defaultValue={c.mgmtNumber ?? ""} />
         </div>
-        <div>
-          <label className="fl">담당 치료사</label>
-          <select name="therapistId" defaultValue={c.therapistId?.toString() ?? ""}>
+        <div className="field">
+          <label>담당 치료사</label>
+          <select className="select" name="therapistId" defaultValue={c.therapistId?.toString() ?? ""}>
             <option value="">— 미지정 —</option>
             {therapists.map((t) => (
               <option key={t.id} value={t.id} disabled={!t.active}>
@@ -78,37 +78,43 @@ export default function ChildForm({
             ))}
           </select>
         </div>
-        <div>
-          <label className="fl">월 목표 회기</label>
-          <select name="defaultTarget" defaultValue={c.defaultTarget}>
+      </div>
+
+      <div className="divider" />
+
+      <div className="label-block">기본값 <span className="small">— 일정표에서 이 아동을 불러올 때 자동 채워지는 값</span></div>
+      <div className="form-grid">
+        <div className="field">
+          <label>월 목표 회기</label>
+          <select className="select" name="defaultTarget" defaultValue={c.defaultTarget}>
             {[4, 5, 6, 7, 8].map((i) => <option key={i} value={i}>{i}회</option>)}
           </select>
         </div>
-        <div>
-          <label className="fl">회당 단가 (원)</label>
-          <input name="defaultUnit" type="number" defaultValue={c.defaultUnit} />
+        <div className="field">
+          <label>회당 단가 (원)</label>
+          <input className="input" name="defaultUnit" type="number" defaultValue={c.defaultUnit} />
         </div>
-        <div>
-          <label className="fl">기본 시간대</label>
-          <select name="defaultSlot" defaultValue={c.defaultSlot ?? ""}>
+        <div className="field">
+          <label>기본 시간대</label>
+          <select className="select" name="defaultSlot" defaultValue={c.defaultSlot ?? ""}>
             <option value="">— 미지정 —</option>
             {SLOTS.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
       </div>
 
-      <div style={{ marginTop: 16 }}>
-        <label className="fl">기본 반복 요일 (탭하여 선택)</label>
+      <div className="field" style={{ marginTop: 14 }}>
+        <label>기본 반복 요일 (탭하여 선택)</label>
         <DaySelector initial={[...selectedDays].sort()} />
       </div>
 
-      <div style={{ marginTop: 16 }}>
-        <label className="fl">메모 (선택)</label>
-        <textarea name="memo" defaultValue={c.memo ?? ""} placeholder="아동 특이사항·치료 목표 등" />
+      <div className="field" style={{ marginTop: 14 }}>
+        <label>메모 (선택)</label>
+        <textarea className="textarea" name="memo" defaultValue={c.memo ?? ""} placeholder="아동 특이사항·치료 목표 등" />
       </div>
 
       {showActive && (
-        <div style={{ marginTop: 16 }}>
+        <div style={{ marginTop: 14 }}>
           <label className="modal-check">
             <input type="checkbox" name="active" defaultChecked={c.active ?? true} />
             활동 중인 아동
@@ -116,9 +122,10 @@ export default function ChildForm({
         </div>
       )}
 
-      <div className="actions">
-        <button className="btn" type="submit">{submitLabel}</button>
-        <Link className="btn ghost sm" href="/children">취소</Link>
+      <div className="divider" />
+      <div style={{ display: "flex", gap: 8 }}>
+        <button className="btn btn-primary" type="submit">{submitLabel}</button>
+        <Link className="btn btn-ghost" href="/children">취소</Link>
       </div>
     </form>
   );

@@ -15,30 +15,42 @@ export default async function EditTherapistPage(props: PageProps<"/therapists/[i
   const update = updateTherapist.bind(null, t.id);
 
   return (
-    <div className="card">
-      <h2><span className="n">✎</span>치료사 수정 — {t.name}</h2>
-      <form action={update}>
-        <div className="field-grid">
-          <div>
-            <label className="fl">이름</label>
-            <input name="name" defaultValue={t.name} required />
-          </div>
-          <div>
-            <label className="fl">전화 (선택)</label>
-            <input name="phone" defaultValue={t.phone ?? ""} />
-          </div>
-          <div style={{ alignSelf: "end" }}>
-            <label className="modal-check">
-              <input type="checkbox" name="active" defaultChecked={t.active} />
-              활동 중
-            </label>
-          </div>
+    <>
+      <div className="section-head">
+        <div>
+          <h2>치료사 수정 — {t.name}</h2>
+          <p>이름·전화·활동 상태를 바꿀 수 있어요.</p>
         </div>
-        <div className="actions">
-          <button className="btn" type="submit">저장</button>
-          <Link className="btn ghost sm" href="/therapists">취소</Link>
+        <Link className="btn btn-ghost" href="/therapists">← 목록</Link>
+      </div>
+
+      <div className="card">
+        <div className="card-body">
+          <form action={update}>
+            <div className="form-grid">
+              <div className="field">
+                <label>이름<span className="req">*</span></label>
+                <input className="input" name="name" defaultValue={t.name} required />
+              </div>
+              <div className="field">
+                <label>전화 (선택)</label>
+                <input className="input" name="phone" defaultValue={t.phone ?? ""} />
+              </div>
+              <div className="field" style={{ alignSelf: "end" }}>
+                <label className="modal-check">
+                  <input type="checkbox" name="active" defaultChecked={t.active} />
+                  활동 중
+                </label>
+              </div>
+            </div>
+            <div className="divider" />
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="btn btn-primary" type="submit">저장</button>
+              <Link className="btn btn-ghost" href="/therapists">취소</Link>
+            </div>
+          </form>
         </div>
-      </form>
-    </div>
+      </div>
+    </>
   );
 }

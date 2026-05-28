@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { updateChild } from "../../actions";
 import ChildForm from "../../ChildForm";
@@ -22,9 +23,20 @@ export default async function EditChildPage(props: PageProps<"/children/[id]/edi
   const update = updateChild.bind(null, child.id);
 
   return (
-    <div className="card">
-      <h2><span className="n">✎</span>아동 수정 — {child.name}</h2>
-      <ChildForm child={child} therapists={therapists} action={update} submitLabel="저장" showActive />
-    </div>
+    <>
+      <div className="section-head">
+        <div>
+          <h2>아동 수정 — {child.name}</h2>
+          <p>저장된 일정표는 그대로 유지되고, 새 일정표만 변경된 기본값을 사용합니다.</p>
+        </div>
+        <Link className="btn btn-ghost" href="/children">← 목록</Link>
+      </div>
+
+      <div className="card">
+        <div className="card-body">
+          <ChildForm child={child} therapists={therapists} action={update} submitLabel="저장" showActive />
+        </div>
+      </div>
+    </>
   );
 }

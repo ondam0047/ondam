@@ -102,56 +102,78 @@ export default function RecordPage() {
 
   return (
     <>
-      <div className="card">
-        <h2><span className="n">1</span>서비스제공내역 엑셀 업로드</h2>
-        <div
-          className={"drop" + (dragOver ? " over" : "")}
-          onClick={() => fileRef.current?.click()}
-          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-          onDragEnter={(e) => { e.preventDefault(); setDragOver(true); }}
-          onDragLeave={(e) => { e.preventDefault(); setDragOver(false); }}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDragOver(false);
-            const f = e.dataTransfer.files[0];
-            if (f) readExcel(f);
-          }}
-        >
-          <div className="big">엑셀 파일을 여기에 끌어다 놓거나 클릭</div>
-          <div className="sm2">
-            전자바우처에서 받은 <b>서비스제공내역.xls</b> · 치료사 본인 파일
-          </div>
+      <div className="section-head">
+        <div>
+          <h2>기록지 자동완성</h2>
+          <p>전자바우처에서 받은 엑셀을 올리면 아동별 회기·승인번호가 자동으로 채워져요.</p>
         </div>
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".xls,.xlsx"
-          style={{ display: "none" }}
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) readExcel(f);
-          }}
-        />
-        {error && <div className="flash warn" style={{ marginTop: 12 }}>{error}</div>}
-        {uploadInfo && <div className="hint" dangerouslySetInnerHTML={{ __html: uploadInfo }} />}
+      </div>
+
+      <div className="card">
+        <div className="card-header">
+          <span className="step">1</span>
+          <h2>서비스제공내역 엑셀 업로드</h2>
+          <span className="hint">.xls / .xlsx 모두 지원</span>
+        </div>
+        <div className="card-body">
+          <div
+            className={"drop" + (dragOver ? " over" : "")}
+            onClick={() => fileRef.current?.click()}
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragEnter={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={(e) => { e.preventDefault(); setDragOver(false); }}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+              const f = e.dataTransfer.files[0];
+              if (f) readExcel(f);
+            }}
+          >
+            <div className="big">엑셀 파일을 여기에 끌어다 놓거나 클릭</div>
+            <div className="sm2">
+              전자바우처에서 받은 <b>서비스제공내역.xls</b> · 치료사 본인 파일
+            </div>
+          </div>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".xls,.xlsx"
+            style={{ display: "none" }}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) readExcel(f);
+            }}
+          />
+          {error && <div className="flash warn" style={{ marginTop: 12 }}>{error}</div>}
+          {uploadInfo && (
+            <div className="tip" style={{ marginTop: 12 }} dangerouslySetInnerHTML={{ __html: uploadInfo }} />
+          )}
+        </div>
       </div>
 
       {names.length > 0 && (
-        <>
-          <div className="childbar">
-            {names.map((n) => (
-              <button
-                key={n}
-                className={"childbtn" + (n === curChild ? " active" : "")}
-                onClick={() => setCurChild(n)}
-              >
-                {n}<span className="cnt">{grouped[n].length}건</span>
-              </button>
-            ))}
+        <div className="card">
+          <div className="card-header">
+            <span className="step">2</span>
+            <h2>아동별 기록지 작성</h2>
+            <span className="hint">아동 탭을 눌러 전환하세요</span>
           </div>
+          <div className="card-body">
+            <div className="childbar">
+              {names.map((n) => (
+                <button
+                  key={n}
+                  className={"childbtn" + (n === curChild ? " active" : "")}
+                  onClick={() => setCurChild(n)}
+                >
+                  {n}<span className="cnt">{grouped[n].length}건</span>
+                </button>
+              ))}
+            </div>
 
-          {curChild && <RecordSheet child={curChild} rows={grouped[curChild]} therapist={therapist} />}
-        </>
+            {curChild && <RecordSheet child={curChild} rows={grouped[curChild]} therapist={therapist} />}
+          </div>
+        </div>
       )}
     </>
   );
@@ -360,12 +382,12 @@ function RecordSheet({ child, rows, therapist }: { child: string; rows: SessionR
         />
       </div>
 
-      <div className="actions">
-        <button className="btn" onClick={downloadDocx} disabled={downloading}>
-          {downloading ? "생성 중..." : "한글파일(.docx) 다운로드"}
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 20 }}>
+        <button className="btn btn-primary" onClick={downloadDocx} disabled={downloading}>
+          {downloading ? "생성 중..." : "워드파일(.docx) 다운로드"}
         </button>
-        <button className="btn ghost sm" onClick={() => window.print()}>인쇄 / PDF 저장</button>
-        <span className="hint" style={{ margin: 0, alignSelf: "center" }}>
+        <button className="btn btn-ghost btn-sm" onClick={() => window.print()}>인쇄 / PDF</button>
+        <span className="sub-mute" style={{ marginLeft: "auto" }}>
           .docx 파일은 한글에서 바로 열어 편집·저장할 수 있어요.
         </span>
       </div>

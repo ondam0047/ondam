@@ -377,175 +377,207 @@ export default function ScheduleClient({
 
   return (
     <>
+      <div className="section-head">
+        <div>
+          <h2>일정표 만들기</h2>
+          <p>아동·치료사·반복 요일로 한 달치 회기를 자동 생성합니다.</p>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Link href="/children/new" className="btn btn-ghost">
+            <PlusIcon /> 아동 등록
+          </Link>
+        </div>
+      </div>
+
       <div className="card">
-        <h2><span className="n">1</span>아동 정보 & 패턴 설정</h2>
-
-        {childrenOpts.length > 0 && (
-          <div style={{ marginBottom: 14 }}>
-            <label className="fl">저장된 아동 불러오기</label>
-            <select value={selectedChildId === "" ? "" : String(selectedChildId)} onChange={(e) => loadChild(e.target.value)}>
-              <option value="">— 직접 입력 —</option>
-              {childrenOpts.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                  {c.therapistName ? ` · ${c.therapistName}` : ""}
-                  {c.defaultSlot ? ` · ${c.defaultSlot}` : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-        {childrenOpts.length === 0 && (
-          <div className="hint" style={{ marginBottom: 14 }}>
-            💡 <Link href="/children/new" style={{ color: "var(--forest)", fontWeight: 700 }}>아동을 미리 등록</Link>해두면 매월 정보 입력 없이 한 번에 불러올 수 있어요.
-          </div>
-        )}
-
-        {typeof selectedChildId === "number" && savedList.length > 0 && (
-          <div style={{ marginBottom: 14 }}>
-            <label className="fl">이 아동의 저장된 일정표 ({savedList.length}개)</label>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div className="card-header">
+          <span className="step">1</span>
+          <h2>아동 정보 & 패턴 설정</h2>
+          <span className="hint">아동을 미리 등록해두면 매월 한 번에 불러올 수 있어요</span>
+        </div>
+        <div className="card-body">
+          {childrenOpts.length > 0 && (
+            <div className="field" style={{ marginBottom: 16 }}>
+              <label>저장된 아동 불러오기</label>
               <select
-                value={loadedScheduleId ?? ""}
-                onChange={(e) => loadSavedSchedule(e.target.value)}
-                style={{ flex: 1 }}
+                className="select"
+                value={selectedChildId === "" ? "" : String(selectedChildId)}
+                onChange={(e) => loadChild(e.target.value)}
               >
-                <option value="">— 선택 —</option>
-                {savedList.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.year}년 {s.month}월 · {s._count.sessions}회 · {new Date(s.updatedAt).toLocaleDateString("ko-KR")}
+                <option value="">— 직접 입력 —</option>
+                {childrenOpts.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                    {c.therapistName ? ` · ${c.therapistName}` : ""}
+                    {c.defaultSlot ? ` · ${c.defaultSlot}` : ""}
                   </option>
                 ))}
               </select>
-              {loadedScheduleId !== null && (
-                <button
-                  type="button"
-                  className="btn ghost sm danger"
-                  onClick={() => deleteSaved(loadedScheduleId)}
-                >이 일정표 삭제</button>
+            </div>
+          )}
+          {childrenOpts.length === 0 && (
+            <div className="tip">
+              💡 <Link href="/children/new"><b>아동을 미리 등록</b></Link>해두면 매월 정보 입력 없이 한 번에 불러올 수 있어요.
+            </div>
+          )}
+
+          {typeof selectedChildId === "number" && savedList.length > 0 && (
+            <div className="field" style={{ marginBottom: 16 }}>
+              <label>이 아동의 저장된 일정표 ({savedList.length}개)</label>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <select
+                  className="select"
+                  value={loadedScheduleId ?? ""}
+                  onChange={(e) => loadSavedSchedule(e.target.value)}
+                  style={{ flex: 1 }}
+                >
+                  <option value="">— 선택 —</option>
+                  {savedList.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.year}년 {s.month}월 · {s._count.sessions}회 · {new Date(s.updatedAt).toLocaleDateString("ko-KR")}
+                    </option>
+                  ))}
+                </select>
+                {loadedScheduleId !== null && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    style={{ color: "var(--danger)" }}
+                    onClick={() => deleteSaved(loadedScheduleId)}
+                  >삭제</button>
+                )}
+              </div>
+            </div>
+          )}
+          {savedMsg && (
+            <div className="flash ok" style={{ marginBottom: 14 }}>{savedMsg}</div>
+          )}
+
+          <div className="form-grid">
+            <div className="field">
+              <label>대상자 성명<span className="req">*</span></label>
+              <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
+            </div>
+            <div className="field">
+              <label>치료사(제공자)<span className="req">*</span></label>
+              {therapists.length > 0 ? (
+                <select className="select" value={therapist} onChange={(e) => setTherapist(e.target.value)}>
+                  {therapists.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
+                  {!therapists.some((t) => t.name === therapist) && therapist && (
+                    <option value={therapist}>{therapist}</option>
+                  )}
+                </select>
+              ) : (
+                <input className="input" value={therapist} onChange={(e) => setTherapist(e.target.value)} />
               )}
             </div>
-          </div>
-        )}
-        {savedMsg && (
-          <div className="flash ok" style={{ marginBottom: 14 }}>{savedMsg}</div>
-        )}
-
-        <div className="field-grid">
-          <div>
-            <label className="fl">대상자 성명</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          <div>
-            <label className="fl">치료사(제공자)</label>
-            {therapists.length > 0 ? (
-              <select value={therapist} onChange={(e) => setTherapist(e.target.value)}>
-                {therapists.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
-                {!therapists.some((t) => t.name === therapist) && therapist && (
-                  <option value={therapist}>{therapist}</option>
-                )}
+            <div className="field">
+              <label>서비스 종류</label>
+              <select className="select" value={serviceType} onChange={(e) => setServiceType(e.target.value)}>
+                {SERVICE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
-            ) : (
-              <input value={therapist} onChange={(e) => setTherapist(e.target.value)} />
+            </div>
+            <div className="field">
+              <label>대상 월</label>
+              <select className="select" value={ym} onChange={(e) => setYm(e.target.value)}>
+                {monthOptions.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label>목표 회기 수</label>
+              <select className="select" value={target} onChange={(e) => setTarget(Number(e.target.value))}>
+                {[4, 5, 6, 7, 8].map((i) => <option key={i} value={i}>{i}회</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="divider" />
+
+          <div className="field-row cols-3" style={{ alignItems: "end" }}>
+            <div className="field">
+              <label>치료 시간대<span className="req">*</span></label>
+              <select className="select" value={defaultSlot} onChange={(e) => setDefaultSlot(e.target.value)}>
+                <option value="">(선택)</option>
+                {SLOTS.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div className="field" style={{ gridColumn: "span 2" }}>
+              <label>반복 요일<span className="req">*</span> <span className="sub-mute">(탭하여 선택)</span></label>
+              <div className="day-row">
+                {WEEK.map((w, i) => {
+                  const on = pattern.includes(i);
+                  return (
+                    <button
+                      key={w} type="button"
+                      className={"day-btn" + (on ? " on" : "")}
+                      onClick={() => togglePattern(i)}
+                    >{w}</button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 20, display: "flex", gap: 10, alignItems: "center" }}>
+            <button
+              className="btn btn-primary"
+              onClick={generate}
+              disabled={!name.trim() || !defaultSlot || pattern.length === 0}
+            >
+              <ArrowRight /> 일정표 생성
+            </button>
+            {(!defaultSlot || pattern.length === 0 || !name.trim()) && (
+              <span className="sub-mute">
+                {!name.trim() ? "대상자 성명 · " : ""}
+                {!defaultSlot ? "치료 시간대 · " : ""}
+                {pattern.length === 0 ? "반복 요일을 " : ""}
+                선택해주세요.
+              </span>
             )}
           </div>
-          <div>
-            <label className="fl">서비스 종류</label>
-            <select value={serviceType} onChange={(e) => setServiceType(e.target.value)}>
-              {SERVICE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="fl">대상 월</label>
-            <select value={ym} onChange={(e) => setYm(e.target.value)}>
-              {monthOptions.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="fl">목표 회기 수</label>
-            <select value={target} onChange={(e) => setTarget(Number(e.target.value))}>
-              {[4, 5, 6, 7, 8].map((i) => <option key={i} value={i}>{i}회</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="fl">치료 시간대</label>
-            <select value={defaultSlot} onChange={(e) => setDefaultSlot(e.target.value)}>
-              <option value="">(선택)</option>
-              {SLOTS.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-        </div>
-        <div style={{ marginTop: 16 }}>
-          <label className="fl">반복 요일 (탭하여 선택)</label>
-          <div className="daypick">
-            {WEEK.map((w, i) => {
-              const on = pattern.includes(i);
-              const cls = "daychip" + (on ? " on" : "") + (i === 0 ? " sun" : "");
-              return (
-                <div key={w} className={cls} onClick={() => togglePattern(i)}>{w}</div>
-              );
-            })}
-          </div>
-        </div>
-        <div style={{ marginTop: 18 }}>
-          <button
-            className="btn"
-            onClick={generate}
-            disabled={!name.trim() || !defaultSlot || pattern.length === 0}
-          >일정표 생성</button>
-          {(!defaultSlot || pattern.length === 0) && (
-            <span className="hint" style={{ marginLeft: 12 }}>
-              {!defaultSlot && "치료 시간대를 선택"}
-              {!defaultSlot && pattern.length === 0 && "하고, "}
-              {pattern.length === 0 && "반복 요일을 한 개 이상 선택"}
-              해주세요.
-            </span>
-          )}
         </div>
       </div>
 
       {sessions && (
         <div className="card" id="schedCard">
-          <div className="sched-head">
-            <div className="sheet-title" style={{ margin: 0, textAlign: "left" }}>
-              서비스 일정표 ({genM}월)
-            </div>
-            <div className={"counter " + (totalCount === target ? "ok" : "short")}>
+          <div className="card-header">
+            <span className="step">2</span>
+            <h2>일정표 미리보기 — {genY}년 {genM}월</h2>
+            <span className={"badge " + (totalCount === target ? "badge-success" : "badge-warn")} style={{ marginLeft: "auto" }}>
               {totalCount === target
-                ? `목표 ${target}회 · 현재 ${totalCount}회 ✓`
-                : `목표 ${target}회 · 현재 ${totalCount}회 (${totalCount < target ? "부족" : "초과"} ${Math.abs(target - totalCount)}회)`}
+                ? `목표 ${target}회 · ${totalCount}회 ✓`
+                : `목표 ${target}회 · ${totalCount}회 (${totalCount < target ? "부족" : "초과"} ${Math.abs(target - totalCount)})`}
+            </span>
+          </div>
+          <div className="card-body">
+
+            <table className="meta-tbl">
+              <tbody>
+                <tr>
+                  <td className="lbl">관리번호</td>
+                  <td><input className="input" value={mgmt} onChange={(e) => setMgmt(e.target.value)} placeholder="(선택)" /></td>
+                  <td className="lbl">성 명</td><td>{name}</td>
+                </tr>
+                <tr>
+                  <td className="lbl">제공자</td><td>{therapist}</td>
+                  <td className="lbl">작성일자</td>
+                  <td>
+                    <input className="input" value={writeDate} onChange={(e) => setWriteDate(e.target.value)} />
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            <CalendarTable y={genY} m={genM} sessions={sessions} onCellClick={openEditor} />
+
+            <div className="tip" style={{ marginTop: 14 }}>
+              <span><b>초록</b>=정규 · <b style={{ color: "#8A6422" }}>주황</b>=보강 · <b style={{ color: "var(--danger)" }}>빨강</b>=공휴일.</span>
+              <span style={{ marginLeft: 12 }}>날짜를 탭하면 회기 추가·시간 변경·제거 가능</span>
             </div>
-          </div>
 
-          <table className="meta-tbl">
-            <tbody>
-              <tr>
-                <td className="lbl">사회복지서비스<br />관리번호</td>
-                <td><input value={mgmt} onChange={(e) => setMgmt(e.target.value)} placeholder="(선택)" /></td>
-                <td className="lbl">성 명</td><td>{name}</td>
-              </tr>
-              <tr>
-                <td className="lbl">사회복지서비스<br />제공자</td><td>{therapist}</td>
-                <td className="lbl">작성일자</td>
-                <td>
-                  <input value={writeDate} onChange={(e) => setWriteDate(e.target.value)} />
-                </td>
-              </tr>
-            </tbody>
-          </table>
-
-          <CalendarTable y={genY} m={genM} sessions={sessions} onCellClick={openEditor} />
-
-          <div className="hint">
-            · 초록칸 = 정규 회기 · <span style={{ color: "var(--terracotta)", fontWeight: 700 }}>주황칸 = 보강</span>
-            · <span style={{ color: "var(--warn)", fontWeight: 700 }}>빨강칸 = 공휴일</span><br />
-            · 날짜를 탭하면 <b>회기 추가·시간 변경·제거</b>를 할 수 있어요.
-          </div>
-
-          <div style={{ marginTop: 22 }}>
-            <div className="block-label">서비스 제공현황</div>
+            <div className="label-block" style={{ marginTop: 22 }}>서비스 제공현황</div>
             <div className="scroll">
               <table className="prov-tbl">
                 <tbody>
@@ -564,10 +596,8 @@ export default function ScheduleClient({
                 </tbody>
               </table>
             </div>
-          </div>
 
-          <div style={{ marginTop: 20 }}>
-            <div className="block-label">서비스 비용</div>
+            <div className="label-block" style={{ marginTop: 20 }}>서비스 비용</div>
             <div className="scroll">
               <table className="prov-tbl">
                 <tbody>
@@ -587,25 +617,26 @@ export default function ScheduleClient({
                 </tbody>
               </table>
             </div>
-          </div>
 
-          <div className="actions">
-            {typeof selectedChildId === "number" ? (
-              <button className="btn ghost" onClick={saveSchedule} disabled={saving}>
-                {saving ? "저장 중..." : (loadedScheduleId ? "이 일정표 덮어쓰기 저장" : "이 일정표 저장")}
+            <div className="divider" />
+
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              {typeof selectedChildId === "number" ? (
+                <button className="btn" onClick={saveSchedule} disabled={saving}>
+                  {saving ? "저장 중..." : (loadedScheduleId ? "이 일정표 덮어쓰기 저장" : "이 일정표 저장")}
+                </button>
+              ) : (
+                <span className="sub-mute">💾 저장하려면 위에서 "저장된 아동 불러오기"로 선택해주세요.</span>
+              )}
+              <span style={{ flex: 1 }} />
+              <button className="btn btn-primary" onClick={downloadHwpx} disabled={downloadingHwpx}>
+                {downloadingHwpx ? "생성 중..." : "한글파일(.hwpx) 다운로드"}
               </button>
-            ) : (
-              <span className="hint" style={{ margin: 0 }}>
-                💾 저장하려면 위에서 “저장된 아동 불러오기”로 아동을 먼저 선택해주세요.
-              </span>
-            )}
-            <button className="btn" onClick={downloadHwpx} disabled={downloadingHwpx}>
-              {downloadingHwpx ? "생성 중..." : "한글파일(.hwpx) 다운로드"}
-            </button>
-            <button className="btn ghost" onClick={downloadDocx} disabled={downloading}>
-              {downloading ? "생성 중..." : "워드파일(.docx) 다운로드"}
-            </button>
-            <button className="btn ghost sm" onClick={() => window.print()}>인쇄 / PDF 저장</button>
+              <button className="btn" onClick={downloadDocx} disabled={downloading}>
+                {downloading ? "생성 중..." : "워드파일(.docx)"}
+              </button>
+              <button className="btn btn-ghost btn-sm" onClick={() => window.print()}>인쇄 / PDF</button>
+            </div>
           </div>
         </div>
       )}
@@ -616,29 +647,46 @@ export default function ScheduleClient({
             <div className="modal-title">
               {genM}월 {editDay}일 ({WEEK[new Date(genY, genM - 1, editDay).getDay()]})
             </div>
-            <label className="fl">치료 시간대</label>
-            <select value={editTime} onChange={(e) => setEditTime(e.target.value)} style={{ marginBottom: 14 }}>
-              {SLOTS.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
+            <div className="field" style={{ marginBottom: 14 }}>
+              <label>치료 시간대</label>
+              <select className="select" value={editTime} onChange={(e) => setEditTime(e.target.value)}>
+                {SLOTS.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
             <label className="modal-check">
               <input type="checkbox" checked={editMakeup} onChange={(e) => setEditMakeup(e.target.checked)} />
               보강 회기로 표시
             </label>
             <div className="modal-actions">
-              <button className="btn" onClick={saveEditor}>{editExists ? "시간 변경" : "회기 추가"}</button>
+              <button className="btn btn-primary btn-sm" onClick={saveEditor}>
+                {editExists ? "시간 변경" : "회기 추가"}
+              </button>
               {editExists && (
-                <button className="btn ghost sm danger" onClick={removeEditor}>회기 제거</button>
+                <button className="btn btn-ghost btn-sm" style={{ color: "var(--danger)" }} onClick={removeEditor}>
+                  회기 제거
+                </button>
               )}
-              <button
-                className="btn ghost sm"
-                style={{ borderColor: "var(--line)", color: "var(--muted)" }}
-                onClick={closeEditor}
-              >취소</button>
+              <button className="btn btn-ghost btn-sm" onClick={closeEditor}>취소</button>
             </div>
           </div>
         </div>
       )}
     </>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+      <path d="M12 5v14 M5 12h14" />
+    </svg>
+  );
+}
+function ArrowRight() {
+  return (
+    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+      <path d="M5 12h14 M12 5l7 7-7 7" />
+    </svg>
   );
 }
 
