@@ -76,7 +76,6 @@ export default function ScheduleClient({
   const [costUnit, setCostUnit] = useState("65,000");
   const [costSelf, setCostSelf] = useState("0");
   const [writeDate, setWriteDate] = useState("");
-  const [downloading, setDownloading] = useState(false);
   const [downloadingHwpx, setDownloadingHwpx] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
@@ -285,50 +284,6 @@ export default function ScheduleClient({
   }
   const unitNumber = parseInt(costUnit.replace(/[^\d]/g, "")) || 0;
   const costTotal = unitNumber * totalCount;
-
-  async function downloadDocx() {
-    if (!sessions) return;
-    setDownloading(true);
-    try {
-      const payload = {
-        childName: name,
-        childBirth,
-        therapist,
-        serviceType,
-        year: genY,
-        month: genM,
-        mgmtNumber: mgmt,
-        writeDate,
-        pvOrg, pvTel, pvCharge, pvType,
-        costUnit, costSelf, costTotal,
-        cycle,
-        target,
-        sessions: days.map((d) => ({
-          day: d,
-          weekday: WEEK[new Date(genY, genM - 1, d).getDay()],
-          time: sessions[d].time,
-          makeup: sessions[d].makeup,
-        })),
-      };
-      const res = await fetch("/api/schedule/docx", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        alert("한글파일 생성에 실패했어요.");
-        return;
-      }
-      const blob = await res.blob();
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `${name || "일정표"}_${genY}년${pad(genM)}월.docx`;
-      a.click();
-      URL.revokeObjectURL(a.href);
-    } finally {
-      setDownloading(false);
-    }
-  }
 
   async function downloadHwpx() {
     if (!sessions) return;
@@ -632,10 +587,6 @@ export default function ScheduleClient({
               <button className="btn btn-primary" onClick={downloadHwpx} disabled={downloadingHwpx}>
                 {downloadingHwpx ? "생성 중..." : "한글파일(.hwpx) 다운로드"}
               </button>
-              <button className="btn" onClick={downloadDocx} disabled={downloading}>
-                {downloading ? "생성 중..." : "워드파일(.docx)"}
-              </button>
-              <button className="btn btn-ghost btn-sm" onClick={() => window.print()}>인쇄 / PDF</button>
             </div>
           </div>
         </div>
