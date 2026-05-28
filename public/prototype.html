@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>온담말 통합관리 — 프로토타입</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/variable/pretendardvariable.css">
+<style>
+  :root{
+    --cream:#F5F1E8; --cream-dark:#EBE5D3; --ink:#1A1F1B;
+    --forest:#2D4A3E; --forest-light:#3F6553; --terracotta:#C97B5A;
+    --terra-soft:#F0D5C6; --muted:#6B6F69; --line:#D9D2BD;
+    --warn:#C0392B; --warn-bg:#FBEAE7;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Pretendard Variable',Pretendard,-apple-system,sans-serif;background:var(--cream);color:var(--ink);line-height:1.55;}
+  .wrap{max-width:1000px;margin:0 auto;padding:24px 20px 80px;}
+
+  /* header */
+  .topbar{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:6px;}
+  .topbar h1{font-size:22px;font-weight:800;letter-spacing:-.02em;}
+  .topbar .tag{font-size:12px;color:var(--terracotta);font-weight:600;letter-spacing:.5px;}
+  .sub{font-size:13px;color:var(--muted);margin-bottom:24px;}
+
+  /* tabs */
+  .tabs{display:flex;gap:6px;background:var(--cream-dark);padding:5px;border-radius:10px;margin-bottom:24px;}
+  .tab{flex:1;padding:11px;border:none;background:transparent;font-family:inherit;font-size:14px;font-weight:600;color:var(--muted);border-radius:7px;cursor:pointer;transition:.15s;}
+  .tab.active{background:#fff;color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.06);}
+
+  .panel{display:none;}
+  .panel.active{display:block;animation:fade .3s;}
+  @keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+
+  /* cards & controls */
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:22px;margin-bottom:18px;}
+  .card h2{font-size:15px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px;}
+  .card h2 .n{width:22px;height:22px;background:var(--forest);color:var(--cream);border-radius:50%;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+
+  .field-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;}
+  label.fl{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;font-weight:600;}
+  input,select,textarea{width:100%;font-family:inherit;font-size:14px;padding:9px 11px;border:1px solid var(--line);border-radius:7px;background:var(--cream);color:var(--ink);}
+  input:focus,select,textarea:focus{outline:none;border-color:var(--forest);}
+  textarea{resize:vertical;min-height:62px;line-height:1.5;}
+
+  .daypick{display:flex;gap:6px;flex-wrap:wrap;}
+  .daychip{flex:1;min-width:38px;text-align:center;padding:9px 0;border:1px solid var(--line);border-radius:7px;font-size:13px;cursor:pointer;user-select:none;background:var(--cream);transition:.12s;}
+  .daychip.on{background:var(--forest);color:var(--cream);border-color:var(--forest);font-weight:700;}
+  .daychip.sun{color:var(--warn);}
+  .daychip.on.sun{color:#fff;}
+
+  .btn{background:var(--forest);color:var(--cream);border:none;padding:11px 20px;border-radius:8px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:.15s;}
+  .btn:hover{background:var(--forest-light);}
+  .btn.ghost{background:transparent;color:var(--forest);border:1px solid var(--forest);}
+  .btn.sm{padding:7px 14px;font-size:13px;}
+
+  /* schedule output */
+  .sched-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:14px;}
+  .counter{font-size:14px;font-weight:600;padding:6px 14px;border-radius:8px;background:var(--cream-dark);}
+  .counter.ok{background:rgba(63,101,83,.13);color:var(--forest);}
+  .counter.short{background:var(--warn-bg);color:var(--warn);}
+
+  table.cal{width:100%;border-collapse:collapse;table-layout:fixed;}
+  table.cal th{font-size:12px;color:var(--muted);padding:7px 0;font-weight:700;border-bottom:1px solid var(--line);}
+  table.cal th.sun{color:var(--warn);}
+  table.cal td{height:62px;vertical-align:top;border:1px solid var(--line);padding:4px 5px;cursor:pointer;position:relative;transition:.1s;}
+  table.cal td.empty{background:#FbF9F4;cursor:default;}
+  table.cal td:hover:not(.empty):not(.holi){background:var(--cream-dark);}
+  td .dnum{font-size:12px;color:var(--muted);font-weight:600;}
+  td.holi{background:var(--warn-bg);cursor:default;}
+  td.holi .hname{font-size:10px;color:var(--warn);font-weight:700;margin-top:3px;line-height:1.2;}
+  td.sess{background:rgba(63,101,83,.09);}
+  td.sess .stime{font-size:9px;color:var(--forest);font-weight:700;margin-top:3px;line-height:1.2;word-break:keep-all;}
+  td.makeup{background:var(--terra-soft);}
+  td.makeup .stime{color:var(--terracotta);}
+  td.makeup .badge{font-size:9px;color:var(--terracotta);font-weight:700;}
+  .block-label{font-size:13px;font-weight:700;margin-bottom:8px;}
+
+  .hint{font-size:12px;color:var(--muted);margin-top:12px;line-height:1.6;}
+
+  /* record sheet */
+  .drop{border:2px dashed var(--line);border-radius:12px;padding:34px 20px;text-align:center;cursor:pointer;transition:.15s;background:#fff;}
+  .drop:hover{border-color:var(--forest);background:var(--cream-dark);}
+  .drop .big{font-size:15px;font-weight:700;margin-bottom:6px;}
+  .drop .sm2{font-size:12px;color:var(--muted);}
+
+  .childbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;}
+  .childbtn{padding:8px 16px;border:1px solid var(--line);background:#fff;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;color:var(--muted);}
+  .childbtn.active{background:var(--ink);color:var(--cream);border-color:var(--ink);}
+  .childbtn .cnt{opacity:.6;font-size:11px;margin-left:4px;}
+
+  /* the form sheet */
+  .sheet{background:#fff;border:1px solid var(--line);border-radius:12px;padding:26px;}
+  .sheet-title{text-align:center;font-size:19px;font-weight:800;margin-bottom:20px;}
+  .meta-tbl{width:100%;border-collapse:collapse;margin-bottom:18px;font-size:13px;}
+  .meta-tbl td{border:1px solid var(--line);padding:8px 10px;}
+  .meta-tbl .lbl{background:var(--cream-dark);font-weight:600;width:90px;white-space:nowrap;}
+
+  .scroll{overflow-x:auto;}
+  .prov-tbl{border-collapse:collapse;font-size:12px;min-width:560px;width:100%;}
+  .prov-tbl th,.prov-tbl td{border:1px solid var(--line);padding:6px 7px;text-align:center;}
+  .prov-tbl th{background:var(--cream-dark);font-weight:700;}
+  .prov-tbl .rowlbl{background:var(--cream-dark);font-weight:600;white-space:nowrap;}
+  .prov-tbl input{padding:5px 6px;font-size:12px;text-align:center;border:1px solid transparent;background:transparent;}
+  .prov-tbl input:focus{border-color:var(--forest);background:var(--cream);}
+
+  .result-block{margin-top:22px;}
+  .result-block h3{font-size:13px;font-weight:700;margin-bottom:12px;}
+  .result-row{border:1px solid var(--line);border-radius:9px;padding:12px;margin-bottom:10px;}
+  .result-row.mismatch{border-color:var(--warn);background:var(--warn-bg);}
+  .rr-head{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:8px;font-size:12px;}
+  .rr-head .pill{background:var(--cream-dark);padding:3px 9px;border-radius:5px;font-weight:600;}
+  .rr-head .pill.appr{font-family:monospace;letter-spacing:.5px;}
+  .rr-head .warnflag{color:var(--warn);font-weight:700;}
+  .rr-head .okflag{color:var(--forest);}
+
+  .opinion{margin-top:18px;}
+  .opinion h3{font-size:13px;font-weight:700;margin-bottom:8px;}
+
+  .actions{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;}
+
+  .empty-state{text-align:center;color:var(--muted);font-size:14px;padding:40px 0;}
+
+  @media print{
+    body{background:#fff;}
+    .app-chrome,.tabs,.topbar,.sub,.childbar,.actions,.drop,.hint{display:none!important;}
+    .card{border:none;padding:0;}
+    .sheet{border:none;padding:0;}
+    .panel{display:block!important;}
+    input,textarea,select{border:none!important;background:#fff!important;}
+  }
+
+  /* modal */
+  .modal-bg{display:none;position:fixed;inset:0;background:rgba(26,31,27,.45);z-index:50;align-items:center;justify-content:center;padding:20px;}
+  .modal{background:#fff;border-radius:14px;padding:22px;width:100%;max-width:330px;box-shadow:0 20px 50px rgba(0,0,0,.25);}
+  .modal-title{font-size:16px;font-weight:800;margin-bottom:16px;}
+  .modal-check{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin-bottom:18px;cursor:pointer;}
+  .modal-actions{display:flex;gap:8px;flex-wrap:wrap;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="app-chrome">
+    <div class="topbar">
+      <h1>온담말언어발달센터</h1>
+      <span class="tag">통합관리 프로토타입</span>
+    </div>
+    <div class="sub">일정표 생성 → 회기 진행 → 엑셀 업로드 → 기록지 자동완성까지, 전체 흐름을 직접 체험해보세요.</div>
+
+    <div class="tabs">
+      <button class="tab active" onclick="showTab(0)">① 일정표 생성기</button>
+      <button class="tab" onclick="showTab(1)">② 기록지 자동완성</button>
+    </div>
+  </div>
+
+  <!-- ============ TAB 1: SCHEDULE ============ -->
+  <div class="panel active" id="panel0">
+    <div class="card">
+      <h2><span class="n">1</span>아동 정보 & 패턴 설정</h2>
+      <div class="field-grid">
+        <div><label class="fl">대상자 성명</label><input id="s_name" value="노하은"></div>
+        <div><label class="fl">치료사(제공자)</label><input id="s_ther" value="주채린"></div>
+        <div><label class="fl">서비스 종류</label>
+          <select id="s_type"><option>언어재활</option><option>놀이치료</option><option>감각통합치료</option></select>
+        </div>
+        <div><label class="fl">대상 월</label>
+          <select id="s_month"></select>
+        </div>
+        <div><label class="fl">목표 회기 수</label>
+          <select id="s_target"></select>
+        </div>
+        <div><label class="fl">치료 시간대</label><select id="s_slot"></select></div>
+      </div>
+      <div style="margin-top:16px">
+        <label class="fl">반복 요일 (탭하여 선택)</label>
+        <div class="daypick" id="daypick"></div>
+      </div>
+      <div style="margin-top:18px">
+        <button class="btn" onclick="genSchedule()">일정표 생성</button>
+      </div>
+    </div>
+
+    <div class="card" id="schedCard" style="display:none">
+      <div class="sched-head">
+        <div class="sheet-title" id="schedTitle" style="margin:0;text-align:left"></div>
+        <div class="counter" id="counter"></div>
+      </div>
+
+      <table class="meta-tbl" id="schedMeta">
+        <tr>
+          <td class="lbl">사회복지서비스<br>관리번호</td><td><input id="m_mgmt" placeholder="(선택)"></td>
+          <td class="lbl">성 명</td><td id="m_name"></td>
+        </tr>
+        <tr>
+          <td class="lbl">사회복지서비스<br>제공자</td><td id="m_prov"></td>
+          <td class="lbl">작성일자</td><td id="m_wdate"></td>
+        </tr>
+      </table>
+
+      <table class="cal" id="calTable"></table>
+      <div class="hint">
+        · 초록칸 = 정규 회기 · <span style="color:var(--terracotta);font-weight:700">주황칸 = 보강</span> · <span style="color:var(--warn);font-weight:700">빨강칸 = 공휴일</span><br>
+        · 날짜를 탭하면 <b>회기 추가·시간 변경·제거</b>를 할 수 있어요. 회기마다 시간을 다르게 잡거나, 보강 날짜를 직접 지정하세요.
+      </div>
+
+      <div style="margin-top:22px">
+        <div class="block-label">서비스 제공현황</div>
+        <div class="scroll">
+          <table class="prov-tbl">
+            <tr><th>서비스 제공자명</th><th>전 화</th><th>담 당</th><th>서비스 종류</th><th>주기</th><th>제공일</th></tr>
+            <tr>
+              <td><input id="pv_org" value="온담말언어발달센터" style="min-width:120px"></td>
+              <td><input id="pv_tel" value="775-0047" style="width:78px"></td>
+              <td><input id="pv_charge" style="width:64px"></td>
+              <td><input id="pv_type" style="width:84px" oninput="syncType()"></td>
+              <td id="pv_cycle"></td><td id="pv_days"></td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <div style="margin-top:20px">
+        <div class="block-label">서비스 비용</div>
+        <div class="scroll">
+          <table class="prov-tbl">
+            <tr><th>서비스 종류</th><th>서비스 단가(/회)</th><th>횟수</th><th>총 서비스 가격</th><th>본인부담금</th></tr>
+            <tr>
+              <td id="cost_type"></td>
+              <td><input id="cost_unit" value="65,000" style="width:80px" oninput="recalcCost()">원</td>
+              <td id="cost_cnt"></td>
+              <td id="cost_total" style="font-weight:700"></td>
+              <td><input id="cost_self" value="0" style="width:56px"></td>
+            </tr>
+          </table>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn ghost sm" onclick="window.print()">인쇄 / PDF 저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TAB 2: RECORD ============ -->
+  <div class="panel" id="panel1">
+    <div class="card">
+      <h2><span class="n">1</span>서비스제공내역 엑셀 업로드</h2>
+      <div class="drop" id="drop" onclick="document.getElementById('file').click()">
+        <div class="big">엑셀 파일을 여기에 끌어다 놓거나 클릭</div>
+        <div class="sm2">전자바우처에서 받은 <b>서비스제공내역.xls</b> · 치료사 본인 파일</div>
+      </div>
+      <input type="file" id="file" accept=".xls,.xlsx" style="display:none">
+      <div class="hint" id="uploadInfo"></div>
+    </div>
+
+    <div id="recordArea"></div>
+  </div>
+
+  <!-- day editor modal -->
+  <div id="dayModal" class="modal-bg">
+    <div class="modal">
+      <div class="modal-title" id="deTitle"></div>
+      <label class="fl">치료 시간대</label>
+      <select id="deSlot" style="margin-bottom:14px"></select>
+      <label class="modal-check" id="deMakeupWrap">
+        <input type="checkbox" id="deMakeup" style="width:auto;margin:0"> 보강 회기로 표시
+      </label>
+      <div class="modal-actions">
+        <button class="btn" id="deSave" onclick="saveDayEditor()">저장</button>
+        <button class="btn ghost sm" id="deRemove" onclick="removeDayEditor()">회기 제거</button>
+        <button class="btn ghost sm" onclick="closeDayEditor()" style="border-color:var(--line);color:var(--muted)">취소</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------- shared data ---------- */
+const WEEK=['일','월','화','수','목','금','토'];
+const SLOTS=['09:00~09:50','09:50~10:40','10:40~11:30','11:30~12:20',
+  '13:30~14:20','14:20~15:10','15:10~16:00','16:00~16:50',
+  '16:50~17:40','17:40~18:30','18:30~19:20'];
+// 2026 공휴일
+const HOL={
+  '2026-1-1':'신정','2026-2-16':'설날연휴','2026-2-17':'설날','2026-2-18':'설날연휴',
+  '2026-3-1':'삼일절','2026-3-2':'대체공휴일','2026-5-5':'어린이날','2026-5-24':'부처님오신날',
+  '2026-5-25':'대체공휴일','2026-6-6':'현충일','2026-8-15':'광복절',
+  '2026-9-24':'추석연휴','2026-9-25':'추석','2026-9-26':'추석연휴','2026-10-3':'개천절',
+  '2026-10-5':'대체공휴일','2026-10-9':'한글날','2026-12-25':'성탄절'
+};
+function holiday(y,m,d){return HOL[`${y}-${m}-${d}`]||null;}
+function pad(n){return String(n).padStart(2,'0');}
+function minusMin(hhmm,mins){let[h,m]=hhmm.split(':').map(Number);let t=h*60+m-mins;if(t<0)t+=1440;return pad(Math.floor(t/60))+':'+pad(t%60);}
+
+/* ---------- tabs ---------- */
+function showTab(i){
+  document.querySelectorAll('.tab').forEach((t,j)=>t.classList.toggle('active',i===j));
+  document.querySelectorAll('.panel').forEach((p,j)=>p.classList.toggle('active',i===j));
+}
+
+/* ---------- init selectors ---------- */
+(function initSched(){
+  const mo=document.getElementById('s_month');
+  const months=[[2026,2],[2026,3],[2026,4],[2026,5],[2026,6],[2026,7],[2026,8],[2026,9]];
+  months.forEach(([y,m])=>{const o=document.createElement('option');o.value=`${y}-${m}`;o.textContent=`${y}년 ${m}월`;mo.appendChild(o);});
+  mo.value='2026-3';
+  const tg=document.getElementById('s_target');
+  for(let i=4;i<=8;i++){const o=document.createElement('option');o.value=i;o.textContent=i+'회';tg.appendChild(o);}
+  tg.value=5;
+  const sl=document.getElementById('s_slot');
+  SLOTS.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;sl.appendChild(o);});
+  sl.value='16:00~16:50';
+  const dsl=document.getElementById('deSlot');
+  SLOTS.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;dsl.appendChild(o);});
+  const dp=document.getElementById('daypick');
+  WEEK.forEach((w,i)=>{const c=document.createElement('div');c.className='daychip'+(i===0?' sun':'');c.textContent=w;c.dataset.d=i;
+    c.onclick=()=>c.classList.toggle('on');dp.appendChild(c);});
+  // default 수 목
+  dp.children[3].classList.add('on');dp.children[4].classList.add('on');
+})();
+
+/* ---------- schedule generation ---------- */
+let sessState={}; // day -> {time, makeup}
+let curY,curM,curSlot;
+
+function genSchedule(){
+  const [y,m]=document.getElementById('s_month').value.split('-').map(Number);
+  curY=y;curM=m;curSlot=document.getElementById('s_slot').value;
+  const pattern=[...document.querySelectorAll('#daypick .daychip')].filter(c=>c.classList.contains('on')).map(c=>+c.dataset.d);
+  sessState={};
+  const dim=new Date(y,m,0).getDate();
+  for(let d=1;d<=dim;d++){
+    const wd=new Date(y,m-1,d).getDay();
+    if(pattern.includes(wd) && !holiday(y,m,d)){sessState[d]={time:curSlot,makeup:false};}
+  }
+  renderCal();
+  document.getElementById('schedCard').style.display='block';
+  const ther=document.getElementById('s_ther').value;
+  const type=document.getElementById('s_type').value;
+  document.getElementById('schedTitle').textContent=`서비스 일정표 (${m}월)`;
+  document.getElementById('m_name').textContent=document.getElementById('s_name').value;
+  document.getElementById('m_prov').textContent=ther;
+  document.getElementById('pv_charge').value=ther;       // 담당 = 치료사, 수정 가능
+  document.getElementById('pv_type').value=type;          // 서비스 종류, 수정 가능
+  document.getElementById('cost_type').textContent=type;
+  // 작성일자 = 전달 말일
+  const prevLast=new Date(y,m-1,0);
+  document.getElementById('m_wdate').textContent=
+    `${String(prevLast.getFullYear()).slice(2)}.${pad(prevLast.getMonth()+1)}.${pad(prevLast.getDate())}`;
+  document.getElementById('schedCard').scrollIntoView({behavior:'smooth'});
+}
+
+let editDay=null;
+function openDayEditor(d){
+  editDay=d;
+  const s=sessState[d];
+  const exists=!!s;
+  const wd=WEEK[new Date(curY,curM-1,d).getDay()];
+  document.getElementById('deTitle').textContent=`${curM}월 ${d}일 (${wd})`;
+  const sel=document.getElementById('deSlot');
+  sel.value=(s&&s.time)?s.time:curSlot;
+  document.getElementById('deRemove').style.display=exists?'inline-block':'none';
+  document.getElementById('deSave').textContent=exists?'시간 변경':'회기 추가';
+  document.getElementById('deMakeupWrap').style.display='flex';
+  document.getElementById('deMakeup').checked=exists?!!s.makeup:true;
+  document.getElementById('dayModal').style.display='flex';
+}
+function closeDayEditor(){document.getElementById('dayModal').style.display='none';editDay=null;}
+function saveDayEditor(){
+  const time=document.getElementById('deSlot').value;
+  const makeup=document.getElementById('deMakeup').checked;
+  sessState[editDay]={time,makeup};
+  closeDayEditor();renderCal();
+}
+function removeDayEditor(){delete sessState[editDay];closeDayEditor();renderCal();}
+
+function renderCal(){
+  const y=curY,m=curM;
+  const dim=new Date(y,m,0).getDate();
+  const first=new Date(y,m-1,1).getDay();
+  let html='<tr>'+WEEK.map((w,i)=>`<th class="${i===0?'sun':''}">${w}</th>`).join('')+'</tr><tr>';
+  let col=0;
+  for(let i=0;i<first;i++){html+='<td class="empty"></td>';col++;}
+  for(let d=1;d<=dim;d++){
+    if(col===7){html+='</tr><tr>';col=0;}
+    const h=holiday(y,m,d);const s=sessState[d];
+    let cls='',inner=`<div class="dnum">${d}</div>`;
+    if(h){cls='holi';inner+=`<div class="hname">${h}</div>`;}
+    else if(s){cls=s.makeup?'sess makeup':'sess';inner+=`<div class="stime">${s.time}${s.makeup?'<div class="badge">보강</div>':''}</div>`;}
+    const click=h?'':`onclick="openDayEditor(${d})"`;
+    html+=`<td class="${cls}" ${click}>${inner}</td>`;col++;
+  }
+  while(col<7&&col>0){html+='<td class="empty"></td>';col++;}
+  html+='</tr>';
+  document.getElementById('calTable').innerHTML=html;
+
+  const days=Object.keys(sessState).map(Number).sort((a,b)=>a-b);
+  const target=+document.getElementById('s_target').value;
+  const c=document.getElementById('counter');
+  if(days.length===target){c.className='counter ok';c.textContent=`목표 ${target}회 · 현재 ${days.length}회 ✓`;}
+  else{c.className='counter short';c.textContent=`목표 ${target}회 · 현재 ${days.length}회 (${days.length<target?'부족':'초과'} ${Math.abs(target-days.length)}회)`;}
+
+  // 주기 / 제공일
+  const wds=[...new Set(days.map(d=>new Date(y,m-1,d).getDay()))].sort();
+  document.getElementById('pv_cycle').textContent=wds.map(w=>WEEK[w]).join(' ');
+  document.getElementById('pv_days').textContent=days.join(' ');
+
+  // 비용: 횟수 = 회기 수, 총액 = 단가 × 횟수
+  document.getElementById('cost_cnt').textContent=days.length;
+  recalcCost();
+}
+
+function recalcCost(){
+  const unit=parseInt((document.getElementById('cost_unit').value||'0').replace(/[^\d]/g,''))||0;
+  const cnt=parseInt(document.getElementById('cost_cnt').textContent)||0;
+  const total=unit*cnt;
+  document.getElementById('cost_total').textContent=total.toLocaleString('ko-KR')+'원';
+}
+
+function syncType(){
+  document.getElementById('cost_type').textContent=document.getElementById('pv_type').value;
+}
+
+/* ---------- record sheet ---------- */
+let grouped={}; // name -> [rows]
+let curChild=null;
+
+document.getElementById('file').addEventListener('change',e=>{if(e.target.files[0])readExcel(e.target.files[0]);});
+const drop=document.getElementById('drop');
+['dragover','dragenter'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.style.borderColor='var(--forest)';}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.style.borderColor='';}));
+drop.addEventListener('drop',e=>{if(e.dataTransfer.files[0])readExcel(e.dataTransfer.files[0]);});
+
+function parseYMD(s){const m=String(s).match(/(\d{4})[.\-\/]\s*(\d{1,2})[.\-\/]\s*(\d{1,2})/);return m?{y:+m[1],mo:+m[2],d:+m[3]}:null;}
+
+function readExcel(file){
+  const r=new FileReader();
+  r.onload=ev=>{
+    try{
+      const wb=XLSX.read(new Uint8Array(ev.target.result),{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,defval:''});
+      // find header row
+      let hi=rows.findIndex(r=>r.includes('대상자')&&r.includes('승인번호'));
+      if(hi<0){alert('헤더(대상자/승인번호)를 찾지 못했어요. 올바른 서비스제공내역 파일인지 확인해주세요.');return;}
+      const H=rows[hi];
+      const col=name=>H.indexOf(name);
+      const ci={name:col('대상자'),birth:col('생년월일'),use:col('서비스이용일자'),
+        end:col('서비스종료시간'),start:col('서비스시작시간'),pay:col('결제일자'),
+        appr:col('승인번호'),amt:col('결제금액'),org:col('제공기관명')};
+      grouped={};
+      for(let i=hi+1;i<rows.length;i++){
+        const row=rows[i];if(!row||!row[ci.name])continue;
+        const nm=String(row[ci.name]).trim();if(!nm)continue;
+        (grouped[nm]=grouped[nm]||[]).push({
+          name:nm,birth:row[ci.birth]||'',use:row[ci.use]||'',
+          end:row[ci.end]||'',pay:row[ci.pay]||'',appr:String(row[ci.appr]||''),
+          amt:row[ci.amt]||'',org:row[ci.org]||'온담말언어발달센터'
+        });
+      }
+      Object.values(grouped).forEach(arr=>arr.sort((a,b)=>{
+        const A=parseYMD(a.use),B=parseYMD(b.use);return (A?A.d:0)-(B?B.d:0);}));
+      // therapist name (meta)
+      let ther='';
+      for(const r0 of rows){const k=r0.indexOf('제공인력 이름');if(k>=0){ther=r0[k+1]||'';break;}}
+      const names=Object.keys(grouped);
+      document.getElementById('uploadInfo').innerHTML=
+        `✓ 불러오기 완료 · 치료사 <b>${ther||'-'}</b> · 아동 ${names.length}명 · 총 ${Object.values(grouped).reduce((a,b)=>a+b.length,0)}건`;
+      curChild=names[0];
+      renderRecordArea(names);
+    }catch(err){alert('파일을 읽는 중 오류가 발생했어요: '+err.message);}
+  };
+  r.readAsArrayBuffer(file);
+}
+
+function renderRecordArea(names){
+  const area=document.getElementById('recordArea');
+  let bar='<div class="childbar">'+names.map(n=>
+    `<button class="childbtn ${n===curChild?'active':''}" onclick="selChild('${n}')">${n}<span class="cnt">${grouped[n].length}건</span></button>`
+  ).join('')+'</div>';
+  area.innerHTML=bar+'<div id="sheetHost"></div>';
+  renderSheet();
+}
+function selChild(n){curChild=n;document.querySelectorAll('.childbtn').forEach(b=>b.classList.toggle('active',b.textContent.startsWith(n)));renderSheet();}
+
+function renderSheet(){
+  const arr=grouped[curChild];if(!arr){return;}
+  const monthSet=[...new Set(arr.map(s=>{const p=parseYMD(s.use);return p?p.mo:'';}))];
+  const month=monthSet[0]||'';
+  const birth=arr[0].birth, org=arr[0].org;
+
+  // top provision table columns
+  let topCols=arr.map((s,i)=>{
+    const p=parseYMD(s.use);const md=p?`${p.mo}/${p.d}`:s.use;
+    const end=String(s.end).slice(0,5);
+    const start=end.match(/^\d\d:\d\d$/)?minusMin(end,50):'';
+    return {i,md,start,end};
+  });
+
+  let html=`<div class="sheet" id="printSheet">
+    <div class="sheet-title">발달재활서비스 제공 기록지 (${month}월)</div>
+    <table class="meta-tbl">
+      <tr><td class="lbl">제공기관명</td><td colspan="3">${org}</td></tr>
+      <tr><td class="lbl">이용자</td><td>성명 : ${curChild}</td><td class="lbl">생년월일</td><td>${birth}</td></tr>
+      <tr><td class="lbl">관리자 서명</td><td></td><td class="lbl">보호자 서명</td><td></td></tr>
+    </table>
+    <div class="scroll"><table class="prov-tbl">
+      <tr><th rowspan="2" style="width:90px">내용 / 월·일</th>${topCols.map(c=>`<th>${c.md}</th>`).join('')}</tr>
+      <tr><td style="background:#fff;border:none"></td></tr>`;
+  // start/end
+  html+=`<tr><td class="rowlbl">시작시간</td>${topCols.map(c=>`<td><input value="${c.start}" data-k="start" data-i="${c.i}"></td>`).join('')}</tr>`;
+  html+=`<tr><td class="rowlbl">종료시간</td>${topCols.map(c=>`<td><input value="${c.end}" data-k="end" data-i="${c.i}"></td>`).join('')}</tr>`;
+  html+=`<tr><td class="rowlbl">바우처(분)</td>${topCols.map(c=>`<td><input value="40" style="width:46px"></td>`).join('')}</tr>`;
+  html+=`<tr><td class="rowlbl">추가구매(분)</td>${topCols.map(c=>`<td><input value="10" style="width:46px"></td>`).join('')}</tr>`;
+  html+=`<tr><td class="rowlbl">총이용금액</td>${topCols.map(c=>`<td><input value="65,000" style="width:64px"></td>`).join('')}</tr>`;
+  html+=`</table></div>`;
+
+  // result block
+  html+=`<div class="result-block"><h3>※ 상태 및 결과 기록 <span style="font-weight:400;color:var(--muted);font-size:12px">— 이용자 상태·서비스 결과는 직접 작성</span></h3>`;
+  arr.forEach((s,i)=>{
+    const pu=parseYMD(s.use),pp=parseYMD(s.pay);
+    const useD=pu?pu.d:'?', payD=pp?pp.d:'?';
+    const match=pu&&pp&&pu.y===pp.y&&pu.mo===pp.mo&&pu.d===pp.d;
+    html+=`<div class="result-row ${match?'':'mismatch'}">
+      <div class="rr-head">
+        <span class="pill">제공일자 ${useD}일</span>
+        <span class="pill">승인일자 ${payD}일</span>
+        <span class="pill appr">승인 ${s.appr}</span>
+        ${match?'<span class="okflag">✓ 일치</span>':'<span class="warnflag">⚠ 제공일자≠승인일자 — 확인 필요</span>'}
+      </div>
+      <textarea placeholder="이용자의 상태 및 서비스 결과를 입력하세요 (예: 종성 /ㄹ/ 단어 수준에서 …)"></textarea>
+    </div>`;
+  });
+  html+=`</div>`;
+
+  // parent opinion
+  html+=`<div class="opinion"><h3>부모 상담 종합 의견</h3>
+    <textarea placeholder="부모 상담 종합 의견을 입력하세요" style="min-height:80px"></textarea></div>`;
+
+  html+=`<div class="actions">
+    <button class="btn ghost sm" onclick="window.print()">인쇄 / PDF 저장</button>
+    <span class="hint" style="margin:0;align-self:center">실제 서비스에서는 이 화면이 기존 .hwp 양식 그대로 출력됩니다.</span>
+  </div></div>`;
+
+  document.getElementById('sheetHost').innerHTML=html;
+
+  // wire start/end recompute
+  document.querySelectorAll('#sheetHost input[data-k="end"]').forEach(inp=>{
+    inp.addEventListener('change',()=>{
+      const v=inp.value.trim();
+      const si=document.querySelector(`#sheetHost input[data-k="start"][data-i="${inp.dataset.i}"]`);
+      if(/^\d\d:\d\d$/.test(v)&&si){si.value=minusMin(v,50);}
+    });
+  });
+}
+</script>
+</body>
+</html>
