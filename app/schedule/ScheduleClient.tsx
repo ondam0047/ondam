@@ -77,6 +77,7 @@ export default function ScheduleClient({
   const [costSelf, setCostSelf] = useState("0");
   const [writeDate, setWriteDate] = useState("");
   const [downloading, setDownloading] = useState(false);
+  const [downloadingHwpx, setDownloadingHwpx] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
 
@@ -329,6 +330,51 @@ export default function ScheduleClient({
     }
   }
 
+  async function downloadHwpx() {
+    if (!sessions) return;
+    setDownloadingHwpx(true);
+    try {
+      const payload = {
+        childName: name,
+        childBirth,
+        therapist,
+        serviceType,
+        year: genY,
+        month: genM,
+        mgmtNumber: mgmt,
+        writeDate,
+        pvOrg, pvTel, pvCharge, pvType,
+        costUnit, costSelf, costTotal,
+        cycle,
+        target,
+        sessions: days.map((d) => ({
+          day: d,
+          weekday: WEEK[new Date(genY, genM - 1, d).getDay()],
+          time: sessions[d].time,
+          makeup: sessions[d].makeup,
+        })),
+      };
+      const res = await fetch("/api/schedule/hwpx", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        alert("한글파일(.hwpx) 생성 실패: " + (e.error ?? res.status));
+        return;
+      }
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${name || "일정표"}_${genY}년${pad(genM)}월.hwpx`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } finally {
+      setDownloadingHwpx(false);
+    }
+  }
+
   return (
     <>
       <div className="card">
@@ -553,8 +599,11 @@ export default function ScheduleClient({
                 💾 저장하려면 위에서 “저장된 아동 불러오기”로 아동을 먼저 선택해주세요.
               </span>
             )}
-            <button className="btn" onClick={downloadDocx} disabled={downloading}>
-              {downloading ? "생성 중..." : "한글파일(.docx) 다운로드"}
+            <button className="btn" onClick={downloadHwpx} disabled={downloadingHwpx}>
+              {downloadingHwpx ? "생성 중..." : "한글파일(.hwpx) 다운로드"}
+            </button>
+            <button className="btn ghost" onClick={downloadDocx} disabled={downloading}>
+              {downloading ? "생성 중..." : "워드파일(.docx) 다운로드"}
             </button>
             <button className="btn ghost sm" onClick={() => window.print()}>인쇄 / PDF 저장</button>
           </div>
