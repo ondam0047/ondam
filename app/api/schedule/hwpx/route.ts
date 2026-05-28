@@ -89,7 +89,11 @@ function buildZip(entries: ZipEntry[]): Buffer {
   const chunks: Buffer[] = [];
   const offsets: number[] = [];
   let offset = 0;
-  const UTF8_FLAG = 0x0800;
+  // 원본 .hwpx 는 UTF-8 플래그 없이(0) 만들어짐 — 파일명들이 전부 ASCII 이므로 OK.
+  // 한글이 이 플래그를 까다롭게 검증하니 일부러 끄고 간다.
+  const NO_FLAGS = 0x0000;
+  // 원본의 version_made_by 와 동일하게: 0x0B17 (Windows NTFS, ZIP spec 2.3)
+  const VERSION_MADE_BY = 0x0B17;
   const DOS_DATE_1980 = 33; // (1980-1980)<<9 | 1<<5 | 1
   const DOS_TIME_ZERO = 0;
   const VERSION_NEEDED = 20;
@@ -100,7 +104,7 @@ function buildZip(entries: ZipEntry[]): Buffer {
     const lfh = Buffer.alloc(30);
     lfh.writeUInt32LE(0x04034b50, 0);
     lfh.writeUInt16LE(VERSION_NEEDED, 4);
-    lfh.writeUInt16LE(UTF8_FLAG, 6);
+    lfh.writeUInt16LE(NO_FLAGS, 6);
     lfh.writeUInt16LE(e.method, 8);
     lfh.writeUInt16LE(DOS_TIME_ZERO, 10);
     lfh.writeUInt16LE(DOS_DATE_1980, 12);
@@ -119,9 +123,9 @@ function buildZip(entries: ZipEntry[]): Buffer {
     const nameBuf = Buffer.from(e.name, "utf8");
     const cdh = Buffer.alloc(46);
     cdh.writeUInt32LE(0x02014b50, 0);
-    cdh.writeUInt16LE(VERSION_NEEDED, 4);
+    cdh.writeUInt16LE(VERSION_MADE_BY, 4);
     cdh.writeUInt16LE(VERSION_NEEDED, 6);
-    cdh.writeUInt16LE(UTF8_FLAG, 8);
+    cdh.writeUInt16LE(NO_FLAGS, 8);
     cdh.writeUInt16LE(e.method, 10);
     cdh.writeUInt16LE(DOS_TIME_ZERO, 12);
     cdh.writeUInt16LE(DOS_DATE_1980, 14);
