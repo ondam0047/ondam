@@ -175,6 +175,44 @@ function RecordSheet({ child, rows, therapist }: { child: string; rows: SessionR
   const [amounts, setAmounts] = useState(rows.map(() => "65,000"));
   const [results, setResults] = useState(rows.map(() => ""));
   const [opinion, setOpinion] = useState("");
+  const [downloading, setDownloading] = useState(false);
+
+  async function downloadDocx() {
+    setDownloading(true);
+    try {
+      const payload = {
+        childName: child,
+        childBirth: birth,
+        org,
+        therapist,
+        month: String(month),
+        opinion,
+        sessions: rows.map((s, i) => ({
+          use: s.use, pay: s.pay, appr: s.appr,
+          start: times[i].start, end: times[i].end,
+          voucher: vouchers[i], extra: extras[i], amount: amounts[i],
+          result: results[i],
+        })),
+      };
+      const res = await fetch("/api/record/docx", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        alert("한글파일 생성에 실패했어요.");
+        return;
+      }
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${child}_${month}월_기록지.docx`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   function setEnd(i: number, v: string) {
     setTimes((prev) => {
@@ -323,9 +361,12 @@ function RecordSheet({ child, rows, therapist }: { child: string; rows: SessionR
       </div>
 
       <div className="actions">
+        <button className="btn" onClick={downloadDocx} disabled={downloading}>
+          {downloading ? "생성 중..." : "한글파일(.docx) 다운로드"}
+        </button>
         <button className="btn ghost sm" onClick={() => window.print()}>인쇄 / PDF 저장</button>
         <span className="hint" style={{ margin: 0, alignSelf: "center" }}>
-          실제 서비스에서는 이 화면이 기존 .hwp 양식 그대로 출력됩니다.
+          .docx 파일은 한글에서 바로 열어 편집·저장할 수 있어요.
         </span>
       </div>
     </div>
