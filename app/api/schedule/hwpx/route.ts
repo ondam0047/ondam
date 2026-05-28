@@ -24,6 +24,7 @@ type Payload = {
   cycle: string;
   target: number;
   sessions: SessionInput[];
+  holidays?: { day: number; name: string }[];
 };
 
 const TEMPLATE_PATH = path.join(process.cwd(), "samples", "일정표_template.hwpx");
@@ -248,7 +249,7 @@ function substituteSectionXml(xml: string, p: Payload): string {
     const calStart = tblStarts[1];
     const calEnd = out.indexOf("</hp:tbl>", calStart) + "</hp:tbl>".length;
     const cal = out.slice(calStart, calEnd);
-    const newCal = rewriteCalendar(cal, p.year, p.month, p.sessions);
+    const newCal = rewriteCalendar(cal, p.year, p.month, p.sessions, p.holidays ?? []);
     out = out.slice(0, calStart) + newCal + out.slice(calEnd);
   }
 
@@ -268,13 +269,16 @@ function rewriteCalendar(
   calXml: string,
   year: number,
   month: number,
-  sessions: SessionInput[]
+  sessions: SessionInput[],
+  holidays: { day: number; name: string }[]
 ): string {
   const dim = new Date(year, month, 0).getDate();
   const offset = new Date(year, month - 1, 1).getDay(); // 0=일
 
   const sessionMap = new Map<number, string>();
   for (const s of sessions) sessionMap.set(s.day, s.time);
+  const holidayMap = new Map<number, string>();
+  for (const h of holidays) holidayMap.set(h.day, h.name);
 
   return calXml.replace(/<hp:tc\s[^>]*>[\s\S]*?<\/hp:tc>/g, (cellXml) => {
     const addrTag = cellXml.match(/<hp:cellAddr[^/]*\/>/)?.[0];
@@ -299,6 +303,15 @@ function rewriteCalendar(
       const dow = (col - 1) / 2;
       const pos = week * 7 + dow;
       const day = pos - offset + 1;
+
+      // 1순위: 공휴일 (회기보다 우선) — 양식 원본의 설/연/휴 자리와 동일하게
+      // charPrIDRef=38 (빨강 큰 폰트) 강제, 1줄 lineseg 유지
+      if (day >= 1 && day <= dim) {
+        const hn = holidayMap.get(day);
+        if (hn) return setCellText(cellXml, hn, 38);
+      }
+
+      // 2순위: 회기 시간
       let text = "           "; // 11칸 공백 기본
       let hasSession = false;
       if (day >= 1 && day <= dim) {
@@ -308,7 +321,6 @@ function rewriteCalendar(
       // 시간 텍스트는 항상 작은 시간폰트(charPrIDRef=2)로.
       let result = setCellText(cellXml, text, 2);
       // 실제 회기 시간이 들어가는 칸은 줄바꿈 2줄 라인세그로 교체
-      // (양식 원본의 16:00~16:50 칸과 동일한 시각 효과)
       if (hasSession) {
         result = ensureTwoLineSeg(result);
       }

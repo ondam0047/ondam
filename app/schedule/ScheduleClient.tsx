@@ -289,6 +289,14 @@ export default function ScheduleClient({
     if (!sessions) return;
     setDownloadingHwpx(true);
     try {
+      // 이 달의 모든 공휴일 (해당 월의 1일~말일 검사)
+      const dimMonth = new Date(genY, genM, 0).getDate();
+      const monthHolidays: { day: number; name: string }[] = [];
+      for (let d = 1; d <= dimMonth; d++) {
+        const hn = holiday(genY, genM, d);
+        if (hn) monthHolidays.push({ day: d, name: hn });
+      }
+
       const payload = {
         childName: name,
         childBirth,
@@ -308,6 +316,7 @@ export default function ScheduleClient({
           time: sessions[d].time,
           makeup: sessions[d].makeup,
         })),
+        holidays: monthHolidays,
       };
       const res = await fetch("/api/schedule/hwpx", {
         method: "POST",
