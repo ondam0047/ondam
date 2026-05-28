@@ -162,17 +162,6 @@ function buildZip(entries: ZipEntry[]): Buffer {
 
 // ─── XML 치환 로직 ─────────────────────────────────────────────────────────
 
-function buildNewCalendarDays(year: number, month: number): string[] {
-  const dim = new Date(year, month, 0).getDate();
-  const offset = new Date(year, month - 1, 1).getDay(); // 0=일
-  const arr = new Array(28).fill("");
-  for (let d = 1; d <= dim; d++) {
-    const pos = offset + d - 1;
-    if (pos < 28) arr[pos] = String(d);
-  }
-  return arr;
-}
-
 function xmlEscape(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
@@ -250,7 +239,7 @@ function substituteSectionXml(xml: string, p: Payload): string {
     whole.replace(/<hp:t>0<\/hp:t>([^<]*)$/, `<hp:t>${xmlEscape(p.costSelf)}</hp:t>$1`)
   );
 
-  // 캘린더: 2번째 hp:tbl 영역
+  // 캘린더: 2번째 hp:tbl 영역을 cellAddr 기반으로 재작성
   const tblStarts: number[] = [];
   const tblRe = /<hp:tbl /g;
   let m: RegExpExecArray | null;
@@ -258,30 +247,86 @@ function substituteSectionXml(xml: string, p: Payload): string {
   if (tblStarts.length >= 2) {
     const calStart = tblStarts[1];
     const calEnd = out.indexOf("</hp:tbl>", calStart) + "</hp:tbl>".length;
-    let cal = out.slice(calStart, calEnd);
-
-    // 회기 시간 비우기 — 빈 태그(<hp:t></hp:t>) 나 1글자로 바꾸면 한글이 '문서
-    // 변조'로 판단하므로, 원본과 동일한 길이(11자) 공백으로 padding.
-    // (D=같은 길이 시간 / E=11칸 공백 둘 다 정상 동작 확인됨)
-    cal = cal.replace(/<hp:t>\d{2}:\d{2}~\d{2}:\d{2}<\/hp:t>/g, `<hp:t>           </hp:t>`);
-
-    // 날짜 1..28을 새 달의 자리에 맞게 재배치
-    const newDays = buildNewCalendarDays(p.year, p.month);
-    let expected = 1;
-    cal = cal.replace(/<hp:t>(\d{1,2})<\/hp:t>/g, (match, ds: string) => {
-      const n = Number(ds);
-      if (n === expected && expected <= 28) {
-        const v = newDays[expected - 1];
-        expected++;
-        return `<hp:t>${v}</hp:t>`;
-      }
-      return match;
-    });
-
-    out = out.slice(0, calStart) + cal + out.slice(calEnd);
+    const cal = out.slice(calStart, calEnd);
+    const newCal = rewriteCalendar(cal, p.year, p.month, p.sessions);
+    out = out.slice(0, calStart) + newCal + out.slice(calEnd);
   }
 
   return out;
+}
+
+// ─── 캘린더 재구성 ─────────────────────────────────────────────────────────
+// 양식 캘린더 좌표계 (Feb 2026 템플릿 분석 결과):
+//   요일 헤더: rowAddr=0,           colAddr=0,2,4,6,8,10,12 (colspan=2)
+//   날짜 셀:  rowAddr=1,3,5,7,9    colAddr=0,2,4,6,8,10,12 (짝수)
+//   시간 셀:  rowAddr=2,4,6,8,10   colAddr=1,3,5,7,9,11,13 (홀수)
+//
+// 새 달의 day d 가 visualPos = offset + (d-1) 자리 차지 → 그 자리의
+// 날짜셀(2W+1, 2DOW) 에 day, 시간셀(2W+2, 2DOW+1) 에 시간 배치.
+// 양식이 5주(28일 + 빈 1주) 까지 커버 → 30·31일 있는 달은 마지막 며칠 잘림.
+function rewriteCalendar(
+  calXml: string,
+  year: number,
+  month: number,
+  sessions: SessionInput[]
+): string {
+  const dim = new Date(year, month, 0).getDate();
+  const offset = new Date(year, month - 1, 1).getDay(); // 0=일
+
+  const sessionMap = new Map<number, string>();
+  for (const s of sessions) sessionMap.set(s.day, s.time);
+
+  return calXml.replace(/<hp:tc\s[^>]*>[\s\S]*?<\/hp:tc>/g, (cellXml) => {
+    const addrTag = cellXml.match(/<hp:cellAddr[^/]*\/>/)?.[0];
+    if (!addrTag) return cellXml;
+    const col = Number(addrTag.match(/colAddr="(\d+)"/)?.[1] ?? -1);
+    const row = Number(addrTag.match(/rowAddr="(\d+)"/)?.[1] ?? -1);
+    if (col < 0 || row < 0) return cellXml;
+
+    // 날짜 셀: row 1·3·5·7·9, col 0·2·4·6·8·10·12
+    if (row >= 1 && row <= 9 && row % 2 === 1 && col >= 0 && col <= 12 && col % 2 === 0) {
+      const week = (row - 1) / 2;
+      const dow = col / 2;
+      const pos = week * 7 + dow;
+      const day = pos - offset + 1;
+      const text = day >= 1 && day <= dim ? String(day) : "";
+      return setCellText(cellXml, text);
+    }
+
+    // 시간 셀: row 2·4·6·8·10, col 1·3·5·7·9·11·13
+    if (row >= 2 && row <= 10 && row % 2 === 0 && col >= 1 && col <= 13 && col % 2 === 1) {
+      const week = (row - 2) / 2;
+      const dow = (col - 1) / 2;
+      const pos = week * 7 + dow;
+      const day = pos - offset + 1;
+      let text = "           "; // 11칸 공백 기본
+      if (day >= 1 && day <= dim) {
+        const t = sessionMap.get(day);
+        if (t) text = t.padEnd(11, " ").slice(0, 11);
+      }
+      return setCellText(cellXml, text);
+    }
+
+    // 그 외(헤더 등) 셀은 그대로
+    return cellXml;
+  });
+}
+
+// 셀 안의 hp:t 내용 교체. 두 패턴 처리:
+//   A) <hp:run X><hp:t>이전</hp:t></hp:run>  → 텍스트만 교체
+//   B) <hp:run X/>                            → <hp:run X><hp:t>새</hp:t></hp:run>
+function setCellText(cellXml: string, text: string): string {
+  const escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  if (/<hp:t>[^<]*<\/hp:t>/.test(cellXml)) {
+    return cellXml.replace(/<hp:t>[^<]*<\/hp:t>/, `<hp:t>${escaped}</hp:t>`);
+  }
+  if (/<hp:run charPrIDRef="\d+"\/>/.test(cellXml)) {
+    return cellXml.replace(
+      /<hp:run charPrIDRef="(\d+)"\/>/,
+      `<hp:run charPrIDRef="$1"><hp:t>${escaped}</hp:t></hp:run>`
+    );
+  }
+  return cellXml;
 }
 
 // ─── 라우트 핸들러 ─────────────────────────────────────────────────────────
