@@ -224,7 +224,7 @@ export default function ScheduleClient({
         <div className="field-grid">
           <div>
             <label className="fl">대상자 성명</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="예: 노하은" />
+            <input value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div>
             <label className="fl">치료사(제공자)</label>
@@ -236,7 +236,7 @@ export default function ScheduleClient({
                 )}
               </select>
             ) : (
-              <input value={therapist} onChange={(e) => setTherapist(e.target.value)} placeholder="예: 주채린" />
+              <input value={therapist} onChange={(e) => setTherapist(e.target.value)} />
             )}
           </div>
           <div>
