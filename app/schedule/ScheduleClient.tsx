@@ -23,10 +23,24 @@ type ChildOption = {
 };
 type TherapistOption = { id: number; name: string };
 
-const MONTH_OPTIONS = [
-  [2026, 2], [2026, 3], [2026, 4], [2026, 5],
-  [2026, 6], [2026, 7], [2026, 8], [2026, 9],
-] as const;
+// 오늘을 기준으로 [전월 1개 + 이번 달 + 다음 6개월] 자동 생성
+function buildMonthOptions(): { value: string; label: string; current: boolean }[] {
+  const now = new Date();
+  const baseYear = now.getFullYear();
+  const baseMonth = now.getMonth() + 1; // 1..12
+  const out: { value: string; label: string; current: boolean }[] = [];
+  for (let offset = -1; offset <= 6; offset++) {
+    const total = baseYear * 12 + (baseMonth - 1) + offset;
+    const y = Math.floor(total / 12);
+    const m = (total % 12) + 1;
+    out.push({
+      value: `${y}-${m}`,
+      label: `${y}년 ${m}월${offset === 0 ? " (이번 달)" : ""}`,
+      current: offset === 0,
+    });
+  }
+  return out;
+}
 
 export default function ScheduleClient({
   children: childrenOpts,
@@ -35,15 +49,19 @@ export default function ScheduleClient({
   children: ChildOption[];
   therapists: TherapistOption[];
 }) {
+  // 오늘 기준 월 옵션 (매 렌더 한 번 계산)
+  const monthOptions = useMemo(() => buildMonthOptions(), []);
+  const defaultYm = monthOptions.find((o) => o.current)?.value ?? monthOptions[0].value;
+
   // form
   const [selectedChildId, setSelectedChildId] = useState<number | "">("");
   const [name, setName] = useState("");
   const [therapist, setTherapist] = useState(therapists[0]?.name ?? "");
   const [serviceType, setServiceType] = useState<string>(SERVICE_TYPES[0]);
-  const [ym, setYm] = useState("2026-3");
+  const [ym, setYm] = useState(defaultYm);
   const [target, setTarget] = useState(5);
-  const [defaultSlot, setDefaultSlot] = useState("16:00~16:50");
-  const [pattern, setPattern] = useState<number[]>([3, 4]); // 수, 목
+  const [defaultSlot, setDefaultSlot] = useState(""); // 미선택
+  const [pattern, setPattern] = useState<number[]>([]); // 미선택
   const [childBirth, setChildBirth] = useState<string>("");
 
   // generated
@@ -248,8 +266,8 @@ export default function ScheduleClient({
           <div>
             <label className="fl">대상 월</label>
             <select value={ym} onChange={(e) => setYm(e.target.value)}>
-              {MONTH_OPTIONS.map(([y, m]) => (
-                <option key={`${y}-${m}`} value={`${y}-${m}`}>{`${y}년 ${m}월`}</option>
+              {monthOptions.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
           </div>
@@ -262,6 +280,7 @@ export default function ScheduleClient({
           <div>
             <label className="fl">치료 시간대</label>
             <select value={defaultSlot} onChange={(e) => setDefaultSlot(e.target.value)}>
+              <option value="">(선택)</option>
               {SLOTS.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
@@ -279,7 +298,19 @@ export default function ScheduleClient({
           </div>
         </div>
         <div style={{ marginTop: 18 }}>
-          <button className="btn" onClick={generate} disabled={!name.trim()}>일정표 생성</button>
+          <button
+            className="btn"
+            onClick={generate}
+            disabled={!name.trim() || !defaultSlot || pattern.length === 0}
+          >일정표 생성</button>
+          {(!defaultSlot || pattern.length === 0) && (
+            <span className="hint" style={{ marginLeft: 12 }}>
+              {!defaultSlot && "치료 시간대를 선택"}
+              {!defaultSlot && pattern.length === 0 && "하고, "}
+              {pattern.length === 0 && "반복 요일을 한 개 이상 선택"}
+              해주세요.
+            </span>
+          )}
         </div>
       </div>
 
