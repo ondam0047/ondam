@@ -75,6 +75,7 @@ export default function ScheduleClient({
   const [pvType, setPvType] = useState("");
   const [costUnit, setCostUnit] = useState("65,000");
   const [costSelf, setCostSelf] = useState("0");
+  const [writeDate, setWriteDate] = useState("");
   const [downloading, setDownloading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
@@ -164,6 +165,7 @@ export default function ScheduleClient({
     setSessions(sessMap);
     setGenY(s.year);
     setGenM(s.month);
+    setWriteDate(s.writeDate ?? defaultWriteDate(s.year, s.month));
     setLoadedScheduleId(id);
     setSavedMsg(`✓ ${s.year}년 ${s.month}월 일정표를 불러왔어요.`);
     requestAnimationFrame(() => {
@@ -186,6 +188,7 @@ export default function ScheduleClient({
         mgmtNumber: mgmt,
         pvOrg, pvTel, pvCharge, pvType,
         costUnit, costSelf,
+        writeDate,
         sessions: days.map((d) => ({
           day: d, time: sessions[d].time, makeup: sessions[d].makeup,
         })),
@@ -235,6 +238,7 @@ export default function ScheduleClient({
     setGenM(m);
     setPvCharge(therapist);
     setPvType(serviceType);
+    setWriteDate(defaultWriteDate(y, m));
     requestAnimationFrame(() => {
       document.getElementById("schedCard")?.scrollIntoView({ behavior: "smooth" });
     });
@@ -274,11 +278,10 @@ export default function ScheduleClient({
     const wds = [...new Set(days.map((d) => new Date(genY, genM - 1, d).getDay()))].sort();
     return wds.map((w) => WEEK[w]).join(" ");
   }, [sessions, days, genY, genM]);
-  const writeDate = useMemo(() => {
-    if (!sessions) return "";
-    const prevLast = new Date(genY, genM - 1, 0);
+  function defaultWriteDate(y: number, m: number) {
+    const prevLast = new Date(y, m - 1, 0);
     return `${String(prevLast.getFullYear()).slice(2)}.${pad(prevLast.getMonth() + 1)}.${pad(prevLast.getDate())}`;
-  }, [sessions, genY, genM]);
+  }
   const unitNumber = parseInt(costUnit.replace(/[^\d]/g, "")) || 0;
   const costTotal = unitNumber * totalCount;
 
@@ -479,7 +482,10 @@ export default function ScheduleClient({
               </tr>
               <tr>
                 <td className="lbl">사회복지서비스<br />제공자</td><td>{therapist}</td>
-                <td className="lbl">작성일자</td><td>{writeDate}</td>
+                <td className="lbl">작성일자</td>
+                <td>
+                  <input value={writeDate} onChange={(e) => setWriteDate(e.target.value)} />
+                </td>
               </tr>
             </tbody>
           </table>

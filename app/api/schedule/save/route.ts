@@ -15,6 +15,7 @@ type SaveBody = {
   pvType: string;
   costUnit: string;
   costSelf: string;
+  writeDate?: string;
   sessions: { day: number; time: string; makeup: boolean }[];
 };
 
@@ -35,6 +36,7 @@ export async function POST(req: NextRequest) {
     pvType: body.pvType,
     costUnit: body.costUnit,
     costSelf: body.costSelf,
+    writeDate: body.writeDate || null,
   };
 
   // upsert: 같은 (child, year, month) 면 덮어쓰기

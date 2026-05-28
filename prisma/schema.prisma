@@ -58,6 +58,7 @@ model Schedule {
   pvType      String
   costUnit    String   // "65,000" 형식 그대로
   costSelf    String   // "0"
+  writeDate   String?  // "26.02.28" 등 자유 형식
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
