@@ -157,17 +157,21 @@ function substituteRecordXml(xml: string, p: Payload): string {
   // 5-6) 금액
   out = replaceSequence(out, T.amounts, sessions.map((s) => s.amount));
 
-  // 6) 결과 기록 5행 — 각 행마다 day, apprDay, apprNum, resultMain, (resultExtra?)
+  // 6) 결과 기록 5행 — '※ 상태 및 결과 기록' 앵커 뒤부터 검색해 처리.
+  //    (양식 위쪽에도 '10', '11' 등 같은 숫자가 있어서 cursor 안 잡아두면
+  //    엉뚱한 셀이 치환됨)
+  const anchorIdx = out.indexOf("※");
+  let recordCursor = anchorIdx >= 0 ? anchorIdx : 0;
   for (let i = 0; i < T.records.length; i++) {
     const tr = T.records[i];
     const ns = sessions[i];
-    // 양식의 원본 텍스트가 모두 unique 한 게 아니므로, 한 행씩 순서대로 치환.
-    // 동일한 값들이 다른 행에 또 나오면 처음 만난 거 한 번만 치환되도록 cursor 유지.
-    out = replaceSequence(
-      out,
-      [tr.day, tr.apprDay, tr.apprNum, tr.resultMain, ...(tr.resultExtra ? [tr.resultExtra] : [])],
-      [ns.useDay || "", ns.payDay || "", ns.apprNumber || "", ns.result || "", ns.resultExtra ?? ""]
-    );
+    const olds = [tr.day, tr.apprDay, tr.apprNum, tr.resultMain, ...(tr.resultExtra ? [tr.resultExtra] : [])];
+    const news = [ns.useDay || "", ns.payDay || "", ns.apprNumber || "", ns.result || "", ns.resultExtra ?? ""];
+    for (let j = 0; j < olds.length; j++) {
+      const r = replaceWithLinesegReset(out, olds[j], news[j], recordCursor);
+      out = r.out;
+      recordCursor = r.nextCursor;
+    }
   }
 
   // 7) 부모 의견
