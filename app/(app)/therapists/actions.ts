@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { hashPassword, requireRole, generateInvitationToken } from "@/lib/auth";
+import { hashPassword, requireRole } from "@/lib/auth";
 
 // ─── 치료사 레코드 ────────────────────────────────────────────────────────
 export async function createTherapist(formData: FormData) {
@@ -149,41 +149,7 @@ export async function approveTherapist(userId: number) {
 
 export async function rejectTherapist(userId: number) {
   await requireRole(["OWNER", "ADMIN"]);
+  // 거절은 User 만 삭제 (Therapist 레코드는 그대로 — 다시 가입 가능)
   await prisma.user.delete({ where: { id: userId } });
-  revalidatePath("/therapists");
-}
-
-// ─── 일회용 초대 ────────────────────────────────────────────────────────
-export async function createInvitation(formData: FormData) {
-  const me = await requireRole(["OWNER", "ADMIN"]);
-  if (!me.centerId) return;
-  const role = String(formData.get("role") ?? "THERAPIST");
-  const name = String(formData.get("name") ?? "").trim();
-  const email = String(formData.get("email") ?? "").trim();
-  if (!["THERAPIST", "ADMIN"].includes(role)) return;
-  if (role === "ADMIN" && me.role !== "OWNER") return; // ADMIN 초대는 OWNER 만
-
-  const token = await generateInvitationToken();
-  const expiresAt = new Date(Date.now() + 7 * 24 * 3600 * 1000); // 7일
-
-  await prisma.invitation.create({
-    data: {
-      token,
-      centerId: me.centerId,
-      role,
-      name: name || null,
-      email: email || null,
-      expiresAt,
-      createdById: me.id,
-    },
-  });
-  revalidatePath("/therapists");
-}
-
-export async function revokeInvitation(id: number) {
-  const me = await requireRole(["OWNER", "ADMIN"]);
-  const inv = await prisma.invitation.findUnique({ where: { id } });
-  if (!inv || inv.centerId !== me.centerId) return;
-  await prisma.invitation.delete({ where: { id } });
   revalidatePath("/therapists");
 }

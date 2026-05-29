@@ -6,9 +6,7 @@ import {
   createTherapistAccount, resetTherapistPassword, deleteTherapistAccount,
   createAdminAccount, toggleAdminActive,
   approveTherapist, rejectTherapist,
-  createInvitation, revokeInvitation,
 } from "./actions";
-import { headers } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +25,7 @@ export default async function TherapistsPage({
   const sp = await searchParams;
   const centerId = me.centerId ?? -1;
 
-  const [therapists, adminUsers, pendingTherapists, myCenter, invitations] = await Promise.all([
+  const [therapists, adminUsers, pendingTherapists, myCenter] = await Promise.all([
     prisma.therapist.findMany({
       where: { centerId },
       orderBy: [{ active: "desc" }, { name: "asc" }],
@@ -46,17 +44,7 @@ export default async function TherapistsPage({
       include: { therapist: true },
     }),
     prisma.center.findUnique({ where: { id: centerId } }),
-    prisma.invitation.findMany({
-      where: { centerId, usedAt: null, expiresAt: { gt: new Date() } },
-      orderBy: { createdAt: "desc" },
-    }),
   ]);
-
-  // 호스트 URL — 초대 링크 만들 때 사용
-  const h = await headers();
-  const proto = h.get("x-forwarded-proto") ?? "https";
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "baroilji.com";
-  const origin = `${proto}://${host}`;
 
   return (
     <>
@@ -67,70 +55,33 @@ export default async function TherapistsPage({
         </div>
       </div>
 
-      {/* 일회용 초대 — 원장이 발급, 한 명만 사용 가능 */}
-      <div className="card">
-        <div className="card-header">
-          <h2>새 치료사·행정 초대</h2>
-          <span className="hint">한 명마다 1회용 링크를 발급해 전달하세요. 7일 후 자동 만료.</span>
-        </div>
-        <div className="card-body">
-          <form action={createInvitation} style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}>
-            <div className="field" style={{ minWidth: 140 }}>
-              <label>역할</label>
-              <select className="select" name="role" defaultValue="THERAPIST">
-                <option value="THERAPIST">치료사</option>
-                {me.role === "OWNER" && <option value="ADMIN">행정</option>}
-              </select>
+      {myCenter && (
+        <div className="card">
+          <div className="card-body" style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <div className="sub-mute" style={{ fontSize: 12 }}>우리 센터</div>
+              <div style={{ fontWeight: 700, fontSize: 16, marginTop: 2 }}>{myCenter.name}</div>
             </div>
-            <div className="field" style={{ flex: 1, minWidth: 140 }}>
-              <label>이름 (선택)</label>
-              <input className="input" name="name" placeholder="누구를 초대하나요?" />
-            </div>
-            <div className="field" style={{ flex: 1, minWidth: 180 }}>
-              <label>이메일 (선택)</label>
-              <input className="input" name="email" type="email" placeholder="자동 채워줄 이메일" />
-            </div>
-            <button className="btn btn-primary" type="submit">초대 링크 만들기</button>
-          </form>
-
-          {invitations.length > 0 && (
-            <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 8 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-mute)" }}>
-                사용 대기 중 초대 ({invitations.length}건)
+            <div>
+              <div className="sub-mute" style={{ fontSize: 12 }}>치료사 가입용 승인코드</div>
+              <div style={{
+                fontFamily: "monospace",
+                fontSize: 22,
+                fontWeight: 700,
+                letterSpacing: "0.15em",
+                color: "var(--primary)",
+                marginTop: 2,
+              }}>
+                {myCenter.approvalCode}
               </div>
-              {invitations.map((inv) => {
-                const url = `${origin}/signup?invite=${inv.token}`;
-                return (
-                  <div key={inv.id} style={{
-                    background: "var(--surface-2)",
-                    border: "1px solid var(--border)",
-                    borderRadius: "var(--r-md)",
-                    padding: "10px 12px",
-                    display: "flex",
-                    gap: 10,
-                    flexWrap: "wrap",
-                    alignItems: "center",
-                  }}>
-                    <span className="badge badge-primary">{inv.role === "ADMIN" ? "행정" : "치료사"}</span>
-                    <span style={{ fontWeight: 600 }}>{inv.name ?? "(이름 미정)"}</span>
-                    {inv.email && <span className="sub-mute">{inv.email}</span>}
-                    <input
-                      className="input"
-                      readOnly
-                      value={url}
-                      onFocus={(e) => e.currentTarget.select()}
-                      style={{ flex: 1, minWidth: 280, fontFamily: "monospace", fontSize: 12 }}
-                    />
-                    <form action={async () => { "use server"; await revokeInvitation(inv.id); }} style={{ display: "inline" }}>
-                      <button className="btn btn-ghost btn-sm" style={{ color: "var(--danger)" }} type="submit">취소</button>
-                    </form>
-                  </div>
-                );
-              })}
             </div>
-          )}
+            <div className="sub-mute" style={{ fontSize: 12, maxWidth: 280 }}>
+              치료사들에게 이 코드를 알려주세요. 가입 화면에서 입력하면 우리 센터로 가입 신청됩니다.
+              가입 후 아래 '승인 대기' 에서 [승인] 누르면 활성화돼요.
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
       {sp.err && <div className="flash warn">{sp.err}</div>}
       {sp.ok && <div className="flash ok">{sp.ok}</div>}
