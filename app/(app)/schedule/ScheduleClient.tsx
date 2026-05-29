@@ -60,7 +60,7 @@ export default function ScheduleClient({
   // form
   const [selectedChildId, setSelectedChildId] = useState<number | "">("");
   const [name, setName] = useState("");
-  const [therapist, setTherapist] = useState(therapists[0]?.name ?? "");
+  const [therapist, setTherapist] = useState(defaultFilterTherapist || therapists[0]?.name || "");
   // 아동 드롭다운 필터용 (양식엔 안 들어가는 UI-only 값).
   // 로그인 사용자 이름이 치료사 명단에 있으면 자동으로 그 치료사로 필터.
   const [filterTherapist, setFilterTherapist] = useState<string>(defaultFilterTherapist ?? "");
