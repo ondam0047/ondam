@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
-import { getCurrentUser, generateApprovalCode } from "@/lib/auth";
+import { getCurrentUser, generateApprovalCode, getEffectiveTherapistId } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { ensureLegacyDataLinked } from "@/lib/migrate-center";
 
@@ -32,6 +32,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     if (centerCount === 1) {
       await ensureLegacyDataLinked(user.centerId);
     }
+  }
+
+  // OWNER 도 본인 이름의 Therapist 레코드와 연결해서 "내 담당 아동" 필터링이 동작하게 함.
+  // 한 번 연결되면 user.therapistId 가 채워져 다음번부턴 즉시 사용.
+  if (user.role === "OWNER" && !user.therapistId) {
+    await getEffectiveTherapistId(user);
+    user = await getCurrentUser();
+    if (!user) redirect("/login");
   }
 
   return (

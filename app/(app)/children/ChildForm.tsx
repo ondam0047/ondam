@@ -25,12 +25,14 @@ export default function ChildForm({
   action,
   submitLabel,
   showActive = false,
+  hideTherapistSelect = false,
 }: {
   child?: ChildLike;
   therapists: TherapistOpt[];
   action: (formData: FormData) => void | Promise<void>;
   submitLabel: string;
   showActive?: boolean;
+  hideTherapistSelect?: boolean;
 }) {
   const c: ChildLike = child ?? {
     name: "",
@@ -67,17 +69,19 @@ export default function ChildForm({
           <label>관리번호 (선택)</label>
           <input className="input" name="mgmtNumber" defaultValue={c.mgmtNumber ?? ""} />
         </div>
-        <div className="field">
-          <label>담당 치료사</label>
-          <select className="select" name="therapistId" defaultValue={c.therapistId?.toString() ?? ""}>
-            <option value="">— 미지정 —</option>
-            {therapists.map((t) => (
-              <option key={t.id} value={t.id} disabled={!t.active}>
-                {t.name}{t.active ? "" : " (비활성)"}
-              </option>
-            ))}
-          </select>
-        </div>
+        {!hideTherapistSelect && (
+          <div className="field">
+            <label>담당 치료사</label>
+            <select className="select" name="therapistId" defaultValue={c.therapistId?.toString() ?? ""}>
+              <option value="">— 미지정 —</option>
+              {therapists.map((t) => (
+                <option key={t.id} value={t.id} disabled={!t.active}>
+                  {t.name}{t.active ? "" : " (비활성)"}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       <div className="divider" />

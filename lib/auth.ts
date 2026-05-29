@@ -103,13 +103,15 @@ export function isAdmin(user: SessionUser): boolean {
   return user.role === "OWNER" || user.role === "ADMIN";
 }
 
-// 치료사가 이 아동을 볼 권한이 있는지
+// 치료사가 이 아동을 볼 권한이 있는지.
+// ADMIN(행정)은 센터의 모든 아동 접근 가능 — 운영 관리 목적.
+// OWNER·THERAPIST 는 본인 담당 아동만.
 export function canAccessChild(
   user: SessionUser,
   child: { therapistId: number | null }
 ): boolean {
-  if (isAdmin(user)) return true;
-  if (user.role === "THERAPIST" && user.therapistId !== null) {
+  if (user.role === "ADMIN") return true;
+  if (user.therapistId !== null) {
     return child.therapistId === user.therapistId;
   }
   return false;
@@ -140,4 +142,34 @@ export async function generateApprovalCode(): Promise<string> {
 export async function getDefaultCenterId(): Promise<number | null> {
   const c = await prisma.center.findFirst({ orderBy: { id: "asc" } });
   return c?.id ?? null;
+}
+
+// 사용자에게 연결된 "치료사로서의" ID 를 반환.
+// - user.therapistId 가 이미 있으면 그것
+// - 없으면 같은 센터에서 이름 일치하는 Therapist 찾아 연결
+// - 그래도 없으면 새 Therapist 레코드 만들어 연결
+// 일정표·기록지 등 "내 담당 아동" 을 필터링할 때 사용.
+export async function getEffectiveTherapistId(user: SessionUser): Promise<number | null> {
+  if (user.therapistId) return user.therapistId;
+  if (!user.centerId) return null;
+
+  // 이름 일치하는 활성 치료사 찾기
+  let therapist = await prisma.therapist.findFirst({
+    where: { centerId: user.centerId, name: user.name, active: true, user: null },
+  });
+
+  // 없으면 새로 만들기 (OWNER 가 본인 이름의 치료사 레코드가 없는 경우)
+  if (!therapist) {
+    therapist = await prisma.therapist.create({
+      data: { centerId: user.centerId, name: user.name, active: true },
+    });
+  }
+
+  // User 레코드에 연결 (다음번부터 바로 user.therapistId 사용)
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { therapistId: therapist.id },
+  });
+
+  return therapist.id;
 }

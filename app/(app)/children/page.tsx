@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { deleteChild } from "./actions";
 import { WEEK } from "@/lib/constants";
-import { requireUser, isAdmin } from "@/lib/auth";
+import { requireUser, isAdmin, getEffectiveTherapistId } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -12,20 +12,21 @@ export default async function ChildrenPage({
   searchParams: Promise<{ q?: string; therapistId?: string; unassigned?: string }>;
 }) {
   const user = await requireUser();
-  const canManage = isAdmin(user);
+  // 행정(ADMIN)만 전체 아동 관리 가능. 원장도 치료사 자격으로 본인 담당만 봄.
+  const canManage = user.role === "ADMIN";
   const sp = await searchParams;
   const q = sp.q?.trim() ?? "";
   const filterTherapistId = sp.therapistId ? Number(sp.therapistId) : null;
   const onlyUnassigned = sp.unassigned === "1";
 
-  // 치료사는 본인 담당 아동만 (필터 무시), 관리자는 필터 적용
   let where: Record<string, unknown> = { centerId: user.centerId ?? -1 };
   if (canManage) {
     if (filterTherapistId) where.therapistId = filterTherapistId;
     else if (onlyUnassigned) where.therapistId = null;
     if (q) where = { ...where, name: { contains: q } };
   } else {
-    where = { ...where, therapistId: user.therapistId ?? -1 };
+    const myTherapistId = await getEffectiveTherapistId(user);
+    where = { ...where, therapistId: myTherapistId ?? -1 };
     if (q) where = { ...where, name: { contains: q } };
   }
 
@@ -56,14 +57,12 @@ export default async function ChildrenPage({
               : `담당 아동 ${activeCount}명`}
           </p>
         </div>
-        {canManage && (
-          <Link className="btn btn-primary" href="/children/new">
-            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-              <path d="M12 5v14 M5 12h14" />
-            </svg>
-            아동 등록
-          </Link>
-        )}
+        <Link className="btn btn-primary" href="/children/new">
+          <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path d="M12 5v14 M5 12h14" />
+          </svg>
+          아동 등록
+        </Link>
       </div>
 
       {canManage && (
@@ -113,9 +112,7 @@ export default async function ChildrenPage({
         {children.length === 0 ? (
           <div className="card-body">
             <div className="placeholder">
-              {canManage
-                ? "아직 등록된 아동이 없어요. 우측 상단 “아동 등록”을 눌러보세요."
-                : "아직 담당 아동이 없어요. 원장님께 배정을 요청해주세요."}
+              아직 담당 아동이 없어요. 우측 상단 “아동 등록”을 눌러보세요.
             </div>
           </div>
         ) : (
