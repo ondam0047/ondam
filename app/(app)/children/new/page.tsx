@@ -49,6 +49,7 @@ export default async function NewChildPage() {
             action={createChild}
             submitLabel="등록"
             hideTherapistSelect={!isAdmin(user)}
+            canSetWaiting={isAdmin(user)}
           />
         </div>
       </div>

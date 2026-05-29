@@ -12,12 +12,19 @@ export default async function ChildrenPage({
   searchParams: Promise<{ q?: string; therapistId?: string; unassigned?: string; waiting?: string }>;
 }) {
   const user = await requireUser();
-  const canManage = user.role === "ADMIN";
+  // 원장·행정은 센터 전체 아동 관리 가능. 치료사는 본인 담당만.
+  const canManage = user.role === "ADMIN" || user.role === "OWNER";
   const sp = await searchParams;
   const q = sp.q?.trim() ?? "";
   const filterTherapistId = sp.therapistId ? Number(sp.therapistId) : null;
   const onlyUnassigned = sp.unassigned === "1";
   const onlyWaiting = sp.waiting === "1";
+
+  // 대기 명단은 원장·행정만. 치료사가 ?waiting=1 시도하면 거부.
+  if (onlyWaiting && !canManage) {
+    const { redirect } = await import("next/navigation");
+    redirect("/children");
+  }
 
   const centerId = user.centerId ?? -1;
   const myTherapistId = canManage ? null : await getEffectiveTherapistId(user);
@@ -71,10 +78,10 @@ export default async function ChildrenPage({
           </p>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {!onlyWaiting && (
+          {canManage && !onlyWaiting && (
             <Link className="btn btn-ghost" href="/children?waiting=1">⏳ 대기 명단</Link>
           )}
-          {onlyWaiting && (
+          {canManage && onlyWaiting && (
             <Link className="btn btn-ghost" href="/children">← 등록 아동</Link>
           )}
           <Link className="btn btn-primary" href="/children/new">

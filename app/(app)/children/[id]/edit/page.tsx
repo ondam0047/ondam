@@ -87,6 +87,7 @@ export default async function EditChildPage(props: PageProps<"/children/[id]/edi
             submitLabel="저장"
             showActive
             hideTherapistSelect={!isAdmin(user)}
+            canSetWaiting={isAdmin(user)}
           />
         </div>
       </div>

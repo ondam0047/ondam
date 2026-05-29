@@ -38,6 +38,7 @@ export default function ChildForm({
   submitLabel,
   showActive = false,
   hideTherapistSelect = false,
+  canSetWaiting = false,
 }: {
   child?: ChildInput;
   therapists: TherapistOpt[];
@@ -47,6 +48,7 @@ export default function ChildForm({
   submitLabel: string;
   showActive?: boolean;
   hideTherapistSelect?: boolean;
+  canSetWaiting?: boolean;
 }) {
   const c: ChildInput = child ?? {
     name: "",
@@ -119,13 +121,15 @@ export default function ChildForm({
             <input type="checkbox" name="active" defaultChecked={c.active ?? true} />
             활동 중인 아동
           </label>
-          <label className="modal-check">
-            <input type="checkbox" name="waiting" defaultChecked={c.waiting ?? false} />
-            대기 명단 (상담 예정 · 아직 회기 시작 전)
-          </label>
+          {canSetWaiting && (
+            <label className="modal-check">
+              <input type="checkbox" name="waiting" defaultChecked={c.waiting ?? false} />
+              대기 명단 (상담 예정 · 아직 회기 시작 전)
+            </label>
+          )}
         </div>
       )}
-      {!showActive && (
+      {!showActive && canSetWaiting && (
         <div style={{ marginTop: 14 }}>
           <label className="modal-check">
             <input type="checkbox" name="waiting" defaultChecked={c.waiting ?? false} />
