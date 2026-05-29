@@ -419,13 +419,13 @@ h1, h2, h3, h4, h5 { font-family: var(--font-display); font-weight: 700; margin:
 .card-body.tight { padding: 0; }
 
 .tip {
-  font-size: 12.5px;
+  font-size: 13.5px;
   color: var(--text-soft);
   background: var(--primary-soft);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
-  padding: 10px 12px;
-  line-height: 1.65;
+  padding: 12px 14px;
+  line-height: 1.7;
   word-break: keep-all;
   margin-bottom: 18px;
 }
