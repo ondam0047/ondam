@@ -73,7 +73,60 @@ export default function ImportClient() {
         const ws = wb.Sheets[wb.SheetNames[0]];
         const rows: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" });
 
-        // 첫 비어있지 않은 행 → 헤더
+        // 1) 전자바우처 '서비스제공내역' 형식 자동 감지
+        //    - 어디 행이든 '대상자' + '생년월일' + '승인번호' 가 같이 있으면 그 형식
+        //    - 같은 아동이 여러 번 반복되므로 (이름+생년월일) 로 dedup
+        const eVoucherHeaderIdx = rows.findIndex((r) =>
+          Array.isArray(r) && r.includes("대상자") && r.includes("생년월일") && r.includes("승인번호")
+        );
+
+        if (eVoucherHeaderIdx >= 0) {
+          const H = rows[eVoucherHeaderIdx] as string[];
+          const col = (n: string) => H.indexOf(n);
+          const ci = {
+            name: col("대상자"),
+            birth: col("생년월일"),
+          };
+          // 헤더 위 줄들에서 제공인력 이름 찾기
+          let therapistFromHeader = "";
+          for (let i = 0; i < eVoucherHeaderIdx; i++) {
+            const r = rows[i];
+            if (!Array.isArray(r)) continue;
+            const k = r.indexOf("제공인력 이름");
+            if (k >= 0) { therapistFromHeader = String(r[k + 1] ?? "").trim(); break; }
+          }
+
+          // 이름+생년월일 로 dedup
+          const map = new Map<string, ChildRow>();
+          for (let i = eVoucherHeaderIdx + 1; i < rows.length; i++) {
+            const row = rows[i] as unknown[];
+            if (!row) continue;
+            const name = String(row[ci.name] ?? "").trim();
+            if (!name) continue;
+            const birth = ci.birth >= 0 ? String(row[ci.birth]).trim() : "";
+            const key = `${name}|${birth}`;
+            if (!map.has(key)) {
+              map.set(key, {
+                name,
+                birthDate: birth || undefined,
+                serviceType: SERVICE_TYPES[0], // 기본 — 사용자 나중에 수정
+                therapistName: therapistFromHeader || undefined,
+              });
+            }
+          }
+
+          if (map.size === 0) {
+            setError("서비스제공내역에서 대상자 정보를 찾지 못했어요.");
+            return;
+          }
+          // 강제로 child 모드로 — 이 형식은 무조건 아동 목록
+          setMode("child");
+          setChildren([...map.values()]);
+          setTherapists(null);
+          return;
+        }
+
+        // 2) 일반 양식: 첫 비어있지 않은 행 → 헤더
         const headerIdx = rows.findIndex((r) => Array.isArray(r) && r.some((c) => String(c).trim()));
         if (headerIdx < 0) {
           setError("빈 시트로 보여요.");
@@ -211,6 +264,12 @@ export default function ImportClient() {
                 ? " 이름, 생년월일, 서비스, 관리번호, 담당치료사, 기본시간, 요일, 단가, 목표회기, 메모"
                 : " 이름, 전화"}
               . 컬럼 이름이 비슷하기만 하면(예: '성명', '담당') 자동 인식해요.
+              {mode === "child" && (
+                <>
+                  <br />
+                  💡 <b>전자바우처 '서비스제공내역' 엑셀</b>도 그대로 올리면 자동으로 아동 명단을 추출해서 등록합니다.
+                </>
+              )}
             </span>
           </div>
 
