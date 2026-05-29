@@ -56,8 +56,14 @@ export async function POST(req: NextRequest) {
   // 아동 + 서비스 일괄 등록
   const rows = body.children ?? [];
 
+  // 진단용 카운터
+  let skippedNoName = 0;
+  let skippedDupe = 0;
+  let createdChild = 0;
+  let createdService = 0;
+
   // 치료사 이름들을 미리 정리: 이름이 있으면 찾거나 생성
-  const therapistNames = [...new Set(rows.map((r) => r.therapistName).filter(Boolean) as string[])];
+  const therapistNames = [...new Set(rows.map((r) => r.therapistName?.trim()).filter(Boolean) as string[])];
   for (const tn of therapistNames) {
     const existing = await prisma.therapist.findFirst({ where: { name: tn, centerId } });
     if (!existing) await prisma.therapist.create({ data: { name: tn, centerId } });
@@ -67,53 +73,59 @@ export async function POST(req: NextRequest) {
 
   let saved = 0;
   for (const r of rows) {
-    if (!r.name) continue;
-    const birth = r.birthDate ?? null;
+    const name = r.name?.trim();
+    if (!name) { skippedNoName++; continue; }
+    const birth = r.birthDate?.trim() || null;
 
-    // 사람(Child) 찾거나 생성 — 이름 + 생년월일 키
     let child = await prisma.child.findFirst({
-      where: { name: r.name, birthDate: birth, centerId },
+      where: { name, birthDate: birth, centerId },
     });
     if (!child) {
       child = await prisma.child.create({
         data: {
-          name: r.name,
+          name,
           birthDate: birth,
-          mgmtNumber: r.mgmtNumber ?? null,
-          memo: r.memo ?? null,
+          mgmtNumber: r.mgmtNumber?.trim() || null,
+          memo: r.memo?.trim() || null,
           centerId,
         },
       });
+      createdChild++;
     } else if (r.mgmtNumber && !child.mgmtNumber) {
-      // 관리번호 비어있으면 채워줌
-      await prisma.child.update({ where: { id: child.id }, data: { mgmtNumber: r.mgmtNumber } });
+      await prisma.child.update({ where: { id: child.id }, data: { mgmtNumber: r.mgmtNumber.trim() } });
     }
 
-    const therapistId = r.therapistName ? tMap.get(r.therapistName) ?? null : null;
+    const therapistName = r.therapistName?.trim();
+    const therapistId = therapistName ? tMap.get(therapistName) ?? null : null;
+    const serviceType = r.serviceType?.trim() || "언어재활";
 
-    // 같은 (Child, 서비스 종류, 치료사) 조합이 있으면 건너뜀
     const dupe = await prisma.childService.findFirst({
-      where: {
-        childId: child.id,
-        serviceType: r.serviceType,
-        therapistId,
-      },
+      where: { childId: child.id, serviceType, therapistId },
     });
-    if (dupe) continue;
+    if (dupe) { skippedDupe++; continue; }
 
     await prisma.childService.create({
       data: {
         childId: child.id,
         therapistId,
-        serviceType: r.serviceType,
-        defaultSlot: r.defaultSlot ?? null,
-        defaultDays: r.defaultDays ?? null,
+        serviceType,
+        defaultSlot: r.defaultSlot?.trim() || null,
+        defaultDays: r.defaultDays?.trim() || null,
         defaultUnit: r.defaultUnit ?? 65000,
         defaultTarget: r.defaultTarget ?? 5,
       },
     });
+    createdService++;
     saved++;
   }
 
-  return Response.json({ ok: true, savedCount: saved });
+  return Response.json({
+    ok: true,
+    savedCount: saved,
+    totalRows: rows.length,
+    createdChild,
+    createdService,
+    skippedNoName,
+    skippedDupe,
+  });
 }

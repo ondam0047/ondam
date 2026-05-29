@@ -229,7 +229,8 @@ export default function ImportClient({ serviceTypes }: { serviceTypes: string[] 
         alert("저장 실패: " + (j.error ?? res.status));
         return;
       }
-      setSavedMsg(`✓ ${j.savedCount}건 저장 완료.`);
+      const detail = `(전체 ${j.totalRows}건 · 신규 아동 ${j.createdChild}명 · 신규 서비스 ${j.createdService}건 · 중복 ${j.skippedDupe}건 · 이름누락 ${j.skippedNoName}건)`;
+      setSavedMsg(`✓ ${j.savedCount}건 저장 완료. ${detail}`);
       setChildren(null);
       setTherapists(null);
     } finally {
