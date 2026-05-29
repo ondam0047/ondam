@@ -75,8 +75,31 @@ const T = {
   opinionText: "종성/ㅁ/에 대하여 대화수준에서는 간혹 대치 및 생략이 관찰되어 주의가 필요함.",
 } as const;
 
-// 순서대로 발견되는 <hp:t>OLD</hp:t> 들을 NEWs 배열 값으로 차례로 교체.
-// NEWs 가 OLDs 보다 짧으면 나머지는 빈 문자열로.
+// hp:t 텍스트 교체 + 그걸 감싸는 hp:p 의 linesegarray(캐시된 줄 위치) 삭제.
+// 한글이 파일을 열면서 새 텍스트에 맞춰 다시 계산하므로, 텍스트 길이가
+// 줄어들거나 늘어나도 '문서 변조' 검증을 통과함. (확인된 동작)
+function replaceWithLinesegReset(
+  xml: string, oldText: string, newText: string, fromCursor = 0
+): { out: string; nextCursor: number } {
+  const search = `<hp:t>${oldText}</hp:t>`;
+  const idx = xml.indexOf(search, fromCursor);
+  if (idx < 0) return { out: xml, nextCursor: fromCursor };
+  const pStart = xml.lastIndexOf("<hp:p ", idx);
+  const pEndIdx = xml.indexOf("</hp:p>", idx);
+  if (pStart < 0 || pEndIdx < 0) return { out: xml, nextCursor: fromCursor };
+  const pEnd = pEndIdx + "</hp:p>".length;
+  let pBlock = xml.slice(pStart, pEnd);
+  pBlock = pBlock.replace(search, `<hp:t>${xmlEscape(newText)}</hp:t>`);
+  pBlock = pBlock.replace(/<hp:linesegarray>[\s\S]*?<\/hp:linesegarray>/, "");
+  const out = xml.slice(0, pStart) + pBlock + xml.slice(pEnd);
+  return { out, nextCursor: pStart + pBlock.length };
+}
+
+function replaceOne(xml: string, oldText: string, newText: string): string {
+  return replaceWithLinesegReset(xml, oldText, newText).out;
+}
+
+// 같은 패턴 olds 가 여러 번 나오면 순서대로 news 값으로 차례 교체.
 function replaceSequence(
   xml: string,
   olds: readonly string[],
@@ -85,13 +108,9 @@ function replaceSequence(
   let out = xml;
   let cursor = 0;
   for (let i = 0; i < olds.length; i++) {
-    const target = `<hp:t>${olds[i]}</hp:t>`;
-    const idx = out.indexOf(target, cursor);
-    if (idx < 0) continue;
-    const newVal = news[i] ?? "";
-    const replaced = `<hp:t>${xmlEscape(newVal)}</hp:t>`;
-    out = out.slice(0, idx) + replaced + out.slice(idx + target.length);
-    cursor = idx + replaced.length;
+    const r = replaceWithLinesegReset(out, olds[i], news[i] ?? "", cursor);
+    out = r.out;
+    cursor = r.nextCursor;
   }
   return out;
 }
@@ -100,27 +119,13 @@ function substituteRecordXml(xml: string, p: Payload): string {
   let out = xml;
 
   // 1) 제목 월 — '발달재활서비스 제공 기록지 (2월)' 의 ' (2' / '월)' 두 hp:t
-  //    `<hp:t> (2</hp:t><hp:t>월)</hp:t>` → `<hp:t> (N</hp:t><hp:t>월)</hp:t>`
-  out = out.replace(
-    `<hp:t>${T.titleMonth}</hp:t>`,
-    `<hp:t>${xmlEscape(` (${p.month}`)}</hp:t>`
-  );
-
+  out = replaceOne(out, T.titleMonth, ` (${p.month}`);
   // 2) 기관명
-  out = out.replace(
-    `<hp:t>${T.org}</hp:t>`,
-    `<hp:t>${xmlEscape(p.org)}</hp:t>`
-  );
+  out = replaceOne(out, T.org, p.org);
   // 3) 이용자 이름
-  out = out.replace(
-    `<hp:t>${T.name}</hp:t>`,
-    `<hp:t>${xmlEscape(p.childName)}</hp:t>`
-  );
+  out = replaceOne(out, T.name, p.childName);
   // 4) 생년월일
-  out = out.replace(
-    `<hp:t>${T.birth}</hp:t>`,
-    `<hp:t>${xmlEscape(p.childBirth)}</hp:t>`
-  );
+  out = replaceOne(out, T.birth, p.childBirth);
 
   // 5) 회기 5개 — 부족하면 빈 문자열로 채움
   const sessions = p.sessions.slice(0, MAX_SESSIONS);
@@ -160,10 +165,7 @@ function substituteRecordXml(xml: string, p: Payload): string {
 
   // 7) 부모 의견
   if (p.opinion !== undefined) {
-    out = out.replace(
-      `<hp:t>${T.opinionText}</hp:t>`,
-      `<hp:t>${xmlEscape(p.opinion)}</hp:t>`
-    );
+    out = replaceOne(out, T.opinionText, p.opinion);
   }
 
   return out;
