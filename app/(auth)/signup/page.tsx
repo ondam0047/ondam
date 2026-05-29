@@ -100,7 +100,7 @@ export default async function SignupPage({
     return (
       <div className="card">
         <div style={{ padding: "28px 26px 8px", textAlign: "center" }}>
-          <Image src="/ondam-logo.png" alt="온담" width={56} height={56} style={{ margin: "0 auto" }} />
+          <Image src="/baroilji-logo.svg" alt="바로일지" width={64} height={64} style={{ margin: "0 auto" }} />
           <h2 style={{ marginTop: 12, fontSize: 18 }}>가입 신청 완료</h2>
         </div>
         <div className="card-body" style={{ textAlign: "center" }}>
@@ -120,7 +120,7 @@ export default async function SignupPage({
   return (
     <div className="card">
       <div style={{ padding: "28px 26px 8px", textAlign: "center" }}>
-        <Image src="/ondam-logo.png" alt="온담" width={56} height={56} style={{ margin: "0 auto" }} />
+        <Image src="/baroilji-logo.svg" alt="바로일지" width={64} height={64} style={{ margin: "0 auto" }} />
         <h2 style={{ marginTop: 12, fontSize: 18 }}>가입</h2>
         <div className="sub-mute" style={{ marginTop: 4 }}>
           {mode === "center" ? "센터를 새로 만드세요" : "원장님에게 받은 승인코드를 입력해주세요"}
@@ -147,7 +147,7 @@ export default async function SignupPage({
           <form action={signupCenter}>
             <div className="field" style={{ marginBottom: 12 }}>
               <label>센터 이름<span className="req">*</span></label>
-              <input className="input" name="centerName" required placeholder="예: 온담말언어연구소" />
+              <input className="input" name="centerName" required placeholder="예: 한길발달센터" />
             </div>
             <div className="field" style={{ marginBottom: 12 }}>
               <label>원장님 이름<span className="req">*</span></label>

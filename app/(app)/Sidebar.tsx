@@ -66,10 +66,10 @@ export default function Sidebar({ user }: { user: SessionUser }) {
   return (
     <aside className="sidebar">
       <div className="brand">
-        <Image src="/ondam-logo.png" alt="온담 로고" width={36} height={36} />
+        <Image src="/baroilji-logo.svg" alt="바로일지 로고" width={36} height={36} />
         <div className="brand-name">
-          <span className="ko">{user.centerName ?? "온담"}</span>
-          <span className="en">통합관리</span>
+          <span className="ko">{user.centerName ?? "바로일지"}</span>
+          <span className="en">바로일지 · 통합관리</span>
         </div>
       </div>
 

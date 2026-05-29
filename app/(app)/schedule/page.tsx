@@ -48,6 +48,7 @@ export default async function SchedulePage() {
       children={childOptions}
       therapists={therapistOptions}
       defaultFilterTherapist={myTherapistName}
+      defaultOrg={user.centerName ?? ""}
     />
   );
 }

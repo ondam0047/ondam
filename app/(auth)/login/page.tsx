@@ -40,9 +40,9 @@ export default async function LoginPage({
   return (
     <div className="card">
       <div style={{ padding: "28px 26px 8px", textAlign: "center" }}>
-        <Image src="/ondam-logo.png" alt="온담" width={56} height={56} style={{ margin: "0 auto" }} />
-        <h2 style={{ marginTop: 12, fontSize: 18 }}>온담 말·언어 연구소</h2>
-        <div className="sub-mute" style={{ marginTop: 4 }}>통합관리 로그인</div>
+        <Image src="/baroilji-logo.svg" alt="바로일지" width={64} height={64} style={{ margin: "0 auto" }} />
+        <h2 style={{ marginTop: 12, fontSize: 22, letterSpacing: "-0.02em" }}>바로일지</h2>
+        <div className="sub-mute" style={{ marginTop: 4 }}>반복되는 일지 작성, 이제 바로 끝</div>
       </div>
       <div className="card-body">
         {sp.err && <div className="flash warn" style={{ marginBottom: 12 }}>{sp.err}</div>}

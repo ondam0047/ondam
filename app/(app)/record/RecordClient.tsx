@@ -85,7 +85,7 @@ export default function RecordClient({
             pay: String(row[ci.pay] || ""),
             appr: String(row[ci.appr] || ""),
             amt: String(row[ci.amt] || ""),
-            org: String(row[ci.org] || "온담말언어발달센터"),
+            org: String(row[ci.org] || ""),
           });
         }
         Object.values(g).forEach((arr) => arr.sort((a, b) => {

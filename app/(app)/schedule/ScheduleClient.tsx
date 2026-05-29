@@ -46,10 +46,12 @@ export default function ScheduleClient({
   children: childrenOpts,
   therapists,
   defaultFilterTherapist = null,
+  defaultOrg = "",
 }: {
   children: ChildOption[];
   therapists: TherapistOption[];
   defaultFilterTherapist?: string | null;
+  defaultOrg?: string;
 }) {
   // 오늘 기준 월 옵션 (매 렌더 한 번 계산)
   const monthOptions = useMemo(() => buildMonthOptions(), []);
@@ -74,7 +76,7 @@ export default function ScheduleClient({
   const [genY, setGenY] = useState(0);
   const [genM, setGenM] = useState(0);
   const [mgmt, setMgmt] = useState("");
-  const [pvOrg, setPvOrg] = useState("온담말언어발달센터");
+  const [pvOrg, setPvOrg] = useState(defaultOrg);
   const [pvTel, setPvTel] = useState("775-0047");
   const [pvCharge, setPvCharge] = useState("");
   const [pvType, setPvType] = useState("");

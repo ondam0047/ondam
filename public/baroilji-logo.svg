@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- 체크리스트 줄 (옅은 파랑) -->
+  <rect x="6"  y="16" width="20" height="6" rx="3" fill="#7BA7E8"/>
+  <rect x="6"  y="27" width="14" height="6" rx="3" fill="#A8C5F0"/>
+  <rect x="6"  y="38" width="10" height="6" rx="3" fill="#D0E0F5"/>
+  <!-- 체크 마크 (진한 파랑) -->
+  <path d="M30 41 L40 52 L60 22" stroke="#1F7AED" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
