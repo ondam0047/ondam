@@ -5,6 +5,7 @@ import {
   createTherapist, deleteTherapist,
   createTherapistAccount, resetTherapistPassword, deleteTherapistAccount,
   createAdminAccount, toggleAdminActive,
+  approveTherapist, rejectTherapist,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +24,7 @@ export default async function TherapistsPage({
   const me = await requireRole(["OWNER", "ADMIN"]);
   const sp = await searchParams;
 
-  const [therapists, adminUsers] = await Promise.all([
+  const [therapists, adminUsers, pendingTherapists] = await Promise.all([
     prisma.therapist.findMany({
       orderBy: [{ active: "desc" }, { name: "asc" }],
       include: {
@@ -34,6 +35,11 @@ export default async function TherapistsPage({
     prisma.user.findMany({
       where: { role: { in: ["OWNER", "ADMIN"] } },
       orderBy: [{ active: "desc" }, { role: "asc" }, { name: "asc" }],
+    }),
+    prisma.user.findMany({
+      where: { role: "THERAPIST", active: false },
+      orderBy: { createdAt: "asc" },
+      include: { therapist: true },
     }),
   ]);
 
@@ -48,6 +54,52 @@ export default async function TherapistsPage({
 
       {sp.err && <div className="flash warn">{sp.err}</div>}
       {sp.ok && <div className="flash ok">{sp.ok}</div>}
+
+      {/* 가입 승인 대기 — 있을 때만 노출 */}
+      {pendingTherapists.length > 0 && (
+        <div className="card" style={{ borderColor: "var(--accent)" }}>
+          <div className="card-header" style={{ background: "rgba(183,146,104,.08)" }}>
+            <h2>승인 대기 ({pendingTherapists.length}명)</h2>
+            <span className="hint">치료사가 직접 가입 신청한 계정. 승인하면 로그인할 수 있어요.</span>
+          </div>
+          <table className="table">
+            <thead>
+              <tr>
+                <th>이름</th>
+                <th>이메일</th>
+                <th>신청 시간</th>
+                <th style={{ width: 180 }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {pendingTherapists.map((u) => (
+                <tr key={u.id}>
+                  <td>
+                    <div className="row-name">
+                      <span className="avatar-sm">{u.name[0]}</span>
+                      <div style={{ fontWeight: 600 }}>{u.name}</div>
+                    </div>
+                  </td>
+                  <td className="num-cell">{u.email}</td>
+                  <td className="num-cell" style={{ fontSize: 11.5, color: "var(--text-mute)" }}>
+                    {new Date(u.createdAt).toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "short" })}
+                  </td>
+                  <td style={{ textAlign: "right" }}>
+                    <div style={{ display: "inline-flex", gap: 6 }}>
+                      <form action={async () => { "use server"; await approveTherapist(u.id); }} style={{ display: "inline" }}>
+                        <button className="btn btn-primary btn-sm" type="submit">승인</button>
+                      </form>
+                      <form action={async () => { "use server"; await rejectTherapist(u.id); }} style={{ display: "inline" }}>
+                        <button className="btn btn-ghost btn-sm" style={{ color: "var(--danger)" }} type="submit">거절</button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* 행정·원장 계정 */}
       <div className="card">

@@ -13,14 +13,17 @@ async function login(formData: FormData) {
   if (!email || !password) return;
 
   const user = await prisma.user.findUnique({ where: { email } });
-  if (!user || !user.active) {
+  if (!user) {
     redirect("/login?err=" + encodeURIComponent("이메일 또는 비밀번호가 일치하지 않아요"));
   }
-  const ok = await verifyPassword(password, user.passwordHash);
+  const ok = await verifyPassword(password, user!.passwordHash);
   if (!ok) {
     redirect("/login?err=" + encodeURIComponent("이메일 또는 비밀번호가 일치하지 않아요"));
   }
-  await createSession(user.id);
+  if (!user!.active) {
+    redirect("/login?err=" + encodeURIComponent("원장님 승인 대기 중이에요. 승인되면 로그인할 수 있습니다."));
+  }
+  await createSession(user!.id);
   redirect("/dashboard");
 }
 
@@ -43,13 +46,21 @@ export default async function LoginPage({
       </div>
       <div className="card-body">
         {sp.err && <div className="flash warn" style={{ marginBottom: 12 }}>{sp.err}</div>}
-        {firstSignup && (
+        {firstSignup ? (
           <div className="tip" style={{ marginBottom: 14 }}>
             💡 처음 사용하시나요?{" "}
             <Link href="/signup" style={{ color: "var(--primary)", fontWeight: 700 }}>
               첫 계정 만들기
             </Link>
             로 시작하세요. (자동으로 원장 계정이 됩니다)
+          </div>
+        ) : (
+          <div className="tip" style={{ marginBottom: 14 }}>
+            치료사이신가요?{" "}
+            <Link href="/signup" style={{ color: "var(--primary)", fontWeight: 700 }}>
+              치료사 가입 신청
+            </Link>
+            후 원장님 승인을 받으세요.
           </div>
         )}
         <form action={login}>
@@ -65,11 +76,6 @@ export default async function LoginPage({
             로그인
           </button>
         </form>
-        {!firstSignup && (
-          <div style={{ marginTop: 14, textAlign: "center", fontSize: 12.5, color: "var(--text-mute)" }}>
-            계정 발급은 원장님께 문의해 주세요.
-          </div>
-        )}
       </div>
     </div>
   );

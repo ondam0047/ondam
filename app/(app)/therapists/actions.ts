@@ -136,3 +136,20 @@ export async function toggleAdminActive(userId: number, currentActive: boolean) 
   });
   revalidatePath("/therapists");
 }
+
+// ─── 가입 승인 ────────────────────────────────────────────────────────
+export async function approveTherapist(userId: number) {
+  await requireRole(["OWNER", "ADMIN"]);
+  await prisma.user.update({
+    where: { id: userId },
+    data: { active: true },
+  });
+  revalidatePath("/therapists");
+}
+
+export async function rejectTherapist(userId: number) {
+  await requireRole(["OWNER", "ADMIN"]);
+  // 거절은 User 만 삭제 (Therapist 레코드는 그대로 — 다시 가입 가능)
+  await prisma.user.delete({ where: { id: userId } });
+  revalidatePath("/therapists");
+}
