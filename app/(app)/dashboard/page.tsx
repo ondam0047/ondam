@@ -269,7 +269,10 @@ async function TherapistDashboard({ user, centerId, year: y, month: m, todayDay,
             {todaySessions > 0 ? `오늘 회기 ${todaySessions}건 예정` : "오늘 회기 없음"}
           </p>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <a className="btn btn-ghost" href={`/api/attendance?year=${y}&month=${m}`}>
+            📊 이번 달 출석부
+          </a>
           <Link className="btn btn-ghost" href="/record">기록지 작성</Link>
           <Link className="btn btn-primary" href="/schedule">일정표 만들기</Link>
         </div>

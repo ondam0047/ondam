@@ -29,27 +29,35 @@ const IC = {
 // OWNER 원장: 행정 + 치료사 권한 모두 (직접 일정표·기록지도 작성)
 // ADMIN 행정: 운영 관리만 (일정표·기록지는 직접 안 만듦)
 // THERAPIST 치료사: 본인 작업만
+const COG_ICON = "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.07a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.07a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z";
+const GRID_ICON = "M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z";
+const CLOCK_ICON = "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M12 6v6l4 2";
+
 const OWNER_ITEMS = [
-  { href: "/dashboard",  label: "대시보드",      icon: IC.dash },
-  { href: "/schedule",   label: "일정표",        icon: IC.calendar },
-  { href: "/record",     label: "기록지",        icon: IC.doc },
-  { href: "/children",   label: "아동 관리",     icon: IC.user },
-  { href: "/therapists", label: "치료사 관리",   icon: IC.team },
-  { href: "/import",     label: "엑셀 가져오기", icon: IC.upload },
-  { href: "/center",     label: "센터 설정",     icon: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.07a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.07a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" },
+  { href: "/dashboard",  label: "대시보드",        icon: IC.dash },
+  { href: "/schedule",   label: "일정표",          icon: IC.calendar },
+  { href: "/record",     label: "기록지",          icon: IC.doc },
+  { href: "/availability", label: "내 차단 시간",  icon: CLOCK_ICON },
+  { href: "/timetable",  label: "치료사 시간표",   icon: GRID_ICON },
+  { href: "/children",   label: "아동 관리",       icon: IC.user },
+  { href: "/therapists", label: "치료사 관리",     icon: IC.team },
+  { href: "/import",     label: "엑셀 가져오기",   icon: IC.upload },
+  { href: "/center",     label: "센터 설정",       icon: COG_ICON },
 ];
 const ADMIN_ITEMS = [
   { href: "/dashboard",  label: "대시보드",      icon: IC.dash },
+  { href: "/timetable",  label: "치료사 시간표", icon: GRID_ICON },
   { href: "/children",   label: "아동 관리",     icon: IC.user },
   { href: "/therapists", label: "치료사 관리",   icon: IC.team },
   { href: "/import",     label: "엑셀 가져오기", icon: IC.upload },
-  { href: "/center",     label: "센터 설정",     icon: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.07a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.07a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" },
+  { href: "/center",     label: "센터 설정",     icon: COG_ICON },
 ];
 const THERAPIST_ITEMS = [
-  { href: "/dashboard",  label: "대시보드",  icon: IC.dash },
-  { href: "/schedule",   label: "일정표",    icon: IC.calendar },
-  { href: "/record",     label: "기록지",    icon: IC.doc },
-  { href: "/children",   label: "내 아동",   icon: IC.user },
+  { href: "/dashboard",    label: "대시보드",      icon: IC.dash },
+  { href: "/schedule",     label: "일정표",        icon: IC.calendar },
+  { href: "/record",       label: "기록지",        icon: IC.doc },
+  { href: "/availability", label: "내 차단 시간",  icon: CLOCK_ICON },
+  { href: "/children",     label: "내 아동",       icon: IC.user },
 ];
 
 const ROLE_LABEL: Record<string, string> = {

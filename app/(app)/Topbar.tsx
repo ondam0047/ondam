@@ -11,6 +11,8 @@ const META: Record<string, { title: string; crumb: string }> = {
   "/users":      { title: "사용자 관리", crumb: "치료사·행정 계정 발급 · 권한 관리" },
   "/import":     { title: "엑셀 가져오기", crumb: "센터의 기존 엑셀 → 아동·치료사 일괄 등록" },
   "/center":     { title: "센터 설정",     crumb: "센터명·연락처·승인코드 관리" },
+  "/timetable":  { title: "치료사 시간표", crumb: "치료사별 요일·시간 회기 현황 + 출석부 엑셀" },
+  "/availability": { title: "내 차단 시간", crumb: "받기 어려운 시간을 막아 일정표 작성에 반영" },
 };
 
 export default function Topbar() {

@@ -77,6 +77,22 @@ model Therapist {
 
   children  Child[]
   user      User?
+  blocks    TherapistBlock[]
+}
+
+// 치료사 시간 차단 — 본인이 원하지 않는 시간대 막기
+// 일정표 생성 시 막힌 시간에 회기가 배정 안 되도록 화면에서 경고/제외
+model TherapistBlock {
+  id          Int      @id @default(autoincrement())
+  therapistId Int
+  therapist   Therapist @relation(fields: [therapistId], references: [id], onDelete: Cascade)
+  dayOfWeek   Int      // 0=일 ~ 6=토
+  startTime   String   // "HH:MM"
+  endTime     String   // "HH:MM"
+  reason      String?  // 메모 (선택)
+  createdAt   DateTime @default(now())
+
+  @@index([therapistId])
 }
 
 model Child {
