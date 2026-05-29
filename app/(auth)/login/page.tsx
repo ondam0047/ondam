@@ -1,8 +1,8 @@
 import Link from "next/link";
-import Image from "next/image";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { createSession, verifyPassword, getCurrentUser, isFirstSignup } from "@/lib/auth";
+import BrandMark from "../BrandMark";
 
 export const dynamic = "force-dynamic";
 
@@ -41,11 +41,11 @@ export default async function LoginPage({
     <div className="card">
       <div style={{ padding: "28px 26px 8px", textAlign: "center" }}>
         <div style={{ display: "inline-flex", alignItems: "center", gap: 14 }}>
-          <Image src="/baroilji-logo.svg" alt="바로일지" width={56} height={56} priority />
+          <BrandMark size={64} />
           <div style={{ textAlign: "left", lineHeight: 1 }}>
             <div style={{ fontSize: 32, fontWeight: 800, letterSpacing: "-0.03em" }}>
-              <span style={{ color: "#1F7AED" }}>바로</span>
-              <span style={{ color: "#1A2330" }}>일지</span>
+              <span style={{ color: "#5B8FCF" }}>바로</span>
+              <span style={{ color: "#B6C9DD" }}>일지</span>
             </div>
             <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.3em", color: "#9CA3AF", marginTop: 6 }}>
               BAROILJI

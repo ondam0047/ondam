@@ -1,8 +1,31 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
+
+// 인라인 브랜드 마크 (next/image 가 그라디언트 SVG 못 띄우는 케이스 회피)
+function BrandMark({ size = 36 }: { size?: number }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width={size} height={size} style={{ flexShrink: 0 }}>
+      <defs>
+        <linearGradient id="sb-bar" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor="#6FA1E5" />
+          <stop offset="100%" stopColor="#1F4E91" />
+        </linearGradient>
+        <linearGradient id="sb-leaf" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#9FD6C0" />
+          <stop offset="100%" stopColor="#6FB59C" />
+        </linearGradient>
+      </defs>
+      <rect x="12" y="32" width="36" height="11" rx="5.5" fill="url(#sb-bar)" />
+      <rect x="10" y="52" width="46" height="11" rx="5.5" fill="url(#sb-bar)" />
+      <rect x="8" y="72" width="56" height="11" rx="5.5" fill="url(#sb-bar)" />
+      <path d="M48 36 C48 22, 42 16, 38 16 C38 22, 42 32, 48 36 Z" fill="url(#sb-leaf)" />
+      <path d="M52 36 C52 22, 58 16, 62 16 C62 22, 58 32, 52 36 Z" fill="url(#sb-leaf)" />
+      <path d="M65 32 L74 42 L92 18" stroke="#3D7CC9" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    </svg>
+  );
+}
 import type { SessionUser } from "@/lib/auth";
 
 const Icon = ({ d, size = 16 }: { d: string; size?: number }) => (
@@ -76,7 +99,7 @@ export default function Sidebar({ user }: { user: SessionUser }) {
   return (
     <aside className="sidebar">
       <div className="brand">
-        <Image src="/baroilji-logo.svg" alt="바로일지 로고" width={36} height={36} />
+        <BrandMark size={36} />
         <div className="brand-name">
           <span className="ko">{user.centerName ?? "바로일지"}</span>
           <span className="en">바로일지 · 통합관리</span>
