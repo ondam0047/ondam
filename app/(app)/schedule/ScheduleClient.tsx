@@ -45,9 +45,11 @@ function buildMonthOptions(): { value: string; label: string; current: boolean }
 export default function ScheduleClient({
   children: childrenOpts,
   therapists,
+  defaultFilterTherapist = null,
 }: {
   children: ChildOption[];
   therapists: TherapistOption[];
+  defaultFilterTherapist?: string | null;
 }) {
   // 오늘 기준 월 옵션 (매 렌더 한 번 계산)
   const monthOptions = useMemo(() => buildMonthOptions(), []);
@@ -57,8 +59,9 @@ export default function ScheduleClient({
   const [selectedChildId, setSelectedChildId] = useState<number | "">("");
   const [name, setName] = useState("");
   const [therapist, setTherapist] = useState(therapists[0]?.name ?? "");
-  // 아동 드롭다운 필터용 (양식엔 안 들어가는 UI-only 값)
-  const [filterTherapist, setFilterTherapist] = useState<string>("");
+  // 아동 드롭다운 필터용 (양식엔 안 들어가는 UI-only 값).
+  // 로그인 사용자 이름이 치료사 명단에 있으면 자동으로 그 치료사로 필터.
+  const [filterTherapist, setFilterTherapist] = useState<string>(defaultFilterTherapist ?? "");
   const [serviceType, setServiceType] = useState<string>(SERVICE_TYPES[0]);
   const [ym, setYm] = useState(defaultYm);
   const [target, setTarget] = useState(5);

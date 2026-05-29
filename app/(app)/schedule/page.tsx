@@ -37,5 +37,16 @@ export default async function SchedulePage() {
   }));
   const therapistOptions = therapists.map((t) => ({ id: t.id, name: t.name }));
 
-  return <ScheduleClient children={childOptions} therapists={therapistOptions} />;
+  // 로그인 사용자가 치료사 목록에 있는 이름이면 자동으로 그 치료사로 필터
+  // (OWNER 본인이 실제 치료사인 경우 흔함)
+  const myTherapistName =
+    therapists.find((t) => t.name === user.name)?.name ?? null;
+
+  return (
+    <ScheduleClient
+      children={childOptions}
+      therapists={therapistOptions}
+      defaultFilterTherapist={myTherapistName}
+    />
+  );
 }
