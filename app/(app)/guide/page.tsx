@@ -117,6 +117,12 @@ export default async function GuidePage() {
     { id: "faq",       label: "자주 묻는 질문",  for: ["OWNER", "ADMIN", "THERAPIST"] },
   ].filter((s) => s.for.includes(myRole));
 
+  const PDF_LINKS = [
+    { href: "/guides/바로일지_원장용_설명서.pdf",   label: "원장용 PDF",   role: "OWNER" as RoleKey },
+    { href: "/guides/바로일지_행정용_설명서.pdf",   label: "행정용 PDF",   role: "ADMIN" as RoleKey },
+    { href: "/guides/바로일지_치료사용_설명서.pdf", label: "치료사용 PDF", role: "THERAPIST" as RoleKey },
+  ];
+
   return (
     <div style={{
       display: "grid",
@@ -132,7 +138,7 @@ export default async function GuidePage() {
           border: "1px solid var(--border)",
           borderRadius: "var(--r-lg)",
           padding: "28px 30px",
-          marginBottom: 36,
+          marginBottom: 24,
         }}>
           <div style={{ fontSize: 13, color: "var(--text-mute)", fontWeight: 600, marginBottom: 6 }}>
             사용 설명서
@@ -142,6 +148,37 @@ export default async function GuidePage() {
           </h1>
           <div style={{ marginTop: 10, fontSize: 14, color: "var(--text-soft)", lineHeight: 1.7 }}>
             지금 보시는 사용자: <Badge role={myRole} /> <b>{user.name}</b> 님 · 본인 역할에 맞춰 항목을 표시합니다.
+          </div>
+        </div>
+
+        {/* PDF 다운로드 */}
+        <div style={{
+          background: "var(--surface)",
+          border: "1px solid var(--border)",
+          borderRadius: "var(--r-md)",
+          padding: "16px 18px",
+          marginBottom: 36,
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, color: "var(--text)" }}>
+            📄 PDF 매뉴얼 다운로드 — 인쇄·배포용
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {PDF_LINKS.map((p) => (
+              <a
+                key={p.href}
+                href={p.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-ghost"
+                style={{
+                  borderColor: ROLE_COLORS[p.role].border,
+                  color: ROLE_COLORS[p.role].text,
+                  background: ROLE_COLORS[p.role].bg,
+                }}
+              >
+                {p.label}
+              </a>
+            ))}
           </div>
         </div>
 
