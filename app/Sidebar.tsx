@@ -23,10 +23,12 @@ const IC = {
 };
 
 const ITEMS = [
+  { href: "/dashboard",  label: "대시보드",    icon: IC.dash },
   { href: "/schedule",   label: "일정표",      icon: IC.calendar },
   { href: "/record",     label: "기록지",      icon: IC.doc },
   { href: "/children",   label: "아동 관리",   icon: IC.user },
   { href: "/therapists", label: "치료사 관리", icon: IC.team },
+  { href: "/import",     label: "엑셀 가져오기", icon: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M17 8l-5-5-5 5 M12 3v12" },
 ];
 
 export default function Sidebar() {
