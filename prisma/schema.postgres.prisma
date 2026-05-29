@@ -1,0 +1,199 @@
+// 바로일지 — 데이터 스키마 (PostgreSQL 운영용)
+// 로컬 개발은 prisma/schema.prisma (SQLite) 그대로 사용.
+// 배포 시 이 파일로 generate / migrate.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── 멀티 센터 ──────────────────────────────────────────────────────────
+
+model Center {
+  id            Int      @id @default(autoincrement())
+  name          String
+  approvalCode  String   @unique
+  address       String?
+  phone         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  users         User[]
+  therapists    Therapist[]
+  children      Child[]
+}
+
+// ─── 권한·로그인 ─────────────────────────────────────────────────────────
+
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         String
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  centerId     Int?
+  center       Center?  @relation(fields: [centerId], references: [id])
+
+  therapistId  Int?     @unique
+  therapist    Therapist? @relation(fields: [therapistId], references: [id])
+
+  sessions     AuthSession[]
+  schedules    Schedule[] @relation("ScheduleCreatedBy")
+  records      Record[]   @relation("RecordCreatedBy")
+}
+
+model AuthSession {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ─── 도메인 ────────────────────────────────────────────────────────────
+
+model Therapist {
+  id        Int      @id @default(autoincrement())
+  name      String
+  phone     String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  centerId  Int?
+  center    Center?  @relation(fields: [centerId], references: [id])
+
+  children  Child[]
+  user      User?
+  blocks    TherapistBlock[]
+}
+
+model TherapistBlock {
+  id          Int      @id @default(autoincrement())
+  therapistId Int
+  therapist   Therapist @relation(fields: [therapistId], references: [id], onDelete: Cascade)
+  dayOfWeek   Int
+  startTime   String
+  endTime     String
+  reason      String?
+  createdAt   DateTime @default(now())
+
+  @@index([therapistId])
+}
+
+model Child {
+  id               Int       @id @default(autoincrement())
+  name             String
+  birthDate        String?
+  serviceType      String
+  mgmtNumber       String?
+  defaultSlot      String?
+  defaultDays      String?
+  defaultUnit      Int       @default(65000)
+  defaultTarget    Int       @default(5)
+  memo             String?
+  active           Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  centerId         Int?
+  center           Center?    @relation(fields: [centerId], references: [id])
+
+  therapistId      Int?
+  therapist        Therapist? @relation(fields: [therapistId], references: [id])
+
+  schedules        Schedule[]
+  records          Record[]
+}
+
+model Schedule {
+  id          Int      @id @default(autoincrement())
+  childId     Int
+  child       Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+  year        Int
+  month       Int
+  therapist   String
+  serviceType String
+  target      Int
+  mgmtNumber  String?
+  pvOrg       String
+  pvTel       String?
+  pvCharge    String?
+  pvType      String
+  costUnit    String
+  costSelf    String
+  writeDate   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdById Int?
+  createdBy   User?    @relation("ScheduleCreatedBy", fields: [createdById], references: [id])
+
+  sessions    ScheduleSession[]
+
+  @@unique([childId, year, month])
+}
+
+model ScheduleSession {
+  id         Int      @id @default(autoincrement())
+  scheduleId Int
+  schedule   Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  day        Int
+  time       String
+  makeup     Boolean  @default(false)
+
+  @@unique([scheduleId, day])
+}
+
+// ─── 기록지 ──────────────────────────────────────────────────────────────
+
+model Record {
+  id          Int      @id @default(autoincrement())
+  childId     Int
+  child       Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+  year        Int
+  month       Int
+  org         String
+  childName   String
+  childBirth  String?
+  opinion     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdById Int?
+  createdBy   User?    @relation("RecordCreatedBy", fields: [createdById], references: [id])
+
+  sessions    RecordSession[]
+
+  @@unique([childId, year, month])
+}
+
+model RecordSession {
+  id          Int      @id @default(autoincrement())
+  recordId    Int
+  record      Record   @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  ordinal     Int
+  date        String?
+  startTime   String?
+  endTime     String?
+  voucher     String?
+  extra       String?
+  amount      String?
+  useDay      String?
+  payDay      String?
+  apprNumber  String?
+  result      String?
+  resultExtra String?
+
+  @@unique([recordId, ordinal])
+}
