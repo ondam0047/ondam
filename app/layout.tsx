@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import Sidebar from "./Sidebar";
-import Topbar from "./Topbar";
 
 export const metadata: Metadata = {
   title: "온담 말·언어 연구소 통합관리",
@@ -17,15 +15,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/variable/pretendardvariable.css"
         />
       </head>
-      <body>
-        <div className="app">
-          <Sidebar />
-          <div className="main">
-            <Topbar />
-            <main className="content">{children}</main>
-          </div>
-        </div>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
