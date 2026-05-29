@@ -8,14 +8,16 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ko">
+    // Grammarly·LanguageTool 등 브라우저 확장이 <body> 에 data-* 속성을
+    // 주입하면서 hydration 경고가 뜸. 기능엔 영향 없지만 콘솔이 시끄러워서 무시.
+    <html lang="ko" suppressHydrationWarning>
       <head>
         <link
           rel="stylesheet"
           href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/variable/pretendardvariable.css"
         />
       </head>
-      <body>{children}</body>
+      <body suppressHydrationWarning>{children}</body>
     </html>
   );
 }
