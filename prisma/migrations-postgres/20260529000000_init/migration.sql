@@ -1,5 +1,3 @@
-Loaded Prisma config from prisma.config.ts.
-
 -- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "public";
 
@@ -230,4 +228,3 @@ ALTER TABLE "Record" ADD CONSTRAINT "Record_createdById_fkey" FOREIGN KEY ("crea
 
 -- AddForeignKey
 ALTER TABLE "RecordSession" ADD CONSTRAINT "RecordSession_recordId_fkey" FOREIGN KEY ("recordId") REFERENCES "Record"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
