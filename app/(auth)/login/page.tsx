@@ -57,17 +57,18 @@ export default async function LoginPage({
       <div className="card-body">
         {sp.err && <div className="flash warn" style={{ marginBottom: 12 }}>{sp.err}</div>}
         {firstSignup ? (
-          <div className="tip" style={{ marginBottom: 14 }}>
+          <div className="tip" style={{ marginBottom: 14, wordBreak: "keep-all", lineHeight: 1.65 }}>
             💡 처음 사용하시나요?{" "}
-            <Link href="/signup" style={{ color: "var(--primary)", fontWeight: 700 }}>
+            <Link href="/signup" style={{ color: "var(--primary)", fontWeight: 700, whiteSpace: "nowrap" }}>
               첫 계정 만들기
             </Link>
-            로 시작하세요. (자동으로 원장 계정이 됩니다)
+            로 시작하세요.{" "}
+            <span style={{ whiteSpace: "nowrap" }}>(자동으로 원장 계정이 됩니다)</span>
           </div>
         ) : (
-          <div className="tip" style={{ marginBottom: 14 }}>
+          <div className="tip" style={{ marginBottom: 14, wordBreak: "keep-all", lineHeight: 1.65 }}>
             치료사이신가요?{" "}
-            <Link href="/signup" style={{ color: "var(--primary)", fontWeight: 700 }}>
+            <Link href="/signup" style={{ color: "var(--primary)", fontWeight: 700, whiteSpace: "nowrap" }}>
               치료사 가입 신청
             </Link>
             후 원장님 승인을 받으세요.

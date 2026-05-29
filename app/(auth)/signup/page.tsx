@@ -131,12 +131,12 @@ export default async function SignupPage({
         <Link
           href="/signup?mode=center"
           className={"chip" + (mode === "center" ? " on" : "")}
-          style={{ textDecoration: "none" }}
+          style={{ textDecoration: "none", whiteSpace: "nowrap" }}
         >🏢 센터 새로 만들기</Link>
         <Link
           href="/signup?mode=therapist"
           className={"chip" + (mode === "therapist" ? " on" : "")}
-          style={{ textDecoration: "none" }}
+          style={{ textDecoration: "none", whiteSpace: "nowrap" }}
         >👤 치료사 가입</Link>
       </div>
 
