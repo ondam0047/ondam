@@ -40,8 +40,19 @@ export default async function LoginPage({
   return (
     <div className="card">
       <div style={{ padding: "28px 26px 8px", textAlign: "center" }}>
-        <Image src="/baroilji-wordmark.svg" alt="바로일지" width={240} height={70} style={{ margin: "0 auto", display: "block" }} />
-        <div className="sub-mute" style={{ marginTop: 12 }}>반복되는 일지 작성, 이제 바로 끝</div>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 14 }}>
+          <Image src="/baroilji-logo.svg" alt="바로일지" width={56} height={56} priority />
+          <div style={{ textAlign: "left", lineHeight: 1 }}>
+            <div style={{ fontSize: 32, fontWeight: 800, letterSpacing: "-0.03em" }}>
+              <span style={{ color: "#1F7AED" }}>바로</span>
+              <span style={{ color: "#1A2330" }}>일지</span>
+            </div>
+            <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.3em", color: "#9CA3AF", marginTop: 6 }}>
+              BAROILJI
+            </div>
+          </div>
+        </div>
+        <div className="sub-mute" style={{ marginTop: 14 }}>반복되는 일지 작성, 이제 바로 끝</div>
       </div>
       <div className="card-body">
         {sp.err && <div className="flash warn" style={{ marginBottom: 12 }}>{sp.err}</div>}

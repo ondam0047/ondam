@@ -100,7 +100,7 @@ export default async function SignupPage({
     return (
       <div className="card">
         <div style={{ padding: "28px 26px 8px", textAlign: "center" }}>
-          <Image src="/baroilji-wordmark.svg" alt="바로일지" width={240} height={70} style={{ margin: "0 auto", display: "block" }} />
+          <Image src="/baroilji-logo.svg" alt="바로일지" width={56} height={56} priority />
           <h2 style={{ marginTop: 12, fontSize: 18 }}>가입 신청 완료</h2>
         </div>
         <div className="card-body" style={{ textAlign: "center" }}>
@@ -120,7 +120,7 @@ export default async function SignupPage({
   return (
     <div className="card">
       <div style={{ padding: "28px 26px 8px", textAlign: "center" }}>
-        <Image src="/baroilji-wordmark.svg" alt="바로일지" width={240} height={70} style={{ margin: "0 auto", display: "block" }} />
+        <Image src="/baroilji-logo.svg" alt="바로일지" width={56} height={56} priority />
         <h2 style={{ marginTop: 12, fontSize: 18 }}>가입</h2>
         <div className="sub-mute" style={{ marginTop: 4 }}>
           {mode === "center" ? "센터를 새로 만드세요" : "원장님에게 받은 승인코드를 입력해주세요"}
