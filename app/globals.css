@@ -424,10 +424,9 @@ h1, h2, h3, h4, h5 { font-family: var(--font-display); font-weight: 700; margin:
   background: var(--primary-soft);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
-  padding: 8px 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  padding: 10px 12px;
+  line-height: 1.65;
+  word-break: keep-all;
   margin-bottom: 18px;
 }
 .tip b { color: var(--primary); font-weight: 600; }
