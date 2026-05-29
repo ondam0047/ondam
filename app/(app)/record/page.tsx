@@ -9,7 +9,6 @@ export default async function RecordPage() {
   const centerId = user.centerId ?? -1;
   const myTherapistId = await getEffectiveTherapistId(user);
 
-  // 본인 담당 서비스만. 한 아동이 본인에게 여러 서비스(언어재활+놀이 등) 받을 수도 있음.
   const services = await prisma.childService.findMany({
     where: {
       active: true,
@@ -20,13 +19,24 @@ export default async function RecordPage() {
     orderBy: [{ child: { name: "asc" } }, { id: "asc" }],
   });
 
+  // 같은 아동에 여러 서비스가 있으면 라벨에 종류 표시
+  const childCount = new Map<number, number>();
+  for (const s of services) childCount.set(s.childId, (childCount.get(s.childId) ?? 0) + 1);
+
   const myServices = services.map((s) => ({
     id: s.id,
     childId: s.childId,
     name: s.child.name,
     birthDate: s.child.birthDate,
     serviceType: s.serviceType,
+    hasMultipleServices: (childCount.get(s.childId) ?? 0) > 1,
   }));
 
-  return <RecordClient myServices={myServices} />;
+  return (
+    <RecordClient
+      myServices={myServices}
+      defaultTherapist={user.name}
+      defaultOrg={user.centerName ?? ""}
+    />
+  );
 }

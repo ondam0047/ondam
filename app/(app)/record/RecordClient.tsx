@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { minusMin } from "@/lib/constants";
 
@@ -33,23 +33,104 @@ function parseYMD(s: string): { y: number; mo: number; d: number } | null {
 }
 
 type MyServiceOption = {
-  id: number;          // ChildService.id
+  id: number;
   childId: number;
   name: string;
   birthDate: string | null;
   serviceType: string;
+  hasMultipleServices?: boolean;
 };
+
+function pad(n: number) { return String(n).padStart(2, "0"); }
+
+function buildMonthOptions() {
+  const now = new Date();
+  const out: { value: string; label: string }[] = [];
+  for (let offset = -3; offset <= 1; offset++) {
+    const total = now.getFullYear() * 12 + now.getMonth() + offset;
+    const y = Math.floor(total / 12);
+    const m = (total % 12) + 1;
+    out.push({
+      value: `${y}-${m}`,
+      label: `${y}년 ${m}월${offset === 0 ? " (이번 달)" : ""}`,
+    });
+  }
+  return out;
+}
 
 export default function RecordClient({
   myServices,
+  defaultTherapist,
+  defaultOrg,
 }: {
   myServices: MyServiceOption[];
+  defaultTherapist: string;
+  defaultOrg: string;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
-  const [therapist, setTherapist] = useState("");
+  const [therapist, setTherapist] = useState(defaultTherapist);
   const [uploadInfo, setUploadInfo] = useState("");
   const [error, setError] = useState("");
+
+  // ─── 직접 시작 (엑셀 없이) ────────────────────────────────────────────
+  const monthOptions = useMemo(buildMonthOptions, []);
+  const [manualCSId, setManualCSId] = useState<number | "">("");
+  const [manualYm, setManualYm] = useState(monthOptions.find((o) => o.label.includes("이번 달"))?.value ?? monthOptions[0].value);
+  const [manualLoading, setManualLoading] = useState(false);
+
+  async function startManual() {
+    if (!manualCSId || !manualYm) return;
+    setManualLoading(true);
+    try {
+      const cs = myServices.find((s) => s.id === manualCSId);
+      if (!cs) return;
+      const [y, m] = manualYm.split("-").map(Number);
+
+      // 1) 이 달 일정표가 있으면 회기를 시드로
+      const r = await fetch(`/api/schedule/load?childServiceId=${manualCSId}&year=${y}&month=${m}`);
+      let scheduleData: { sessions: { day: number; time: string }[] } | null = null;
+      if (r.ok) scheduleData = await r.json();
+
+      // 2) SessionRow[] 구성
+      const tag = cs.hasMultipleServices ? `${cs.name} · ${cs.serviceType}` : cs.name;
+      let rows: SessionRow[] = [];
+      if (scheduleData && Array.isArray(scheduleData.sessions) && scheduleData.sessions.length > 0) {
+        rows = scheduleData.sessions.map((sess) => {
+          const [, end] = sess.time.split("~");
+          return {
+            name: cs.name,
+            birth: cs.birthDate ?? "",
+            use: `${y}.${pad(m)}.${pad(sess.day)}`,
+            end: end || "",
+            pay: "",
+            appr: "",
+            amt: "",
+            org: defaultOrg,
+          };
+        });
+      } else {
+        // 일정표 없으면 빈 5칸 — 날짜는 그 달의 첫 5주를 자동 분산 (사용자가 폼에서 시간 입력)
+        const dim = new Date(y, m, 0).getDate();
+        const placeholders = [1, 8, 15, 22, 29].map((d) => Math.min(d, dim));
+        rows = placeholders.map((d) => ({
+          name: cs.name, birth: cs.birthDate ?? "",
+          use: `${y}.${pad(m)}.${pad(d)}`,
+          end: "", pay: "", appr: "", amt: "", org: defaultOrg,
+        }));
+      }
+
+      setGrouped({ [tag]: rows });
+      setCurChild(tag);
+      setUploadInfo(
+        scheduleData
+          ? `✓ ${cs.name} ${y}년 ${m}월 일정표에서 회기 ${rows.length}개를 불러왔어요. 결과를 입력하고 저장하세요.`
+          : `${cs.name} ${y}년 ${m}월 — 빈 5칸으로 시작했어요. (일정표를 먼저 만들면 회기가 자동으로 채워집니다)`
+      );
+    } finally {
+      setManualLoading(false);
+    }
+  }
   const [grouped, setGrouped] = useState<Grouped>({});
   const [curChild, setCurChild] = useState<string | null>(null);
 
@@ -126,15 +207,64 @@ export default function RecordClient({
     <>
       <div className="section-head">
         <div>
-          <h2>기록지 자동완성</h2>
-          <p>전자바우처에서 받은 엑셀을 올리면 아동별 회기·승인번호가 자동으로 채워져요.</p>
+          <h2>기록지 작성</h2>
+          <p>엑셀 없이 미리 작성하거나, 월말 엑셀을 받은 후 일괄 자동완성 — 둘 다 가능합니다.</p>
+        </div>
+      </div>
+
+      {/* 직접 시작 — 엑셀 없이 */}
+      <div className="card">
+        <div className="card-header">
+          <span className="step">1</span>
+          <h2>엑셀 없이 직접 시작</h2>
+          <span className="hint">미리 작성 · 일정표 회기를 자동 시드</span>
+        </div>
+        <div className="card-body">
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}>
+            <div className="field" style={{ flex: 1, minWidth: 200 }}>
+              <label>아동 · 서비스</label>
+              <select
+                className="select"
+                value={manualCSId === "" ? "" : String(manualCSId)}
+                onChange={(e) => setManualCSId(e.target.value ? Number(e.target.value) : "")}
+              >
+                <option value="">— 선택 —</option>
+                {myServices.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}{s.hasMultipleServices ? ` · ${s.serviceType}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field" style={{ minWidth: 180 }}>
+              <label>연 · 월</label>
+              <select className="select" value={manualYm} onChange={(e) => setManualYm(e.target.value)}>
+                {monthOptions.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={startManual}
+              disabled={!manualCSId || manualLoading}
+            >
+              {manualLoading ? "불러오는 중..." : "📝 작성 시작"}
+            </button>
+          </div>
+          <div className="sub-mute" style={{ marginTop: 10, fontSize: 12.5, lineHeight: 1.6 }}>
+            💡 일정표를 미리 만들어두면 회기 날짜·시간이 자동으로 채워집니다.
+            저장하면 나중에 같은 아동·월로 들어와 이어 작성할 수 있어요.
+            엑셀이 나중에 도착하면 아래에서 업로드해 승인번호·결제일 등을 보강할 수 있습니다.
+          </div>
         </div>
       </div>
 
       <div className="card">
         <div className="card-header">
-          <span className="step">1</span>
-          <h2>서비스제공내역 엑셀 업로드</h2>
+          <span className="step">2</span>
+          <h2>엑셀로 자동완성 (선택)</h2>
           <span className="hint">.xls / .xlsx 모두 지원</span>
         </div>
         <div className="card-body">
@@ -176,8 +306,8 @@ export default function RecordClient({
       {names.length > 0 && (
         <div className="card">
           <div className="card-header">
-            <span className="step">2</span>
-            <h2>아동별 기록지 작성</h2>
+            <span className="step">3</span>
+            <h2>기록지 입력</h2>
             <span className="hint">아동 탭을 눌러 전환하세요</span>
           </div>
           <div className="card-body">
@@ -222,9 +352,12 @@ function RecordSheet({
 }) {
   const monthSet = [...new Set(rows.map((s) => parseYMD(s.use)?.mo).filter(Boolean))];
   const month = monthSet[0] ?? "";
-  // DB 매칭: 본인 담당 ChildService 중 이름이 일치하는 첫 번째.
-  // (한 아동이 같은 치료사한테 여러 서비스 받는 경우 추후 선택 UI 추가)
-  const matchedService = myServices.find((c) => c.name === child);
+  // DB 매칭: 본인 담당 ChildService 중 라벨/이름이 일치.
+  // 직접 시작 모드는 라벨이 'name · serviceType' 인 경우가 있음.
+  const matchedService = myServices.find((c) => {
+    const tag = c.hasMultipleServices ? `${c.name} · ${c.serviceType}` : c.name;
+    return tag === child;
+  }) ?? myServices.find((c) => c.name === child);
   const childServiceId = matchedService?.id ?? null;
   const year = new Date().getFullYear(); // 단순화: 올해 기준 (대부분 맞음)
   const birth = rows[0]?.birth ?? "";
