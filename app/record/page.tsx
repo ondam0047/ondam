@@ -238,9 +238,11 @@ function RecordSheet({ child, rows, therapist }: { child: string; rows: SessionR
         return;
       }
       const blob = await res.blob();
+      // 회기 5개 초과면 서버가 .zip 으로 묶어 보냄
+      const isZip = blob.type === "application/zip";
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = `${child}_${monthNum}월_기록지.hwpx`;
+      a.download = `${child}_${monthNum}월_기록지.${isZip ? "zip" : "hwpx"}`;
       a.click();
       URL.revokeObjectURL(a.href);
     } finally {

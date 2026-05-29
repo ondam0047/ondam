@@ -1,7 +1,14 @@
 import { NextRequest } from "next/server";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { patchSection0, readSection0, xmlEscape } from "@/lib/hwpx";
+import { crc32, deflateRawSync } from "node:zlib";
+import {
+  buildZip,
+  patchSection0,
+  readSection0,
+  xmlEscape,
+  type ZipEntry,
+} from "@/lib/hwpx";
 
 // 기록지 양식은 1회 5회기 기준. 그보다 많으면 5회만, 적으면 나머지 자리 비움.
 const MAX_SESSIONS = 5;
@@ -171,6 +178,33 @@ function substituteRecordXml(xml: string, p: Payload): string {
   return out;
 }
 
+// 한 장(5회기) 분량의 .hwpx 생성
+function generateOneSheet(templateBuf: Buffer, p: Payload): Buffer {
+  const oldXml = readSection0(templateBuf);
+  const newXml = substituteRecordXml(oldXml, p);
+  return patchSection0(templateBuf, newXml);
+}
+
+// 여러 .hwpx 를 일반 zip 으로 묶기 (한글파일 검증 대상 아님, 평범한 zip)
+function bundleAsZip(files: { name: string; data: Buffer }[]): Buffer {
+  const entries: ZipEntry[] = files.map((f) => {
+    const compressed = deflateRawSync(f.data, { level: 6 });
+    return {
+      name: f.name,
+      method: 8,
+      crc: crc32(f.data),
+      compressedSize: compressed.length,
+      uncompressedSize: f.data.length,
+      compressedData: compressed,
+    };
+  });
+  return buildZip(entries);
+}
+
+function safeFileName(s: string): string {
+  return s.replace(/[/\\?%*:|"<>]/g, "_") || "기록지";
+}
+
 export async function POST(req: NextRequest) {
   const p = (await req.json()) as Payload;
 
@@ -184,16 +218,37 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const oldXml = readSection0(templateBuf);
-  const newXml = substituteRecordXml(oldXml, p);
-  const out = patchSection0(templateBuf, newXml);
+  // 회기를 5개씩 묶음. 5개 이하면 1장, 6~10개면 2장 ...
+  const chunks: SessionDetail[][] = [];
+  for (let i = 0; i < p.sessions.length; i += MAX_SESSIONS) {
+    chunks.push(p.sessions.slice(i, i + MAX_SESSIONS));
+  }
+  if (chunks.length === 0) chunks.push([]); // 회기 0개라도 빈 장 1개
 
-  const filename = encodeURIComponent(
-    `${p.childName || "기록지"}_${String(p.month).padStart(2, "0")}월_기록지.hwpx`
-  );
-  return new Response(new Uint8Array(out), {
+  const baseName = `${safeFileName(p.childName)}_${String(p.month).padStart(2, "0")}월_기록지`;
+
+  // 1장이면 .hwpx 단일 응답
+  if (chunks.length === 1) {
+    const out = generateOneSheet(templateBuf, { ...p, sessions: chunks[0] });
+    const filename = encodeURIComponent(`${baseName}.hwpx`);
+    return new Response(new Uint8Array(out), {
+      headers: {
+        "Content-Type": "application/hwp+zip",
+        "Content-Disposition": `attachment; filename*=UTF-8''${filename}`,
+      },
+    });
+  }
+
+  // 2장 이상이면 .zip 으로 묶어서 응답
+  const sheets = chunks.map((chunkSessions, idx) => ({
+    name: `${baseName}_${idx + 1}.hwpx`,
+    data: generateOneSheet(templateBuf, { ...p, sessions: chunkSessions }),
+  }));
+  const zipBuf = bundleAsZip(sheets);
+  const filename = encodeURIComponent(`${baseName}.zip`);
+  return new Response(new Uint8Array(zipBuf), {
     headers: {
-      "Content-Type": "application/hwp+zip",
+      "Content-Type": "application/zip",
       "Content-Disposition": `attachment; filename*=UTF-8''${filename}`,
     },
   });
