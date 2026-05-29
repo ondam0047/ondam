@@ -136,6 +136,19 @@ export async function generateApprovalCode(): Promise<string> {
   throw new Error("승인코드 생성 실패");
 }
 
+// 12자리 토큰 — 일회용 초대용. 충돌이 거의 없음.
+export async function generateInvitationToken(): Promise<string> {
+  for (let attempt = 0; attempt < 50; attempt++) {
+    let token = "";
+    for (let i = 0; i < 12; i++) {
+      token += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
+    }
+    const exists = await prisma.invitation.findUnique({ where: { token } });
+    if (!exists) return token;
+  }
+  throw new Error("초대 토큰 생성 실패");
+}
+
 // 기존 데이터 보존용: 가장 오래된 센터 (= 첫 가입자의 센터). 마이그레이션 호환.
 // null centerId 인 레코드를 이 센터에 묶거나 조회할 때 사용.
 export async function getDefaultCenterId(): Promise<number | null> {

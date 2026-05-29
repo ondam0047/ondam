@@ -26,10 +26,17 @@ export default async function ChildrenPage({
   if (canManage) {
     if (filterTherapistId) childWhere.services = { some: { therapistId: filterTherapistId } };
     else if (onlyUnassigned) childWhere.services = { some: { therapistId: null } };
-    if (q) childWhere.name = { contains: q };
   } else {
     childWhere.services = { some: { therapistId: myTherapistId ?? -1 } };
-    if (q) childWhere.name = { contains: q };
+  }
+  // 검색: 이름·관리번호·메모, 그리고 담당 치료사 이름까지
+  if (q) {
+    childWhere.OR = [
+      { name: { contains: q } },
+      { mgmtNumber: { contains: q } },
+      { memo: { contains: q } },
+      { services: { some: { therapist: { name: { contains: q } } } } },
+    ];
   }
 
   const [children, allTherapists] = await Promise.all([

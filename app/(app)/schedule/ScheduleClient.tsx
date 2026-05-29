@@ -152,6 +152,65 @@ export default function ScheduleClient({
     }
   }, [selectedChildId, refreshSavedList]);
 
+  // 가장 최근 저장된 일정을 가져와 현재 선택된 (year, month) 로 변환해서 채우기.
+  // 요일 + 시간 패턴을 새 월의 같은 요일에 매핑. 사용자가 수정 후 저장 가능.
+  async function copyPrevMonth() {
+    if (typeof selectedChildId !== "number" || savedList.length === 0) {
+      alert("저장된 일정이 없어요. 아동을 먼저 선택하세요.");
+      return;
+    }
+    const latest = savedList[0]; // savedList 는 year/month DESC 정렬
+    const res = await fetch(`/api/schedule/load?id=${latest.id}`);
+    if (!res.ok) { alert("불러오기 실패"); return; }
+    const s = await res.json();
+    // 메타 정보 복사 (월/년은 현재 선택된 ym 유지)
+    setTherapist(s.therapist);
+    setServiceType(s.serviceType);
+    setTarget(s.target);
+    setMgmt(s.mgmtNumber ?? "");
+    setPvOrg(s.pvOrg);
+    setPvTel(s.pvTel ?? "");
+    setPvCharge(s.pvCharge ?? "");
+    setPvType(s.pvType);
+    setCostUnit(s.costUnit);
+    setCostSelf(s.costSelf);
+    // 회기 패턴 (요일+시간 단위) 추출
+    type Pattern = { dow: number; time: string; makeup: boolean };
+    const patterns: Pattern[] = [];
+    const seen = new Set<string>();
+    for (const sess of s.sessions) {
+      const dow = new Date(s.year, s.month - 1, sess.day).getDay();
+      const key = `${dow}|${sess.time}`;
+      if (!seen.has(key)) {
+        patterns.push({ dow, time: sess.time, makeup: sess.makeup });
+        seen.add(key);
+      }
+    }
+    // 새 월(ym)에 패턴 적용
+    const [y, m] = ym.split("-").map(Number);
+    const dim = new Date(y, m, 0).getDate();
+    const next: SessionMap = {};
+    for (let d = 1; d <= dim; d++) {
+      const dow = new Date(y, m - 1, d).getDay();
+      if (holiday(y, m, d)) continue;
+      for (const p of patterns) {
+        if (p.dow === dow) {
+          next[d] = { time: p.time, makeup: false };
+          break;
+        }
+      }
+    }
+    setSessions(next);
+    setGenY(y);
+    setGenM(m);
+    setWriteDate(defaultWriteDate(y, m));
+    setLoadedScheduleId(null);
+    setSavedMsg(`✓ ${s.year}년 ${s.month}월 일정을 패턴으로 가져와 ${y}년 ${m}월에 적용했어요. 저장하면 새 일정표가 됩니다.`);
+    requestAnimationFrame(() => {
+      document.getElementById("schedCard")?.scrollIntoView({ behavior: "smooth" });
+    });
+  }
+
   async function loadSavedSchedule(idStr: string) {
     if (!idStr) return;
     const id = Number(idStr);
@@ -436,12 +495,12 @@ export default function ScheduleClient({
           {typeof selectedChildId === "number" && savedList.length > 0 && (
             <div className="field" style={{ marginBottom: 16 }}>
               <label>이 아동의 저장된 일정표 ({savedList.length}개)</label>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                 <select
                   className="select"
                   value={loadedScheduleId ?? ""}
                   onChange={(e) => loadSavedSchedule(e.target.value)}
-                  style={{ flex: 1 }}
+                  style={{ flex: 1, minWidth: 200 }}
                 >
                   <option value="">— 선택 —</option>
                   {savedList.map((s) => (
@@ -450,6 +509,14 @@ export default function ScheduleClient({
                     </option>
                   ))}
                 </select>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={copyPrevMonth}
+                  title="가장 최근 일정의 요일·시간 패턴을 새 월에 자동 적용"
+                >
+                  📋 전월 일정 복사
+                </button>
                 {loadedScheduleId !== null && (
                   <button
                     type="button"
@@ -510,10 +577,16 @@ export default function ScheduleClient({
           <div className="field-row cols-3" style={{ alignItems: "end" }}>
             <div className="field">
               <label>치료 시간대<span className="req">*</span></label>
-              <select className="select" value={defaultSlot} onChange={(e) => setDefaultSlot(e.target.value)}>
-                <option value="">(선택)</option>
-                {SLOTS.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
+              <input
+                className="input"
+                list="slot-suggestions"
+                value={defaultSlot}
+                onChange={(e) => setDefaultSlot(e.target.value)}
+                placeholder="예: 10:00~10:50"
+              />
+              <datalist id="slot-suggestions">
+                {SLOTS.map((s) => <option key={s} value={s} />)}
+              </datalist>
             </div>
             <div className="field" style={{ gridColumn: "span 2" }}>
               <label>반복 요일<span className="req">*</span> <span className="sub-mute">(탭하여 선택)</span></label>
@@ -657,9 +730,16 @@ export default function ScheduleClient({
             </div>
             <div className="field" style={{ marginBottom: 14 }}>
               <label>치료 시간대</label>
-              <select className="select" value={editTime} onChange={(e) => setEditTime(e.target.value)}>
-                {SLOTS.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
+              <input
+                className="input"
+                list="slot-suggestions-modal"
+                value={editTime}
+                onChange={(e) => setEditTime(e.target.value)}
+                placeholder="예: 10:00~10:50 (자유 입력)"
+              />
+              <datalist id="slot-suggestions-modal">
+                {SLOTS.map((s) => <option key={s} value={s} />)}
+              </datalist>
             </div>
             <label className="modal-check">
               <input type="checkbox" checked={editMakeup} onChange={(e) => setEditMakeup(e.target.checked)} />

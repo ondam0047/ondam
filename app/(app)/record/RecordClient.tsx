@@ -277,6 +277,32 @@ function RecordSheet({
     return () => { cancelled = true; };
   }, [childServiceId, year, monthNumForLoad]);
 
+  // 전월 기록 가져오기 — 가장 최근 저장된 기록의 result/opinion 을 현재 기록 폼에 복사.
+  // 회기 수가 달라도 가능한 만큼만 복사.
+  async function copyPrevRecord() {
+    if (!childServiceId) {
+      alert("아동을 먼저 선택하세요.");
+      return;
+    }
+    // 이전 달 기록 찾기 — childServiceId 로 가장 최근 기록 (현재 월 제외)
+    let py = year, pm = monthNumForLoad - 1;
+    if (pm < 1) { py -= 1; pm = 12; }
+    try {
+      const r = await fetch(`/api/record/load?childServiceId=${childServiceId}&year=${py}&month=${pm}`);
+      if (!r.ok) { alert("이전 달 기록을 못 찾았어요."); return; }
+      const rec = await r.json();
+      if (!rec || !rec.id) { alert(`${py}년 ${pm}월 기록이 없어요.`); return; }
+      // opinion 복사
+      setOpinion(rec.opinion ?? "");
+      // 각 회차 result 를 현재 회차에 매핑 (앞에서부터)
+      const recSessions = rec.sessions as RecordSessionData[];
+      setResults((prev) => prev.map((v, i) => recSessions[i]?.result ?? v));
+      setSavedMsg(`✓ ${py}년 ${pm}월 기록 내용을 가져왔어요. 수정 후 저장하세요.`);
+    } catch {
+      alert("불러오기 실패");
+    }
+  }
+
   async function saveRecord() {
     if (!childServiceId) {
       alert("이 아동이 시스템에 등록돼 있지 않아 저장할 수 없어요. 원장님께 아동 등록을 요청해주세요.");
@@ -573,6 +599,15 @@ function RecordSheet({
       )}
 
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 20 }}>
+        <button
+          type="button"
+          className="btn"
+          onClick={copyPrevRecord}
+          disabled={!childServiceId}
+          title="이전 달 기록의 결과·총평을 복사 (수정 후 저장)"
+        >
+          📋 전월 기록 가져오기
+        </button>
         <button className="btn" onClick={saveRecord} disabled={saving || !childServiceId}>
           {saving ? "저장 중..." : (loadedRecordId ? "덮어쓰기 저장" : "DB에 저장")}
         </button>

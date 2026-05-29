@@ -65,12 +65,16 @@ export default async function AvailabilityPage({
             </div>
             <div className="field">
               <label>치료 시간대<span className="req">*</span></label>
-              <select className="select" name="slot" required defaultValue="">
-                <option value="" disabled>선택</option>
-                {SLOTS.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
+              <input
+                className="input"
+                name="slot"
+                required
+                list="avail-slot-suggestions"
+                placeholder="예: 10:00~10:50 (자유 입력)"
+              />
+              <datalist id="avail-slot-suggestions">
+                {SLOTS.map((s) => <option key={s} value={s} />)}
+              </datalist>
             </div>
             <div className="field" style={{ gridColumn: "span 2" }}>
               <label>사유 (선택)</label>

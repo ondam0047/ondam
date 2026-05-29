@@ -25,6 +25,24 @@ model Center {
   users         User[]
   therapists    Therapist[]
   children      Child[]
+  invitations   Invitation[]
+}
+
+// 일회용 초대코드 — 원장이 만들고 한 사람에게 전달, 회원가입 시 사용되면 무효화.
+model Invitation {
+  id          Int       @id @default(autoincrement())
+  token       String    @unique
+  centerId    Int
+  center      Center    @relation(fields: [centerId], references: [id], onDelete: Cascade)
+  role        String    // 'THERAPIST' | 'ADMIN'
+  name        String?
+  email       String?
+  usedAt      DateTime?
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+  createdById Int?
+
+  @@index([centerId])
 }
 
 // ─── 권한·로그인 ─────────────────────────────────────────────────────────
@@ -97,9 +115,10 @@ model Child {
   id         Int       @id @default(autoincrement())
   name       String
   birthDate  String?
-  mgmtNumber String?   // 사람 단위 식별번호 (있으면)
+  mgmtNumber String?
   memo       String?
   active     Boolean   @default(true)
+  waiting    Boolean   @default(false) // 대기 명단 여부 (상담 예정 등)
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 

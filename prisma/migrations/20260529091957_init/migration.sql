@@ -11,6 +11,21 @@ CREATE TABLE "Center" (
 );
 
 -- CreateTable
+CREATE TABLE "Invitation" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "token" TEXT NOT NULL,
+    "centerId" INTEGER NOT NULL,
+    "role" TEXT NOT NULL,
+    "name" TEXT,
+    "email" TEXT,
+    "usedAt" DATETIME,
+    "expiresAt" DATETIME NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdById" INTEGER,
+    CONSTRAINT "Invitation_centerId_fkey" FOREIGN KEY ("centerId") REFERENCES "Center" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
 CREATE TABLE "User" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "email" TEXT NOT NULL,
@@ -68,6 +83,7 @@ CREATE TABLE "Child" (
     "mgmtNumber" TEXT,
     "memo" TEXT,
     "active" BOOLEAN NOT NULL DEFAULT true,
+    "waiting" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     "centerId" INTEGER,
@@ -163,6 +179,12 @@ CREATE TABLE "RecordSession" (
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Center_approvalCode_key" ON "Center"("approvalCode");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Invitation_token_key" ON "Invitation"("token");
+
+-- CreateIndex
+CREATE INDEX "Invitation_centerId_idx" ON "Invitation"("centerId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");

@@ -24,6 +24,23 @@ model Center {
   users         User[]
   therapists    Therapist[]
   children      Child[]
+  invitations   Invitation[]
+}
+
+model Invitation {
+  id          Int       @id @default(autoincrement())
+  token       String    @unique
+  centerId    Int
+  center      Center    @relation(fields: [centerId], references: [id], onDelete: Cascade)
+  role        String
+  name        String?
+  email       String?
+  usedAt      DateTime?
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+  createdById Int?
+
+  @@index([centerId])
 }
 
 // ─── 권한·로그인 ─────────────────────────────────────────────────────────
@@ -98,6 +115,7 @@ model Child {
   mgmtNumber String?
   memo       String?
   active     Boolean   @default(true)
+  waiting    Boolean   @default(false)
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
