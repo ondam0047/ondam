@@ -55,6 +55,16 @@ export default async function DashboardPage() {
     }),
   ]);
 
+  // 미작성 기록지: 일정에는 회기가 있지만 같은 (childId, year, month) 의
+  // Record 가 아직 없는 경우. 일정 등록한 아동들 ID 모음.
+  const childIdsWithSchedule = [...new Set(currentSchedules.map((s) => s.childId))];
+  const savedRecords = await prisma.record.findMany({
+    where: { year: y, month: m, childId: { in: childIdsWithSchedule } },
+    select: { childId: true },
+  });
+  const recordedChildIds = new Set(savedRecords.map((r) => r.childId));
+  const unwrittenCount = childIdsWithSchedule.filter((id) => !recordedChildIds.has(id)).length;
+
   const totalSessionsThisMonth = currentSchedules.reduce(
     (s, sch) => s + sch.sessions.length,
     0
@@ -145,10 +155,13 @@ export default async function DashboardPage() {
         </div>
         <div className="stat">
           <div className="label">미작성 기록지</div>
-          <div className="value" style={{ color: "var(--text-mute)" }}>
-            —
+          <div className="value" style={{ color: unwrittenCount > 0 ? "var(--danger)" : "var(--text)" }}>
+            {unwrittenCount}
+            <span style={{ fontSize: 13, color: "var(--text-mute)", fontWeight: 500, marginLeft: 4 }}>건</span>
           </div>
-          <div className="delta">기록지 DB 저장 다음 단계</div>
+          <div className={"delta" + (unwrittenCount > 0 ? " down" : "")}>
+            {unwrittenCount > 0 ? "작성 필요" : "모두 작성됨 ✓"}
+          </div>
         </div>
         <div className="stat">
           <div className="label">활동 치료사</div>
