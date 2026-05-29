@@ -294,7 +294,12 @@ function rewriteCalendar(
       const pos = week * 7 + dow;
       const day = pos - offset + 1;
       const text = day >= 1 && day <= dim ? String(day) : "";
-      return setCellText(cellXml, text);
+      // 날짜 색: 일=빨강(38), 토=파랑(40), 공휴일=빨강(38), 평일=검정(2)
+      let pid = 2;
+      if (dow === 0) pid = 38;
+      else if (dow === 6) pid = 40;
+      if (day >= 1 && day <= dim && holidayMap.has(day)) pid = 38;
+      return setCellText(cellXml, text, pid);
     }
 
     // 시간 셀: row 2·4·6·8·10, col 1·3·5·7·9·11·13
