@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
-import { WEEK, SLOTS } from "@/lib/constants";
+import { WEEK, parseSlots } from "@/lib/constants";
 import { addBlock, deleteBlock } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -25,10 +25,14 @@ export default async function AvailabilityPage({
     );
   }
 
-  const blocks = await prisma.therapistBlock.findMany({
-    where: { therapistId: user.therapistId },
-    orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
-  });
+  const [blocks, center] = await Promise.all([
+    prisma.therapistBlock.findMany({
+      where: { therapistId: user.therapistId },
+      orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
+    }),
+    prisma.center.findUnique({ where: { id: user.centerId ?? -1 }, select: { slots: true } }),
+  ]);
+  const slots = parseSlots(center?.slots);
 
   // 요일별 그룹
   const byDow: Record<number, typeof blocks> = {};
@@ -65,16 +69,12 @@ export default async function AvailabilityPage({
             </div>
             <div className="field">
               <label>치료 시간대<span className="req">*</span></label>
-              <input
-                className="input"
-                name="slot"
-                required
-                list="avail-slot-suggestions"
-                placeholder="예: 10:00~10:50 (자유 입력)"
-              />
-              <datalist id="avail-slot-suggestions">
-                {SLOTS.map((s) => <option key={s} value={s} />)}
-              </datalist>
+              <select className="select" name="slot" required defaultValue="">
+                <option value="" disabled>선택</option>
+                {slots.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
             </div>
             <div className="field" style={{ gridColumn: "span 2" }}>
               <label>사유 (선택)</label>

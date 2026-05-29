@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export default async function ChildrenPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; therapistId?: string; unassigned?: string }>;
+  searchParams: Promise<{ q?: string; therapistId?: string; unassigned?: string; waiting?: string }>;
 }) {
   const user = await requireUser();
   const canManage = user.role === "ADMIN";
@@ -17,16 +17,18 @@ export default async function ChildrenPage({
   const q = sp.q?.trim() ?? "";
   const filterTherapistId = sp.therapistId ? Number(sp.therapistId) : null;
   const onlyUnassigned = sp.unassigned === "1";
+  const onlyWaiting = sp.waiting === "1";
 
   const centerId = user.centerId ?? -1;
   const myTherapistId = canManage ? null : await getEffectiveTherapistId(user);
 
   // 아동 단위 조회. 치료사·원장은 본인이 담당하는 ChildService 가 있는 아동만.
-  const childWhere: Record<string, unknown> = { centerId };
+  // 대기 명단은 별도 토글로만 노출 (기본은 정식 등록만 보임).
+  const childWhere: Record<string, unknown> = { centerId, waiting: onlyWaiting };
   if (canManage) {
     if (filterTherapistId) childWhere.services = { some: { therapistId: filterTherapistId } };
     else if (onlyUnassigned) childWhere.services = { some: { therapistId: null } };
-  } else {
+  } else if (!onlyWaiting) {
     childWhere.services = { some: { therapistId: myTherapistId ?? -1 } };
   }
   // 검색: 이름·관리번호·메모, 그리고 담당 치료사 이름까지
@@ -59,19 +61,29 @@ export default async function ChildrenPage({
     <>
       <div className="section-head">
         <div>
-          <h2>아동 관리</h2>
+          <h2>{onlyWaiting ? "대기 명단" : "아동 관리"}</h2>
           <p>
-            {canManage
-              ? `활동 중 ${activeCount}명 · 한 아동이 여러 서비스(언어재활·놀이치료 등)를 받는 경우 함께 관리됩니다.`
-              : `담당 아동 ${activeCount}명`}
+            {onlyWaiting
+              ? `상담 예정 · 회기 시작 전 ${activeCount}명`
+              : canManage
+                ? `활동 중 ${activeCount}명 · 한 아동이 여러 서비스(언어재활·놀이치료 등)를 받는 경우 함께 관리됩니다.`
+                : `담당 아동 ${activeCount}명`}
           </p>
         </div>
-        <Link className="btn btn-primary" href="/children/new">
-          <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-            <path d="M12 5v14 M5 12h14" />
-          </svg>
-          아동 등록
-        </Link>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {!onlyWaiting && (
+            <Link className="btn btn-ghost" href="/children?waiting=1">⏳ 대기 명단</Link>
+          )}
+          {onlyWaiting && (
+            <Link className="btn btn-ghost" href="/children">← 등록 아동</Link>
+          )}
+          <Link className="btn btn-primary" href="/children/new">
+            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path d="M12 5v14 M5 12h14" />
+            </svg>
+            아동 등록
+          </Link>
+        </div>
       </div>
 
       {canManage && (

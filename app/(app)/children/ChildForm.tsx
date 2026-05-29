@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { SLOTS } from "@/lib/constants";
+// slots 는 prop 으로 받음 (센터마다 다름)
 import DaySelector from "./DaySelector";
 
 type TherapistOpt = { id: number; name: string; active: boolean };
@@ -25,6 +25,7 @@ type ChildInput = {
   mgmtNumber: string | null;
   memo: string | null;
   active?: boolean;
+  waiting?: boolean;
   services: ServiceInput[];
 };
 
@@ -32,6 +33,7 @@ export default function ChildForm({
   child,
   therapists,
   serviceTypes,
+  slots,
   action,
   submitLabel,
   showActive = false,
@@ -40,6 +42,7 @@ export default function ChildForm({
   child?: ChildInput;
   therapists: TherapistOpt[];
   serviceTypes: string[];
+  slots: string[];
   action: (formData: FormData) => void | Promise<void>;
   submitLabel: string;
   showActive?: boolean;
@@ -111,10 +114,22 @@ export default function ChildForm({
       </div>
 
       {showActive && (
-        <div style={{ marginTop: 14 }}>
+        <div style={{ marginTop: 14, display: "flex", gap: 24, flexWrap: "wrap" }}>
           <label className="modal-check">
             <input type="checkbox" name="active" defaultChecked={c.active ?? true} />
             활동 중인 아동
+          </label>
+          <label className="modal-check">
+            <input type="checkbox" name="waiting" defaultChecked={c.waiting ?? false} />
+            대기 명단 (상담 예정 · 아직 회기 시작 전)
+          </label>
+        </div>
+      )}
+      {!showActive && (
+        <div style={{ marginTop: 14 }}>
+          <label className="modal-check">
+            <input type="checkbox" name="waiting" defaultChecked={c.waiting ?? false} />
+            대기 명단으로 등록 (상담만 받고 아직 회기 시작 전)
           </label>
         </div>
       )}
@@ -213,7 +228,7 @@ export default function ChildForm({
                   onChange={(e) => updateSvc(i, { defaultSlot: e.target.value || null })}
                 >
                   <option value="">— 미지정 —</option>
-                  {SLOTS.map((slot) => <option key={slot} value={slot}>{slot}</option>)}
+                  {slots.map((slot) => <option key={slot} value={slot}>{slot}</option>)}
                 </select>
               </div>
             </div>

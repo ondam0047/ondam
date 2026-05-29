@@ -220,11 +220,28 @@ pg_dump -U baroilji baroilji > /backup/baroilji-$(date +%Y%m%d).sql
 ```
 
 ### 자동 백업 (cron)
+
+레포에 포함된 스크립트 사용:
 ```bash
-mkdir -p /backup
+# 권한 부여 (한 번만)
+chmod +x /opt/baroilji/scripts/backup-db.sh
+
+# 비밀번호 자동 입력 위한 .pgpass 만들기 (한 번만)
+echo "localhost:5432:baroilji:baroilji:비밀번호" > /root/.pgpass
+chmod 600 /root/.pgpass
+
+# crontab 등록
 crontab -e
 # 추가:
-0 3 * * * pg_dump -U baroilji baroilji > /backup/baroilji-$(date +\%Y\%m\%d).sql && find /backup -name "baroilji-*.sql" -mtime +30 -delete
+0 3 * * * /opt/baroilji/scripts/backup-db.sh >> /var/log/baroilji-backup.log 2>&1
+```
+
+매일 새벽 3시 자동 실행, 30일치 보관, `.sql.gz` 압축본 `/backup/` 에 저장.
+
+수동 테스트:
+```bash
+/opt/baroilji/scripts/backup-db.sh
+ls -la /backup/
 ```
 
 ---

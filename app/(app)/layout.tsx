@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
+import WelcomeTooltip from "./WelcomeTooltip";
 import { getCurrentUser, generateApprovalCode, getEffectiveTherapistId } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { ensureLegacyDataLinked } from "@/lib/migrate-center";
@@ -49,6 +50,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <Topbar />
         <main className="content">{children}</main>
       </div>
+      <WelcomeTooltip role={user.role} />
     </div>
   );
 }

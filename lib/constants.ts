@@ -15,6 +15,12 @@ export function parseServiceTypes(str: string | null | undefined): string[] {
   return str.split(",").map((s) => s.trim()).filter(Boolean);
 }
 
+// 센터별 시간대 (Center.slots) 파싱
+export function parseSlots(str: string | null | undefined): string[] {
+  if (!str) return [...SLOTS];
+  return str.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
 // 한국 공휴일 (수동 관리). 추후 data.go.kr API 동기화 예정.
 // 그레고리력은 음력 매년 다르므로 매년 추가해야 함.
 export const HOLIDAYS: Record<string, string> = {

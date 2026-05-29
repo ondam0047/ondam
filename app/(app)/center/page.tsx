@@ -135,7 +135,21 @@ export default async function CenterPage({
                   placeholder="예: 언어재활, 놀이치료, 감각통합치료, 인지재활"
                 />
                 <div className="sub-mute" style={{ fontSize: 11, marginTop: 4 }}>
-                  아동 등록·일정표·기록지에서 보이는 드롭다운 항목입니다. 센터마다 다르게 설정 가능.
+                  아동 등록·일정표·기록지에서 보이는 드롭다운 항목입니다.
+                </div>
+              </div>
+              <div className="field" style={{ gridColumn: "1 / -1" }}>
+                <label>치료 시간대 (콤마 또는 줄바꿈으로 구분, HH:MM~HH:MM)</label>
+                <textarea
+                  className="textarea"
+                  name="slots"
+                  defaultValue={center.slots}
+                  rows={4}
+                  placeholder="예: 09:00~09:50, 09:50~10:40, ..."
+                  style={{ fontFamily: "monospace", fontSize: 13 }}
+                />
+                <div className="sub-mute" style={{ fontSize: 11, marginTop: 4 }}>
+                  일정표·내 차단 시간·세션 편집에서 보이는 시간 옵션입니다. 센터 운영 시간에 맞춰 설정하세요.
                 </div>
               </div>
             </div>

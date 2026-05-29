@@ -14,16 +14,29 @@ export async function updateCenter(formData: FormData) {
   const address = String(formData.get("address") ?? "").trim();
   const phone = String(formData.get("phone") ?? "").trim();
   const serviceTypesRaw = String(formData.get("serviceTypes") ?? "").trim();
+  const slotsRaw = String(formData.get("slots") ?? "").trim();
   if (!name) {
     redirect("/center?err=" + encodeURIComponent("센터명은 비울 수 없어요"));
   }
-  // 콤마 또는 줄바꿈 모두 허용
   const services = serviceTypesRaw
     .split(/[,\n]/)
     .map((s) => s.trim())
     .filter(Boolean);
   if (services.length === 0) {
     redirect("/center?err=" + encodeURIComponent("치료 영역은 최소 1개 이상 필요해요"));
+  }
+  const slots = slotsRaw
+    .split(/[,\n]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (slots.length === 0) {
+    redirect("/center?err=" + encodeURIComponent("치료 시간대는 최소 1개 이상 필요해요"));
+  }
+  // 시간대 형식 검증 — HH:MM~HH:MM
+  for (const s of slots) {
+    if (!/^\d{1,2}:\d{2}~\d{1,2}:\d{2}$/.test(s)) {
+      redirect("/center?err=" + encodeURIComponent(`시간대 형식이 잘못됐어요: '${s}' (예: 09:00~09:50)`));
+    }
   }
   await prisma.center.update({
     where: { id: me.centerId! },
@@ -32,6 +45,7 @@ export async function updateCenter(formData: FormData) {
       address: address || null,
       phone: phone || null,
       serviceTypes: services.join(","),
+      slots: slots.join(","),
     },
   });
   revalidatePath("/center");

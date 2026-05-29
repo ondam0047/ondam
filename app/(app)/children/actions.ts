@@ -22,12 +22,14 @@ function parseChildHeader(formData: FormData) {
   const mgmtNumber = String(formData.get("mgmtNumber") ?? "").trim();
   const memo = String(formData.get("memo") ?? "").trim();
   const active = formData.get("active") === "on";
+  const waiting = formData.get("waiting") === "on";
   return {
     name,
     birthDate: birthDate || null,
     mgmtNumber: mgmtNumber || null,
     memo: memo || null,
     active,
+    waiting,
   };
 }
 
@@ -71,6 +73,7 @@ export async function createChild(formData: FormData) {
       birthDate: header.birthDate,
       mgmtNumber: header.mgmtNumber,
       memo: header.memo,
+      waiting: header.waiting,
       active: true,
       centerId: user.centerId,
       services: {
@@ -124,6 +127,7 @@ export async function updateChild(id: number, formData: FormData) {
         mgmtNumber: header.mgmtNumber,
         memo: header.memo,
         active: header.active,
+        waiting: header.waiting,
       },
     });
 

@@ -86,7 +86,10 @@ type CommonProps = {
 
 // ─── 행정 전용 대시보드 — 센터 운영 전체 (본인은 치료사가 아님) ─────────
 async function AdminDashboard({ user, centerId, year: y, month: m, todayDay, todayDow, weekDates }: CommonProps) {
-  const data = await loadCenterStats(centerId, y, m, weekDates);
+  const [data, onboard] = await Promise.all([
+    loadCenterStats(centerId, y, m, weekDates),
+    loadOnboardingState(centerId),
+  ]);
 
   return (
     <>
@@ -97,11 +100,7 @@ async function AdminDashboard({ user, centerId, year: y, month: m, todayDay, tod
         </div>
       </div>
 
-      {data.isEmpty && (
-        <div className="tip">
-          💡 아직 데이터가 없어요. <Link href="/import"><b>엑셀 가져오기</b></Link>로 기존 아동·치료사 정보를 한 번에 등록하거나, <Link href="/children/new"><b>아동을 직접 등록</b></Link>해보세요.
-        </div>
-      )}
+      {!onboard.allDone && <OnboardingCard state={onboard} />}
 
       <CenterStats data={data} />
 
@@ -123,9 +122,10 @@ async function OwnerDashboard({
   user, centerId, myTherapistId, year: y, month: m, todayDay, todayDow, weekDates,
 }: CommonProps & { myTherapistId: number | null }) {
   // 본인 데이터 + 센터 전체 데이터 둘 다 가져오기
-  const [myData, centerData] = await Promise.all([
+  const [myData, centerData, onboard] = await Promise.all([
     loadMyStats(centerId, myTherapistId, y, m, weekDates, todayDay),
     loadCenterStats(centerId, y, m, weekDates),
+    loadOnboardingState(centerId),
   ]);
 
   return (
@@ -147,6 +147,8 @@ async function OwnerDashboard({
           <Link className="btn btn-primary" href="/schedule">일정표 만들기</Link>
         </div>
       </div>
+
+      {!onboard.allDone && <OnboardingCard state={onboard} />}
 
       {/* 본인(원장) 회기 — 치료사 대시보드와 동일 */}
       <div className="dash-section-divider">내 회기 — 본인이 담당하는 아동</div>
@@ -714,6 +716,72 @@ function ServiceDistributionCard({
             </div>
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ─── 온보딩 체크리스트 ──────────────────────────────────────────────────
+async function loadOnboardingState(centerId: number) {
+  const [center, therapistCount, childCount, scheduleCount, invitationCount] = await Promise.all([
+    prisma.center.findUnique({ where: { id: centerId } }),
+    prisma.therapist.count({ where: { centerId, active: true } }),
+    prisma.child.count({ where: { centerId, active: true, waiting: false } }),
+    prisma.schedule.count({ where: { childService: { child: { centerId } } } }),
+    prisma.invitation.count({ where: { centerId, usedAt: { not: null } } }),
+  ]);
+  const namedCenter = !!center && center.name !== "내 센터" && center.name.trim().length > 0;
+  // 치료사 1명 이상 = 등록 OR 초대 사용됨
+  const hasTeam = therapistCount > 0 || invitationCount > 0;
+  const hasChildren = childCount > 0;
+  const hasSchedule = scheduleCount > 0;
+  const done = [namedCenter, hasTeam, hasChildren, hasSchedule].filter(Boolean).length;
+  return {
+    namedCenter, hasTeam, hasChildren, hasSchedule,
+    done, total: 4,
+    allDone: done >= 4,
+  };
+}
+
+function OnboardingCard({ state }: { state: Awaited<ReturnType<typeof loadOnboardingState>> }) {
+  const items: { ok: boolean; label: string; href: string; cta: string }[] = [
+    { ok: state.namedCenter, label: "센터 이름 설정",        href: "/center",       cta: "센터 설정으로" },
+    { ok: state.hasTeam,     label: "치료사·행정 추가",       href: "/therapists",   cta: "초대 보내기" },
+    { ok: state.hasChildren, label: "첫 아동 등록",           href: "/children/new", cta: "아동 등록" },
+    { ok: state.hasSchedule, label: "첫 일정표 작성",         href: "/schedule",     cta: "일정표 만들기" },
+  ];
+  return (
+    <div className="card" style={{
+      background: "linear-gradient(135deg, var(--primary-soft), #F8FBFE)",
+      borderColor: "var(--primary)",
+    }}>
+      <div className="card-header" style={{ borderColor: "rgba(91,143,207,0.3)" }}>
+        <h2>🚀 시작 가이드 ({state.done} / {state.total})</h2>
+        <span className="hint">다 끝나면 이 카드는 사라져요</span>
+      </div>
+      <div style={{ padding: "12px 18px 18px", display: "flex", flexDirection: "column", gap: 8 }}>
+        {items.map((it) => (
+          <div key={it.label} style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            padding: "10px 12px",
+            background: it.ok ? "rgba(91,143,207,0.08)" : "var(--surface)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--r-sm)",
+          }}>
+            <span style={{ fontSize: 18, width: 22 }}>{it.ok ? "✅" : "⬜"}</span>
+            <span style={{
+              flex: 1,
+              textDecoration: it.ok ? "line-through" : "none",
+              color: it.ok ? "var(--text-mute)" : "var(--text)",
+              fontWeight: it.ok ? 500 : 600,
+            }}>{it.label}</span>
+            {!it.ok && (
+              <Link href={it.href} className="btn btn-primary btn-sm">{it.cta} →</Link>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );

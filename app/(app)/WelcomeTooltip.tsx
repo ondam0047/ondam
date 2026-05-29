@@ -1,0 +1,141 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+
+// 첫 로그인 시 환영 모달. localStorage 로 한 번만 노출.
+// 사용자 역할별로 핵심 안내 4-5개.
+
+type Role = "OWNER" | "ADMIN" | "THERAPIST";
+
+const STORAGE_KEY = "baroilji_welcome_seen_v1";
+
+const TIPS: Record<Role, { emoji: string; title: string; body: React.ReactNode }[]> = {
+  OWNER: [
+    { emoji: "🏢", title: "센터 설정",
+      body: <>왼쪽 메뉴 <b>[센터 설정]</b> 에서 센터명·치료 영역·시간대를 가장 먼저 설정하세요.</> },
+    { emoji: "✉️", title: "치료사 초대",
+      body: <><b>[치료사 관리]</b> → '초대 링크 만들기' 로 1회용 URL 을 발급해 카톡으로 보내세요.</> },
+    { emoji: "👶", title: "아동 등록",
+      body: <><b>[아동 관리]</b> 에서 아동을 등록하면 매월 일정표·기록지에서 자동 호출돼요.</> },
+    { emoji: "📅", title: "일정표 만들기",
+      body: <>본인 담당 아동이 있다면 <b>[일정표]</b> 에서 한 달치 회기를 빠르게 만들 수 있어요.</> },
+    { emoji: "📖", title: "도움말",
+      body: <>왼쪽 맨 아래 <b>[도움말]</b> 에서 역할별 사용 설명서 + PDF 다운로드.</> },
+  ],
+  ADMIN: [
+    { emoji: "👶", title: "아동 관리",
+      body: <><b>[아동 관리]</b> 에서 등록·수정·담당 치료사 배정을 합니다.</> },
+    { emoji: "📊", title: "치료사 시간표",
+      body: <><b>[치료사 시간표]</b> 에서 선생님별 월간 스케줄·출석부를 확인하세요.</> },
+    { emoji: "📥", title: "엑셀 가져오기",
+      body: <>전자바우처 엑셀을 그대로 올리면 자동으로 아동 명단 추출.</> },
+    { emoji: "📖", title: "도움말",
+      body: <>왼쪽 맨 아래 <b>[도움말]</b> 에서 행정용 매뉴얼 PDF 다운로드.</> },
+  ],
+  THERAPIST: [
+    { emoji: "⏰", title: "내 차단 시간",
+      body: <><b>[내 차단 시간]</b> 에 받기 어려운 요일·시간을 미리 등록해두세요.</> },
+    { emoji: "👶", title: "내 아동",
+      body: <><b>[내 아동]</b> 에서 본인 담당 아동을 직접 등록·수정할 수 있어요.</> },
+    { emoji: "📅", title: "일정표",
+      body: <>'전월 일정 복사' 버튼으로 지난달 패턴을 그대로 가져와 빠르게 만들기.</> },
+    { emoji: "📝", title: "기록지",
+      body: <>전자바우처 엑셀 업로드 → 자동 회기 추출 → '전월 기록 가져오기' 로 빠른 작성.</> },
+    { emoji: "📖", title: "도움말",
+      body: <>왼쪽 맨 아래 <b>[도움말]</b> 에서 치료사용 매뉴얼 PDF 다운로드.</> },
+  ],
+};
+
+export default function WelcomeTooltip({ role }: { role: Role }) {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem(STORAGE_KEY)) {
+        setOpen(true);
+      }
+    } catch {}
+  }, []);
+
+  function close() {
+    try { localStorage.setItem(STORAGE_KEY, "1"); } catch {}
+    setOpen(false);
+  }
+
+  if (!open) return null;
+
+  const tips = TIPS[role] ?? TIPS.THERAPIST;
+  const roleLabel = role === "OWNER" ? "원장님" : role === "ADMIN" ? "행정 선생님" : "치료사 선생님";
+
+  return (
+    <div
+      onClick={(e) => { if (e.target === e.currentTarget) close(); }}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.45)",
+        zIndex: 50,
+        display: "grid",
+        placeItems: "center",
+        padding: 16,
+      }}
+    >
+      <div style={{
+        background: "var(--surface)",
+        borderRadius: "var(--r-lg)",
+        maxWidth: 540,
+        width: "100%",
+        maxHeight: "90vh",
+        overflowY: "auto",
+        boxShadow: "0 10px 30px rgba(0,0,0,0.18)",
+      }}>
+        <div style={{
+          padding: "26px 28px 16px",
+          background: "linear-gradient(135deg, var(--primary-soft), #F8FBFE)",
+          borderRadius: "var(--r-lg) var(--r-lg) 0 0",
+          borderBottom: "1px solid var(--border)",
+        }}>
+          <div style={{ fontSize: 13, color: "var(--text-mute)", fontWeight: 600 }}>처음 사용하세요?</div>
+          <h2 style={{ margin: "4px 0 0", fontSize: 22, fontWeight: 800 }}>
+            {roleLabel}, 환영합니다 👋
+          </h2>
+          <div style={{ marginTop: 6, fontSize: 13.5, color: "var(--text-soft)" }}>
+            바로일지 사용 전 알아두면 좋은 5가지.
+          </div>
+        </div>
+
+        <div style={{ padding: "8px 16px 6px" }}>
+          {tips.map((t, i) => (
+            <div key={i} style={{
+              display: "grid",
+              gridTemplateColumns: "44px 1fr",
+              gap: 12,
+              padding: "12px 8px",
+              borderBottom: i < tips.length - 1 ? "1px solid var(--border)" : "none",
+            }}>
+              <span style={{ fontSize: 22, lineHeight: 1.2 }}>{t.emoji}</span>
+              <div>
+                <div style={{ fontWeight: 700, marginBottom: 2 }}>{t.title}</div>
+                <div style={{ fontSize: 13, color: "var(--text-soft)", lineHeight: 1.6 }}>{t.body}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{
+          padding: "14px 22px 18px",
+          display: "flex",
+          gap: 10,
+          justifyContent: "flex-end",
+          borderTop: "1px solid var(--border)",
+          background: "var(--surface-2)",
+          borderRadius: "0 0 var(--r-lg) var(--r-lg)",
+        }}>
+          <Link className="btn btn-ghost" href="/guide" onClick={close}>전체 매뉴얼 보기</Link>
+          <button className="btn btn-primary" onClick={close}>시작하기</button>
+        </div>
+      </div>
+    </div>
+  );
+}

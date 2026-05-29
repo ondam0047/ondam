@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  WEEK, SLOTS, holiday, pad,
+  WEEK, holiday, pad,
 } from "@/lib/constants";
 
 type Session = { time: string; makeup: boolean };
@@ -50,12 +50,14 @@ export default function ScheduleClient({
   children: childrenOpts,
   therapists,
   serviceTypes,
+  slots,
   defaultFilterTherapist = null,
   defaultOrg = "",
 }: {
   children: ChildOption[];
   therapists: TherapistOption[];
   serviceTypes: string[];
+  slots: string[];
   defaultFilterTherapist?: string | null;
   defaultOrg?: string;
 }) {
@@ -577,16 +579,10 @@ export default function ScheduleClient({
           <div className="field-row cols-3" style={{ alignItems: "end" }}>
             <div className="field">
               <label>치료 시간대<span className="req">*</span></label>
-              <input
-                className="input"
-                list="slot-suggestions"
-                value={defaultSlot}
-                onChange={(e) => setDefaultSlot(e.target.value)}
-                placeholder="예: 10:00~10:50"
-              />
-              <datalist id="slot-suggestions">
-                {SLOTS.map((s) => <option key={s} value={s} />)}
-              </datalist>
+              <select className="select" value={defaultSlot} onChange={(e) => setDefaultSlot(e.target.value)}>
+                <option value="">(선택)</option>
+                {slots.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
             </div>
             <div className="field" style={{ gridColumn: "span 2" }}>
               <label>반복 요일<span className="req">*</span> <span className="sub-mute">(탭하여 선택)</span></label>
@@ -730,16 +726,9 @@ export default function ScheduleClient({
             </div>
             <div className="field" style={{ marginBottom: 14 }}>
               <label>치료 시간대</label>
-              <input
-                className="input"
-                list="slot-suggestions-modal"
-                value={editTime}
-                onChange={(e) => setEditTime(e.target.value)}
-                placeholder="예: 10:00~10:50 (자유 입력)"
-              />
-              <datalist id="slot-suggestions-modal">
-                {SLOTS.map((s) => <option key={s} value={s} />)}
-              </datalist>
+              <select className="select" value={editTime} onChange={(e) => setEditTime(e.target.value)}>
+                {slots.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
             </div>
             <label className="modal-check">
               <input type="checkbox" checked={editMakeup} onChange={(e) => setEditMakeup(e.target.checked)} />

@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { updateChild } from "../../actions";
 import ChildForm from "../../ChildForm";
 import { requireUser, isAdmin, getEffectiveTherapistId } from "@/lib/auth";
-import { parseServiceTypes } from "@/lib/constants";
+import { parseServiceTypes, parseSlots } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -35,9 +35,10 @@ export default async function EditChildPage(props: PageProps<"/children/[id]/edi
           select: { id: true, name: true, active: true },
         })
       : Promise.resolve([] as { id: number; name: string; active: boolean }[]),
-    prisma.center.findUnique({ where: { id: user.centerId ?? -1 }, select: { serviceTypes: true } }),
+    prisma.center.findUnique({ where: { id: user.centerId ?? -1 }, select: { serviceTypes: true, slots: true } }),
   ]);
   const serviceTypes = parseServiceTypes(center?.serviceTypes);
+  const slots = parseSlots(center?.slots);
 
   const update = updateChild.bind(null, child.id);
 
@@ -68,6 +69,7 @@ export default async function EditChildPage(props: PageProps<"/children/[id]/edi
               mgmtNumber: child.mgmtNumber,
               memo: child.memo,
               active: child.active,
+              waiting: child.waiting,
               services: visibleServices.map((s) => ({
                 id: s.id,
                 serviceType: s.serviceType,
@@ -80,6 +82,7 @@ export default async function EditChildPage(props: PageProps<"/children/[id]/edi
             }}
             therapists={therapists}
             serviceTypes={serviceTypes}
+            slots={slots}
             action={update}
             submitLabel="저장"
             showActive

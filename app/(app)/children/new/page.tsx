@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { createChild } from "../actions";
 import ChildForm from "../ChildForm";
 import { requireUser, isAdmin } from "@/lib/auth";
-import { parseServiceTypes } from "@/lib/constants";
+import { parseServiceTypes, parseSlots } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -19,10 +19,11 @@ export default async function NewChildPage() {
           select: { id: true, name: true, active: true },
         })
       : Promise.resolve([] as { id: number; name: string; active: boolean }[]),
-    prisma.center.findUnique({ where: { id: centerId }, select: { serviceTypes: true } }),
+    prisma.center.findUnique({ where: { id: centerId }, select: { serviceTypes: true, slots: true } }),
   ]);
 
   const serviceTypes = parseServiceTypes(center?.serviceTypes);
+  const slots = parseSlots(center?.slots);
 
   return (
     <>
@@ -44,6 +45,7 @@ export default async function NewChildPage() {
           <ChildForm
             therapists={therapists}
             serviceTypes={serviceTypes}
+            slots={slots}
             action={createChild}
             submitLabel="등록"
             hideTherapistSelect={!isAdmin(user)}

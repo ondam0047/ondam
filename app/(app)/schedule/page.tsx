@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import ScheduleClient from "./ScheduleClient";
 import { requireRole, getEffectiveTherapistId } from "@/lib/auth";
-import { parseServiceTypes } from "@/lib/constants";
+import { parseServiceTypes, parseSlots } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +26,7 @@ export default async function SchedulePage() {
       where: { active: true, centerId },
       orderBy: { name: "asc" },
     }),
-    prisma.center.findUnique({ where: { id: centerId }, select: { serviceTypes: true } }),
+    prisma.center.findUnique({ where: { id: centerId }, select: { serviceTypes: true, slots: true } }),
   ]);
 
   // 같은 childId 에 서비스가 둘 이상인지 카운트 → 라벨에 종류 표시 여부
@@ -53,12 +53,14 @@ export default async function SchedulePage() {
   const therapistOptions = therapists.map((t) => ({ id: t.id, name: t.name }));
   const myTherapistName = therapists.find((t) => t.id === myTherapistId)?.name ?? null;
   const serviceTypes = parseServiceTypes(center?.serviceTypes);
+  const slots = parseSlots(center?.slots);
 
   return (
     <ScheduleClient
       children={childOptions}
       therapists={therapistOptions}
       serviceTypes={serviceTypes}
+      slots={slots}
       defaultFilterTherapist={myTherapistName}
       defaultOrg={user.centerName ?? ""}
     />
