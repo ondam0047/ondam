@@ -19,8 +19,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         data: { name: "내 센터", approvalCode: code },
       });
       await ensureLegacyDataLinked(center.id);
-      user = await getCurrentUser(); // 갱신된 정보 다시 로드
+      user = await getCurrentUser();
       if (!user) redirect("/login");
+    }
+  }
+
+  // 추가 안전망: OWNER 가 자기 센터에 속해있고, 시스템에 센터가 1개 뿐이면
+  // centerId 가 비어있는 새 레코드(예: 옛 import API 가 만든 것) 도 묶어줌.
+  // (다중센터 환경에서는 위험하므로 1개일 때만)
+  if (user.role === "OWNER" && user.centerId) {
+    const centerCount = await prisma.center.count();
+    if (centerCount === 1) {
+      await ensureLegacyDataLinked(user.centerId);
     }
   }
 
