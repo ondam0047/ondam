@@ -57,6 +57,8 @@ export default function ScheduleClient({
   const [selectedChildId, setSelectedChildId] = useState<number | "">("");
   const [name, setName] = useState("");
   const [therapist, setTherapist] = useState(therapists[0]?.name ?? "");
+  // 아동 드롭다운 필터용 (양식엔 안 들어가는 UI-only 값)
+  const [filterTherapist, setFilterTherapist] = useState<string>("");
   const [serviceType, setServiceType] = useState<string>(SERVICE_TYPES[0]);
   const [ym, setYm] = useState(defaultYm);
   const [target, setTarget] = useState(5);
@@ -360,25 +362,59 @@ export default function ScheduleClient({
           <span className="hint">아동을 미리 등록해두면 매월 한 번에 불러올 수 있어요</span>
         </div>
         <div className="card-body">
-          {childrenOpts.length > 0 && (
-            <div className="field" style={{ marginBottom: 16 }}>
-              <label>저장된 아동 불러오기</label>
-              <select
-                className="select"
-                value={selectedChildId === "" ? "" : String(selectedChildId)}
-                onChange={(e) => loadChild(e.target.value)}
-              >
-                <option value="">— 직접 입력 —</option>
-                {childrenOpts.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                    {c.therapistName ? ` · ${c.therapistName}` : ""}
-                    {c.defaultSlot ? ` · ${c.defaultSlot}` : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          {childrenOpts.length > 0 && (() => {
+            const filtered = filterTherapist
+              ? childrenOpts.filter((c) => c.therapistName === filterTherapist)
+              : childrenOpts;
+            return (
+              <div style={{ marginBottom: 16, display: "grid", gridTemplateColumns: "1fr 2fr", gap: 12 }}>
+                {therapists.length > 1 && (
+                  <div className="field">
+                    <label>치료사로 필터 <span className="sub-mute">(아동 목록만)</span></label>
+                    <select
+                      className="select"
+                      value={filterTherapist}
+                      onChange={(e) => setFilterTherapist(e.target.value)}
+                    >
+                      <option value="">— 전체 ({childrenOpts.length}명) —</option>
+                      {therapists.map((t) => {
+                        const cnt = childrenOpts.filter((c) => c.therapistName === t.name).length;
+                        return (
+                          <option key={t.id} value={t.name} disabled={cnt === 0}>
+                            {t.name} ({cnt}명)
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                )}
+                <div className="field" style={{ gridColumn: therapists.length > 1 ? undefined : "1 / -1" }}>
+                  <label>
+                    저장된 아동 불러오기
+                    {filterTherapist && (
+                      <span className="sub-mute" style={{ marginLeft: 6 }}>
+                        ({filterTherapist} {filtered.length}명)
+                      </span>
+                    )}
+                  </label>
+                  <select
+                    className="select"
+                    value={selectedChildId === "" ? "" : String(selectedChildId)}
+                    onChange={(e) => loadChild(e.target.value)}
+                  >
+                    <option value="">— 직접 입력 —</option>
+                    {filtered.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                        {c.therapistName ? ` · ${c.therapistName}` : ""}
+                        {c.defaultSlot ? ` · ${c.defaultSlot}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            );
+          })()}
           {childrenOpts.length === 0 && (
             <div className="tip">
               💡 <Link href="/children/new"><b>아동을 미리 등록</b></Link>해두면 매월 정보 입력 없이 한 번에 불러올 수 있어요.
