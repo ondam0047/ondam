@@ -199,6 +199,55 @@ function RecordSheet({ child, rows, therapist }: { child: string; rows: SessionR
   const [opinion, setOpinion] = useState("");
   const [downloading, setDownloading] = useState(false);
 
+  async function downloadHwpx() {
+    setDownloading(true);
+    try {
+      const monthNum = typeof month === "number" ? month : parseInt(String(month)) || 0;
+      const sessionsPayload = rows.map((s, i) => {
+        const pu = parseYMD(s.use);
+        const pp = parseYMD(s.pay);
+        return {
+          date: pu ? `${pu.mo}/${pu.d}` : "",
+          startTime: times[i].start,
+          endTime: times[i].end,
+          voucher: vouchers[i],
+          extra: extras[i],
+          amount: amounts[i],
+          useDay: pu ? String(pu.d) : "",
+          payDay: pp ? String(pp.d) : "",
+          apprNumber: s.appr,
+          result: results[i],
+        };
+      });
+      const payload = {
+        childName: child,
+        childBirth: birth,
+        org,
+        month: monthNum,
+        sessions: sessionsPayload,
+        opinion,
+      };
+      const res = await fetch("/api/record/hwpx", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        alert("한글파일(.hwpx) 생성 실패: " + (e.error ?? res.status));
+        return;
+      }
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${child}_${monthNum}월_기록지.hwpx`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   async function downloadDocx() {
     setDownloading(true);
     try {
@@ -383,13 +432,9 @@ function RecordSheet({ child, rows, therapist }: { child: string; rows: SessionR
       </div>
 
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 20 }}>
-        <button className="btn btn-primary" onClick={downloadDocx} disabled={downloading}>
-          {downloading ? "생성 중..." : "워드파일(.docx) 다운로드"}
+        <button className="btn btn-primary" onClick={downloadHwpx} disabled={downloading}>
+          {downloading ? "생성 중..." : "한글파일(.hwpx) 다운로드"}
         </button>
-        <button className="btn btn-ghost btn-sm" onClick={() => window.print()}>인쇄 / PDF</button>
-        <span className="sub-mute" style={{ marginLeft: "auto" }}>
-          .docx 파일은 한글에서 바로 열어 편집·저장할 수 있어요.
-        </span>
       </div>
     </div>
   );
