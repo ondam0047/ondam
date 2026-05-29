@@ -23,24 +23,27 @@ export default async function TherapistsPage({
 }) {
   const me = await requireRole(["OWNER", "ADMIN"]);
   const sp = await searchParams;
+  const centerId = me.centerId ?? -1;
 
-  const [therapists, adminUsers, pendingTherapists] = await Promise.all([
+  const [therapists, adminUsers, pendingTherapists, myCenter] = await Promise.all([
     prisma.therapist.findMany({
+      where: { centerId },
       orderBy: [{ active: "desc" }, { name: "asc" }],
       include: {
         user: true,
-        _count: { select: { children: { where: { active: true } } } },
+        _count: { select: { children: { where: { active: true, centerId } } } },
       },
     }),
     prisma.user.findMany({
-      where: { role: { in: ["OWNER", "ADMIN"] } },
+      where: { role: { in: ["OWNER", "ADMIN"] }, centerId },
       orderBy: [{ active: "desc" }, { role: "asc" }, { name: "asc" }],
     }),
     prisma.user.findMany({
-      where: { role: "THERAPIST", active: false },
+      where: { role: "THERAPIST", active: false, centerId },
       orderBy: { createdAt: "asc" },
       include: { therapist: true },
     }),
+    prisma.center.findUnique({ where: { id: centerId } }),
   ]);
 
   return (
@@ -51,6 +54,33 @@ export default async function TherapistsPage({
           <p>치료사·행정·원장 계정 발급과 담당 배정을 한 곳에서.</p>
         </div>
       </div>
+
+      {myCenter && (
+        <div className="card">
+          <div className="card-body" style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <div className="sub-mute" style={{ fontSize: 12 }}>우리 센터</div>
+              <div style={{ fontWeight: 700, fontSize: 16, marginTop: 2 }}>{myCenter.name}</div>
+            </div>
+            <div>
+              <div className="sub-mute" style={{ fontSize: 12 }}>치료사 가입용 승인코드</div>
+              <div style={{
+                fontFamily: "monospace",
+                fontSize: 22,
+                fontWeight: 700,
+                letterSpacing: "0.15em",
+                color: "var(--primary)",
+                marginTop: 2,
+              }}>
+                {myCenter.approvalCode}
+              </div>
+            </div>
+            <div className="sub-mute" style={{ fontSize: 12, maxWidth: 280 }}>
+              치료사들에게 이 코드를 알려주세요. 가입 화면에 입력하면 우리 센터로 가입됩니다.
+            </div>
+          </div>
+        </div>
+      )}
 
       {sp.err && <div className="flash warn">{sp.err}</div>}
       {sp.ok && <div className="flash ok">{sp.ok}</div>}

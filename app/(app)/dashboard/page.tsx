@@ -24,9 +24,10 @@ export default async function DashboardPage() {
   const todayDay = now.getDate();
   const todayDow = now.getDay(); // 0=일
 
+  const centerId = user.centerId ?? -1;
   const childWhere = canSeeAll
-    ? { active: true }
-    : { active: true, therapistId: user.therapistId ?? -1 };
+    ? { active: true, centerId }
+    : { active: true, centerId, therapistId: user.therapistId ?? -1 };
 
   // 이번 주 월요일·토요일 계산 (월~토 6일)
   const monOffset = todayDow === 0 ? -6 : 1 - todayDow; // 0=일이면 -6, 1=월이면 0, 2=화면 -1...
@@ -44,12 +45,12 @@ export default async function DashboardPage() {
       include: { therapist: true },
     }),
     canSeeAll
-      ? prisma.therapist.findMany({ where: { active: true } })
+      ? prisma.therapist.findMany({ where: { active: true, centerId } })
       : Promise.resolve([]),
     prisma.schedule.findMany({
       where: canSeeAll
-        ? { year: y, month: m }
-        : { year: y, month: m, child: { therapistId: user.therapistId ?? -1 } },
+        ? { year: y, month: m, child: { centerId } }
+        : { year: y, month: m, child: { centerId, therapistId: user.therapistId ?? -1 } },
       include: { sessions: true, child: true },
     }),
   ]);

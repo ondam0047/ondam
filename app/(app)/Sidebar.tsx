@@ -60,8 +60,8 @@ export default function Sidebar({ user }: { user: SessionUser }) {
       <div className="brand">
         <Image src="/ondam-logo.png" alt="온담 로고" width={36} height={36} />
         <div className="brand-name">
-          <span className="ko">온담 말·언어 연구소</span>
-          <span className="en">Speech &amp; Language Lab</span>
+          <span className="ko">{user.centerName ?? "온담"}</span>
+          <span className="en">통합관리</span>
         </div>
       </div>
 

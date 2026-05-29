@@ -8,16 +8,17 @@ export default async function SchedulePage() {
   const user = await requireUser();
   const canManage = isAdmin(user);
 
+  const centerId = user.centerId ?? -1;
   const [children, therapists] = await Promise.all([
     prisma.child.findMany({
       where: canManage
-        ? { active: true }
-        : { active: true, therapistId: user.therapistId ?? -1 },
+        ? { active: true, centerId }
+        : { active: true, centerId, therapistId: user.therapistId ?? -1 },
       orderBy: { name: "asc" },
       include: { therapist: true },
     }),
     prisma.therapist.findMany({
-      where: { active: true },
+      where: { active: true, centerId },
       orderBy: { name: "asc" },
     }),
   ]);

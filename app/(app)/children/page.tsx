@@ -19,13 +19,13 @@ export default async function ChildrenPage({
   const onlyUnassigned = sp.unassigned === "1";
 
   // 치료사는 본인 담당 아동만 (필터 무시), 관리자는 필터 적용
-  let where: Record<string, unknown> = {};
+  let where: Record<string, unknown> = { centerId: user.centerId ?? -1 };
   if (canManage) {
     if (filterTherapistId) where.therapistId = filterTherapistId;
     else if (onlyUnassigned) where.therapistId = null;
     if (q) where = { ...where, name: { contains: q } };
   } else {
-    where = { therapistId: user.therapistId ?? -1 };
+    where = { ...where, therapistId: user.therapistId ?? -1 };
     if (q) where = { ...where, name: { contains: q } };
   }
 
@@ -36,7 +36,10 @@ export default async function ChildrenPage({
       include: { therapist: true },
     }),
     canManage
-      ? prisma.therapist.findMany({ where: { active: true }, orderBy: { name: "asc" } })
+      ? prisma.therapist.findMany({
+          where: { active: true, centerId: user.centerId ?? -1 },
+          orderBy: { name: "asc" },
+        })
       : Promise.resolve([]),
   ]);
 

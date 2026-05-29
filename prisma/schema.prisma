@@ -9,6 +9,23 @@ datasource db {
   provider = "sqlite"
 }
 
+// ─── 멀티 센터 ──────────────────────────────────────────────────────────
+// 여러 발달재활센터가 같은 시스템을 공유. 모든 데이터는 Center 단위로 격리.
+
+model Center {
+  id            Int      @id @default(autoincrement())
+  name          String
+  approvalCode  String   @unique // 6자리 영숫자. 치료사 가입 시 입력
+  address       String?
+  phone         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  users         User[]
+  therapists    Therapist[]
+  children      Child[]
+}
+
 // ─── 권한·로그인 ─────────────────────────────────────────────────────────
 // 역할: OWNER(원장) / ADMIN(행정) / THERAPIST(치료사)
 // 치료사 계정은 therapistId 를 통해 기존 Therapist 정보(연락처·담당아동) 와 연결.
@@ -22,6 +39,9 @@ model User {
   active       Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  centerId     Int?
+  center       Center?  @relation(fields: [centerId], references: [id])
 
   therapistId  Int?     @unique
   therapist    Therapist? @relation(fields: [therapistId], references: [id])
@@ -52,6 +72,9 @@ model Therapist {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  centerId  Int?
+  center    Center?  @relation(fields: [centerId], references: [id])
+
   children  Child[]
   user      User?
 }
@@ -70,6 +93,9 @@ model Child {
   active           Boolean   @default(true)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
+
+  centerId         Int?
+  center           Center?    @relation(fields: [centerId], references: [id])
 
   therapistId      Int?
   therapist        Therapist? @relation(fields: [therapistId], references: [id])

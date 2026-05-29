@@ -16,6 +16,8 @@ export type SessionUser = {
   name: string;
   role: Role;
   therapistId: number | null;
+  centerId: number | null;
+  centerName: string | null;
 };
 
 export async function hashPassword(plain: string): Promise<string> {
@@ -62,7 +64,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   if (!token) return null;
   const session = await prisma.authSession.findUnique({
     where: { token },
-    include: { user: true },
+    include: { user: { include: { center: true } } },
   });
   if (!session || session.expiresAt < new Date() || !session.user.active) return null;
   return {
@@ -71,6 +73,8 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     name: session.user.name,
     role: session.user.role as Role,
     therapistId: session.user.therapistId,
+    centerId: session.user.centerId,
+    centerName: session.user.center?.name ?? null,
   };
 }
 
@@ -115,4 +119,25 @@ export function canAccessChild(
 export async function isFirstSignup(): Promise<boolean> {
   const count = await prisma.user.count();
   return count === 0;
+}
+
+// 6자리 영숫자 코드 (혼동되기 쉬운 0/O/1/I 제외)
+const CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+export async function generateApprovalCode(): Promise<string> {
+  for (let attempt = 0; attempt < 50; attempt++) {
+    let code = "";
+    for (let i = 0; i < 6; i++) {
+      code += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
+    }
+    const exists = await prisma.center.findUnique({ where: { approvalCode: code } });
+    if (!exists) return code;
+  }
+  throw new Error("승인코드 생성 실패");
+}
+
+// 기존 데이터 보존용: 가장 오래된 센터 (= 첫 가입자의 센터). 마이그레이션 호환.
+// null centerId 인 레코드를 이 센터에 묶거나 조회할 때 사용.
+export async function getDefaultCenterId(): Promise<number | null> {
+  const c = await prisma.center.findFirst({ orderBy: { id: "asc" } });
+  return c?.id ?? null;
 }
