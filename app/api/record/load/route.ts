@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { getCurrentUser, canAccessChild } from "@/lib/auth";
+import { getCurrentUser, canAccessService } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
@@ -12,30 +12,36 @@ export async function GET(req: NextRequest) {
     const recordId = Number(id);
     const rec = await prisma.record.findUnique({
       where: { id: recordId },
-      include: { sessions: { orderBy: { ordinal: "asc" } }, child: true },
+      include: {
+        sessions: { orderBy: { ordinal: "asc" } },
+        childService: { include: { child: true } },
+      },
     });
     if (!rec) return Response.json({ error: "not found" }, { status: 404 });
-    if (rec.child.centerId !== user.centerId || !canAccessChild(user, rec.child)) {
+    if (rec.childService.child.centerId !== user.centerId || !canAccessService(user, rec.childService)) {
       return Response.json({ error: "forbidden" }, { status: 403 });
     }
     return Response.json(rec);
   }
 
-  // 2) (childId, year, month) 로 찾기 — 없으면 null 반환
-  const childId = Number(req.nextUrl.searchParams.get("childId"));
+  // 2) (childServiceId, year, month) 로 찾기 — 없으면 null 반환
+  const childServiceId = Number(req.nextUrl.searchParams.get("childServiceId"));
   const year = Number(req.nextUrl.searchParams.get("year"));
   const month = Number(req.nextUrl.searchParams.get("month"));
-  if (!Number.isInteger(childId) || !Number.isInteger(year) || !Number.isInteger(month)) {
-    return Response.json({ error: "missing childId/year/month" }, { status: 400 });
+  if (!Number.isInteger(childServiceId) || !Number.isInteger(year) || !Number.isInteger(month)) {
+    return Response.json({ error: "missing childServiceId/year/month" }, { status: 400 });
   }
-  const child = await prisma.child.findUnique({ where: { id: childId } });
-  if (!child) return Response.json(null);
-  if (child.centerId !== user.centerId || !canAccessChild(user, child)) {
+  const cs = await prisma.childService.findUnique({
+    where: { id: childServiceId },
+    include: { child: true },
+  });
+  if (!cs) return Response.json(null);
+  if (cs.child.centerId !== user.centerId || !canAccessService(user, cs)) {
     return Response.json({ error: "forbidden" }, { status: 403 });
   }
   const rec = await prisma.record.findUnique({
-    where: { childId_year_month: { childId, year, month } },
+    where: { childServiceId_year_month: { childServiceId, year, month } },
     include: { sessions: { orderBy: { ordinal: "asc" } } },
   });
-  return Response.json(rec); // null 이어도 OK
+  return Response.json(rec);
 }

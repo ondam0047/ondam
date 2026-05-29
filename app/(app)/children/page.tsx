@@ -12,33 +12,35 @@ export default async function ChildrenPage({
   searchParams: Promise<{ q?: string; therapistId?: string; unassigned?: string }>;
 }) {
   const user = await requireUser();
-  // 행정(ADMIN)만 전체 아동 관리 가능. 원장도 치료사 자격으로 본인 담당만 봄.
   const canManage = user.role === "ADMIN";
   const sp = await searchParams;
   const q = sp.q?.trim() ?? "";
   const filterTherapistId = sp.therapistId ? Number(sp.therapistId) : null;
   const onlyUnassigned = sp.unassigned === "1";
 
-  let where: Record<string, unknown> = { centerId: user.centerId ?? -1 };
+  const centerId = user.centerId ?? -1;
+  const myTherapistId = canManage ? null : await getEffectiveTherapistId(user);
+
+  // 아동 단위 조회. 치료사·원장은 본인이 담당하는 ChildService 가 있는 아동만.
+  const childWhere: Record<string, unknown> = { centerId };
   if (canManage) {
-    if (filterTherapistId) where.therapistId = filterTherapistId;
-    else if (onlyUnassigned) where.therapistId = null;
-    if (q) where = { ...where, name: { contains: q } };
+    if (filterTherapistId) childWhere.services = { some: { therapistId: filterTherapistId } };
+    else if (onlyUnassigned) childWhere.services = { some: { therapistId: null } };
+    if (q) childWhere.name = { contains: q };
   } else {
-    const myTherapistId = await getEffectiveTherapistId(user);
-    where = { ...where, therapistId: myTherapistId ?? -1 };
-    if (q) where = { ...where, name: { contains: q } };
+    childWhere.services = { some: { therapistId: myTherapistId ?? -1 } };
+    if (q) childWhere.name = { contains: q };
   }
 
   const [children, allTherapists] = await Promise.all([
     prisma.child.findMany({
-      where,
+      where: childWhere,
       orderBy: [{ active: "desc" }, { name: "asc" }],
-      include: { therapist: true },
+      include: { services: { include: { therapist: true } } },
     }),
     canManage
       ? prisma.therapist.findMany({
-          where: { active: true, centerId: user.centerId ?? -1 },
+          where: { active: true, centerId },
           orderBy: { name: "asc" },
         })
       : Promise.resolve([]),
@@ -53,7 +55,7 @@ export default async function ChildrenPage({
           <h2>아동 관리</h2>
           <p>
             {canManage
-              ? `활동 중 ${activeCount}명 · 한 번 등록해두면 일정표·기록지에서 자동 호출됩니다.`
+              ? `활동 중 ${activeCount}명 · 한 아동이 여러 서비스(언어재활·놀이치료 등)를 받는 경우 함께 관리됩니다.`
               : `담당 아동 ${activeCount}명`}
           </p>
         </div>
@@ -121,18 +123,17 @@ export default async function ChildrenPage({
               <thead>
                 <tr>
                   <th>아동</th>
-                  <th>서비스</th>
-                  {canManage && <th>담당 치료사</th>}
-                  <th>기본 요일</th>
-                  <th>기본 시간</th>
-                  <th>목표</th>
+                  <th>받는 치료</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
                 {children.map((c) => {
-                  const days = (c.defaultDays ?? "").split(",").filter(Boolean).map(Number);
                   const initial = c.name[0];
+                  // 치료사 본인 화면에서는 본인 담당 서비스만 노출
+                  const visibleServices = canManage
+                    ? c.services
+                    : c.services.filter((s) => s.therapistId === myTherapistId);
                   return (
                     <tr key={c.id} style={c.active ? undefined : { opacity: 0.55 }}>
                       <td>
@@ -146,27 +147,52 @@ export default async function ChildrenPage({
                           </div>
                         </div>
                       </td>
-                      <td><span className="badge badge-primary">{c.serviceType}</span></td>
-                      {canManage && (
-                        <td>{c.therapist?.name ?? <span className="sub-mute">-</span>}</td>
-                      )}
-                      <td>{days.length > 0 ? days.map((d) => WEEK[d]).join(" ") : <span className="sub-mute">-</span>}</td>
-                      <td className="num-cell">{c.defaultSlot ?? "-"}</td>
-                      <td className="num-cell">{c.defaultTarget}회</td>
+                      <td>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          {visibleServices.map((s) => {
+                            const days = (s.defaultDays ?? "").split(",").filter(Boolean).map(Number);
+                            return (
+                              <div key={s.id} style={{
+                                background: "var(--surface-2)",
+                                border: "1px solid var(--border)",
+                                borderRadius: "var(--r-sm)",
+                                padding: "6px 10px",
+                                fontSize: 12.5,
+                              }}>
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+                                  <span className="badge badge-primary">{s.serviceType}</span>
+                                  {canManage && (
+                                    <span style={{ fontSize: 12, color: "var(--text-soft)" }}>
+                                      담당: {s.therapist?.name ?? "—"}
+                                    </span>
+                                  )}
+                                  <span style={{ color: "var(--text-mute)", fontSize: 11.5 }}>
+                                    {days.length > 0 ? days.map((d) => WEEK[d]).join(" ") : "요일 미정"}
+                                    {s.defaultSlot ? ` · ${s.defaultSlot}` : ""}
+                                    {` · 목표 ${s.defaultTarget}회`}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </td>
                       <td style={{ textAlign: "right" }}>
                         <div style={{ display: "inline-flex", gap: 6 }}>
                           <Link className="btn btn-ghost btn-sm" href={`/children/${c.id}/edit`}>수정</Link>
-                          <form
-                            action={async () => {
-                              "use server";
-                              await deleteChild(c.id);
-                            }}
-                            style={{ display: "inline" }}
-                          >
-                            <button className="btn btn-ghost btn-sm" style={{ color: "var(--danger)" }} type="submit">
-                              삭제
-                            </button>
-                          </form>
+                          {canManage && (
+                            <form
+                              action={async () => {
+                                "use server";
+                                await deleteChild(c.id);
+                              }}
+                              style={{ display: "inline" }}
+                            >
+                              <button className="btn btn-ghost btn-sm" style={{ color: "var(--danger)" }} type="submit">
+                                삭제
+                              </button>
+                            </form>
+                          )}
                         </div>
                       </td>
                     </tr>

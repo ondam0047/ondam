@@ -32,12 +32,18 @@ function parseYMD(s: string): { y: number; mo: number; d: number } | null {
   return m ? { y: +m[1], mo: +m[2], d: +m[3] } : null;
 }
 
-type CenterChildOption = { id: number; name: string; birthDate: string | null };
+type MyServiceOption = {
+  id: number;          // ChildService.id
+  childId: number;
+  name: string;
+  birthDate: string | null;
+  serviceType: string;
+};
 
 export default function RecordClient({
-  centerChildren,
+  myServices,
 }: {
-  centerChildren: CenterChildOption[];
+  myServices: MyServiceOption[];
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -193,7 +199,7 @@ export default function RecordClient({
                 child={curChild}
                 rows={grouped[curChild]}
                 therapist={therapist}
-                centerChildren={centerChildren}
+                myServices={myServices}
               />
             )}
           </div>
@@ -207,18 +213,19 @@ function RecordSheet({
   child,
   rows,
   therapist,
-  centerChildren,
+  myServices,
 }: {
   child: string;
   rows: SessionRow[];
   therapist: string;
-  centerChildren: CenterChildOption[];
+  myServices: MyServiceOption[];
 }) {
   const monthSet = [...new Set(rows.map((s) => parseYMD(s.use)?.mo).filter(Boolean))];
   const month = monthSet[0] ?? "";
-  // DB 매칭: 같은 센터 안에서 이름이 일치하는 Child 찾기
-  const matchedChild = centerChildren.find((c) => c.name === child);
-  const childId = matchedChild?.id ?? null;
+  // DB 매칭: 본인 담당 ChildService 중 이름이 일치하는 첫 번째.
+  // (한 아동이 같은 치료사한테 여러 서비스 받는 경우 추후 선택 UI 추가)
+  const matchedService = myServices.find((c) => c.name === child);
+  const childServiceId = matchedService?.id ?? null;
   const year = new Date().getFullYear(); // 단순화: 올해 기준 (대부분 맞음)
   const birth = rows[0]?.birth ?? "";
   const org = rows[0]?.org ?? "";
@@ -244,11 +251,11 @@ function RecordSheet({
 
   // 저장된 기록지가 있으면 자동으로 불러와서 state 채우기 (월 단위)
   useEffect(() => {
-    if (!childId || !monthNumForLoad) return;
+    if (!childServiceId || !monthNumForLoad) return;
     let cancelled = false;
     (async () => {
       try {
-        const r = await fetch(`/api/record/load?childId=${childId}&year=${year}&month=${monthNumForLoad}`);
+        const r = await fetch(`/api/record/load?childServiceId=${childServiceId}&year=${year}&month=${monthNumForLoad}`);
         if (!r.ok || cancelled) return;
         const rec = await r.json();
         if (cancelled || !rec || !rec.id) return;
@@ -268,10 +275,10 @@ function RecordSheet({
       } catch {}
     })();
     return () => { cancelled = true; };
-  }, [childId, year, monthNumForLoad]);
+  }, [childServiceId, year, monthNumForLoad]);
 
   async function saveRecord() {
-    if (!childId) {
+    if (!childServiceId) {
       alert("이 아동이 시스템에 등록돼 있지 않아 저장할 수 없어요. 원장님께 아동 등록을 요청해주세요.");
       return;
     }
@@ -279,7 +286,7 @@ function RecordSheet({
     setSavedMsg("");
     try {
       const payload = {
-        childId,
+        childServiceId,
         year,
         month: monthNumForLoad,
         org,
@@ -559,14 +566,14 @@ function RecordSheet({
       </div>
 
       {savedMsg && <div className="flash ok" style={{ marginTop: 14 }}>{savedMsg}</div>}
-      {!childId && (
+      {!childServiceId && (
         <div className="flash warn" style={{ marginTop: 14 }}>
           ⚠ <b>{child}</b> 가 시스템에 등록된 아동과 일치하지 않아요. 저장하려면 같은 이름으로 먼저 아동을 등록해주세요.
         </div>
       )}
 
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 20 }}>
-        <button className="btn" onClick={saveRecord} disabled={saving || !childId}>
+        <button className="btn" onClick={saveRecord} disabled={saving || !childServiceId}>
           {saving ? "저장 중..." : (loadedRecordId ? "덮어쓰기 저장" : "DB에 저장")}
         </button>
         <button className="btn btn-primary" onClick={downloadHwpx} disabled={downloading}>

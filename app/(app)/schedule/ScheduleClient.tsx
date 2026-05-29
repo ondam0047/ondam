@@ -3,15 +3,18 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  WEEK, SLOTS, SERVICE_TYPES, holiday, pad,
+  WEEK, SLOTS, holiday, pad,
 } from "@/lib/constants";
 
 type Session = { time: string; makeup: boolean };
 type SessionMap = Record<number, Session>; // day-of-month -> Session
 
+// 한 행 = 하나의 ChildService (한 아동이 받는 한 서비스).
+// 같은 아동이 여러 서비스를 받으면 옵션이 여러 줄로 나옴.
 type ChildOption = {
-  id: number;
-  name: string;
+  id: number;                   // ChildService.id
+  childId: number;              // 사람 id (동명이인 구분용)
+  name: string;                 // 아동 이름
   birthDate: string | null;
   serviceType: string;
   mgmtNumber: string | null;
@@ -20,6 +23,7 @@ type ChildOption = {
   defaultUnit: number;
   defaultTarget: number;
   therapistName: string | null;
+  hasMultipleServices: boolean; // 같은 아동에 서비스가 둘 이상이면 라벨에 종류 표시
 };
 type TherapistOption = { id: number; name: string };
 
@@ -45,11 +49,13 @@ function buildMonthOptions(): { value: string; label: string; current: boolean }
 export default function ScheduleClient({
   children: childrenOpts,
   therapists,
+  serviceTypes,
   defaultFilterTherapist = null,
   defaultOrg = "",
 }: {
   children: ChildOption[];
   therapists: TherapistOption[];
+  serviceTypes: string[];
   defaultFilterTherapist?: string | null;
   defaultOrg?: string;
 }) {
@@ -64,7 +70,7 @@ export default function ScheduleClient({
   // 아동 드롭다운 필터용 (양식엔 안 들어가는 UI-only 값).
   // 로그인 사용자 이름이 치료사 명단에 있으면 자동으로 그 치료사로 필터.
   const [filterTherapist, setFilterTherapist] = useState<string>(defaultFilterTherapist ?? "");
-  const [serviceType, setServiceType] = useState<string>(SERVICE_TYPES[0]);
+  const [serviceType, setServiceType] = useState<string>(serviceTypes[0] ?? "언어재활");
   const [ym, setYm] = useState(defaultYm);
   const [target, setTarget] = useState(5);
   const [defaultSlot, setDefaultSlot] = useState(""); // 미선택
@@ -131,9 +137,9 @@ export default function ScheduleClient({
     if (c.defaultTarget) setTarget(c.defaultTarget);
   }
 
-  // 아동 변경 시 저장된 일정표 목록 fetch
-  const refreshSavedList = useCallback(async (childId: number) => {
-    const res = await fetch(`/api/schedule/list?childId=${childId}`);
+  // 아동 서비스 변경 시 저장된 일정표 목록 fetch
+  const refreshSavedList = useCallback(async (childServiceId: number) => {
+    const res = await fetch(`/api/schedule/list?childServiceId=${childServiceId}`);
     if (!res.ok) { setSavedList([]); return; }
     setSavedList((await res.json()) as SavedRow[]);
   }, []);
@@ -186,7 +192,7 @@ export default function ScheduleClient({
     setSavedMsg("");
     try {
       const payload = {
-        childId: selectedChildId,
+        childServiceId: selectedChildId,
         year: genY,
         month: genM,
         therapist,
@@ -411,6 +417,7 @@ export default function ScheduleClient({
                     {filtered.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name}
+                        {c.hasMultipleServices ? ` · ${c.serviceType}` : ""}
                         {c.therapistName ? ` · ${c.therapistName}` : ""}
                         {c.defaultSlot ? ` · ${c.defaultSlot}` : ""}
                       </option>
@@ -479,7 +486,7 @@ export default function ScheduleClient({
             <div className="field">
               <label>서비스 종류</label>
               <select className="select" value={serviceType} onChange={(e) => setServiceType(e.target.value)}>
-                {SERVICE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                {serviceTypes.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
             <div className="field">

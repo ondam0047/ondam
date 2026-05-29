@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { updateChild } from "../../actions";
 import ChildForm from "../../ChildForm";
 import { requireUser, isAdmin, getEffectiveTherapistId } from "@/lib/auth";
+import { parseServiceTypes } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -13,24 +14,39 @@ export default async function EditChildPage(props: PageProps<"/children/[id]/edi
   const cid = Number(id);
   if (!Number.isInteger(cid)) notFound();
 
-  const child = await prisma.child.findUnique({ where: { id: cid } });
+  const child = await prisma.child.findUnique({
+    where: { id: cid },
+    include: { services: { orderBy: { id: "asc" } } },
+  });
   if (!child) notFound();
-  // 다른 센터·다른 치료사 담당 아동은 접근 거부
   if (child.centerId !== user.centerId) redirect("/children");
+
   if (!isAdmin(user)) {
     const myId = await getEffectiveTherapistId(user);
-    if (child.therapistId !== myId) redirect("/children");
+    const hasMine = child.services.some((s) => s.therapistId === myId);
+    if (!hasMine) redirect("/children");
   }
 
-  const therapists = isAdmin(user)
-    ? await prisma.therapist.findMany({
-        where: { active: true, centerId: user.centerId ?? -1 },
-        orderBy: { name: "asc" },
-        select: { id: true, name: true, active: true },
-      })
-    : [];
+  const [therapists, center] = await Promise.all([
+    isAdmin(user)
+      ? prisma.therapist.findMany({
+          where: { active: true, centerId: user.centerId ?? -1 },
+          orderBy: { name: "asc" },
+          select: { id: true, name: true, active: true },
+        })
+      : Promise.resolve([] as { id: number; name: string; active: boolean }[]),
+    prisma.center.findUnique({ where: { id: user.centerId ?? -1 }, select: { serviceTypes: true } }),
+  ]);
+  const serviceTypes = parseServiceTypes(center?.serviceTypes);
 
   const update = updateChild.bind(null, child.id);
+
+  // 치료사: 본인 담당 서비스만 폼에 보여줌
+  let visibleServices = child.services;
+  if (!isAdmin(user)) {
+    const myId = await getEffectiveTherapistId(user);
+    visibleServices = child.services.filter((s) => s.therapistId === myId);
+  }
 
   return (
     <>
@@ -45,8 +61,25 @@ export default async function EditChildPage(props: PageProps<"/children/[id]/edi
       <div className="card">
         <div className="card-body">
           <ChildForm
-            child={child}
+            child={{
+              id: child.id,
+              name: child.name,
+              birthDate: child.birthDate,
+              mgmtNumber: child.mgmtNumber,
+              memo: child.memo,
+              active: child.active,
+              services: visibleServices.map((s) => ({
+                id: s.id,
+                serviceType: s.serviceType,
+                therapistId: s.therapistId,
+                defaultSlot: s.defaultSlot,
+                defaultDays: s.defaultDays,
+                defaultUnit: s.defaultUnit,
+                defaultTarget: s.defaultTarget,
+              })),
+            }}
             therapists={therapists}
+            serviceTypes={serviceTypes}
             action={update}
             submitLabel="저장"
             showActive

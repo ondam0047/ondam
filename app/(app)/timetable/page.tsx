@@ -41,7 +41,7 @@ export default async function TimetablePage({
 
   const therapists = await prisma.therapist.findMany({
     where: { centerId, active: true },
-    include: { children: { where: { active: true }, select: { id: true } } },
+    include: { services: { where: { active: true }, select: { id: true } } },
     orderBy: { name: "asc" },
   });
 
@@ -57,9 +57,16 @@ export default async function TimetablePage({
           where: {
             year,
             month,
-            child: { centerId, therapistId: selected.id, active: true },
+            childService: {
+              therapistId: selected.id,
+              active: true,
+              child: { centerId, active: true },
+            },
           },
-          include: { sessions: true, child: true },
+          include: {
+            sessions: true,
+            childService: { include: { child: true } },
+          },
         }),
         prisma.therapistBlock.findMany({
           where: { therapistId: selected.id },
@@ -82,10 +89,10 @@ export default async function TimetablePage({
       for (const slot of slots) {
         if (!grid[dow][slot]) grid[dow][slot] = [];
         let cell = grid[dow][slot].find(
-          (c) => c.time === s.time && c.childName === sch.child.name
+          (c) => c.time === s.time && c.childName === sch.childService.child.name
         );
         if (!cell) {
-          cell = { time: s.time, childName: sch.child.name, days: [] };
+          cell = { time: s.time, childName: sch.childService.child.name, days: [] };
           grid[dow][slot].push(cell);
         }
         if (!cell.days.includes(s.day)) cell.days.push(s.day);
@@ -124,7 +131,7 @@ export default async function TimetablePage({
               <select className="select" name="therapistId" defaultValue={selectedTherapistId?.toString() ?? ""}>
                 {therapists.map((t) => (
                   <option key={t.id} value={t.id}>
-                    {t.name} (담당 {t.children.length}명)
+                    {t.name} (담당 {t.services.length}건)
                   </option>
                 ))}
               </select>

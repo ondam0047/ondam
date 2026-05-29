@@ -125,6 +125,19 @@ export default async function CenterPage({
                 <label>대표 전화 (선택)</label>
                 <input className="input" name="phone" defaultValue={center.phone ?? ""} />
               </div>
+              <div className="field" style={{ gridColumn: "1 / -1" }}>
+                <label>치료 영역 (콤마 또는 줄바꿈으로 구분)</label>
+                <textarea
+                  className="textarea"
+                  name="serviceTypes"
+                  defaultValue={center.serviceTypes}
+                  rows={3}
+                  placeholder="예: 언어재활, 놀이치료, 감각통합치료, 인지재활"
+                />
+                <div className="sub-mute" style={{ fontSize: 11, marginTop: 4 }}>
+                  아동 등록·일정표·기록지에서 보이는 드롭다운 항목입니다. 센터마다 다르게 설정 가능.
+                </div>
+              </div>
             </div>
             <div className="divider" />
             <button className="btn btn-primary" type="submit">저장</button>

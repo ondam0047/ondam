@@ -6,8 +6,15 @@ export const SLOTS = [
   "16:50~17:40", "17:40~18:30", "18:30~19:20",
 ] as const;
 
-export const SERVICE_TYPES = ["언어재활", "놀이치료", "감각통합치료"] as const;
-export type ServiceType = (typeof SERVICE_TYPES)[number];
+// 기본 서비스 종류 — 센터마다 다를 수 있고 Center.serviceTypes 가 우선.
+// 폼·드롭다운에서는 parseServiceTypes(center.serviceTypes) 를 호출해 동적으로 받아오기.
+export const DEFAULT_SERVICE_TYPES = ["언어재활", "놀이치료", "감각통합치료"] as const;
+export type ServiceType = string;
+
+export function parseServiceTypes(str: string | null | undefined): string[] {
+  if (!str) return [...DEFAULT_SERVICE_TYPES];
+  return str.split(",").map((s) => s.trim()).filter(Boolean);
+}
 
 // 2026 공휴일 (프로토타입에서 가져옴 — 나중에 자동 동기화 가능)
 export const HOLIDAYS_2026: Record<string, string> = {

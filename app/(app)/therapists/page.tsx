@@ -31,7 +31,7 @@ export default async function TherapistsPage({
       orderBy: [{ active: "desc" }, { name: "asc" }],
       include: {
         user: true,
-        _count: { select: { children: { where: { active: true, centerId } } } },
+        _count: { select: { services: { where: { active: true, child: { centerId, active: true } } } } },
       },
     }),
     prisma.user.findMany({
@@ -296,7 +296,7 @@ export default async function TherapistsPage({
                         </details>
                       )}
                     </td>
-                    <td className="num-cell">{t._count.children}명</td>
+                    <td className="num-cell">{t._count.services}건</td>
                     <td>
                       <span className={"badge " + (t.active ? "badge-success" : "badge-mute")}>
                         {t.active ? "활동" : "비활성"}

@@ -1,5 +1,5 @@
-// 온담말언어발달센터 통합관리 — 데이터 스키마
-// SQLite (개발/소규모 운영용) — Prisma 7
+// 바로일지 — 데이터 스키마 (SQLite, 로컬 개발용)
+// Prisma 7
 
 generator client {
   provider = "prisma-client-js"
@@ -10,14 +10,15 @@ datasource db {
 }
 
 // ─── 멀티 센터 ──────────────────────────────────────────────────────────
-// 여러 발달재활센터가 같은 시스템을 공유. 모든 데이터는 Center 단위로 격리.
 
 model Center {
   id            Int      @id @default(autoincrement())
   name          String
-  approvalCode  String   @unique // 6자리 영숫자. 치료사 가입 시 입력
+  approvalCode  String   @unique
   address       String?
   phone         String?
+  // 센터별 치료 영역. 콤마 구분 문자열. 센터가 추가/수정 가능.
+  serviceTypes  String   @default("언어재활,놀이치료,감각통합치료")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -27,15 +28,13 @@ model Center {
 }
 
 // ─── 권한·로그인 ─────────────────────────────────────────────────────────
-// 역할: OWNER(원장) / ADMIN(행정) / THERAPIST(치료사)
-// 치료사 계정은 therapistId 를 통해 기존 Therapist 정보(연락처·담당아동) 와 연결.
 
 model User {
   id           Int      @id @default(autoincrement())
   email        String   @unique
   name         String
   passwordHash String
-  role         String   // 'OWNER' | 'ADMIN' | 'THERAPIST'
+  role         String
   active       Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -53,7 +52,7 @@ model User {
 
 model AuthSession {
   id        Int      @id @default(autoincrement())
-  token     String   @unique // 쿠키에 들어가는 무작위 문자열
+  token     String   @unique
   userId    Int
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
@@ -62,7 +61,7 @@ model AuthSession {
   @@index([userId])
 }
 
-// ─── 기존 도메인 ─────────────────────────────────────────────────────────
+// ─── 도메인 ────────────────────────────────────────────────────────────
 
 model Therapist {
   id        Int      @id @default(autoincrement())
@@ -75,129 +74,143 @@ model Therapist {
   centerId  Int?
   center    Center?  @relation(fields: [centerId], references: [id])
 
-  children  Child[]
+  services  ChildService[]
   user      User?
   blocks    TherapistBlock[]
 }
 
-// 치료사 시간 차단 — 본인이 원하지 않는 시간대 막기
-// 일정표 생성 시 막힌 시간에 회기가 배정 안 되도록 화면에서 경고/제외
 model TherapistBlock {
   id          Int      @id @default(autoincrement())
   therapistId Int
   therapist   Therapist @relation(fields: [therapistId], references: [id], onDelete: Cascade)
-  dayOfWeek   Int      // 0=일 ~ 6=토
-  startTime   String   // "HH:MM"
-  endTime     String   // "HH:MM"
-  reason      String?  // 메모 (선택)
+  dayOfWeek   Int
+  startTime   String
+  endTime     String
+  reason      String?
   createdAt   DateTime @default(now())
 
   @@index([therapistId])
 }
 
+// Child = 사람(아동). 한 아동은 여러 서비스(=ChildService)를 받을 수 있음.
 model Child {
-  id               Int       @id @default(autoincrement())
-  name             String
-  birthDate        String?   // YY.MM.DD 또는 YYYY-MM-DD 형식 자유
-  serviceType      String    // "언어재활" 등
-  mgmtNumber       String?   // 사회복지서비스 관리번호 (있으면)
-  defaultSlot      String?   // "16:00~16:50"
-  defaultDays      String?   // "3,4" — 콤마 구분 요일 (0=일)
-  defaultUnit      Int       @default(65000) // 회당 단가
-  defaultTarget    Int       @default(5)     // 월 목표 회기
-  memo             String?
-  active           Boolean   @default(true)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  id         Int       @id @default(autoincrement())
+  name       String
+  birthDate  String?
+  mgmtNumber String?   // 사람 단위 식별번호 (있으면)
+  memo       String?
+  active     Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
-  centerId         Int?
-  center           Center?    @relation(fields: [centerId], references: [id])
+  centerId   Int?
+  center     Center?   @relation(fields: [centerId], references: [id])
 
-  therapistId      Int?
-  therapist        Therapist? @relation(fields: [therapistId], references: [id])
+  services   ChildService[]
+}
 
-  schedules        Schedule[]
-  records          Record[]
+// ChildService = 한 아동이 받는 한 서비스. (아동 × 서비스 종류 × 치료사)
+// 일정표·기록지는 이 단위로 작성.
+model ChildService {
+  id            Int       @id @default(autoincrement())
+  childId       Int
+  child         Child     @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  therapistId   Int?
+  therapist     Therapist? @relation(fields: [therapistId], references: [id])
+
+  serviceType   String    // "언어재활" 등 — Center.serviceTypes 중 하나
+  defaultSlot   String?
+  defaultDays   String?
+  defaultUnit   Int       @default(65000)
+  defaultTarget Int       @default(5)
+
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  schedules     Schedule[]
+  records       Record[]
+
+  @@index([childId])
+  @@index([therapistId])
 }
 
 model Schedule {
-  id          Int      @id @default(autoincrement())
-  childId     Int
-  child       Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
-  year        Int
-  month       Int      // 1-12
-  // 작성 시점 스냅샷 (나중에 아동·치료사 정보가 바뀌어도 보존)
-  therapist   String
-  serviceType String
-  target      Int
-  mgmtNumber  String?
-  pvOrg       String
-  pvTel       String?
-  pvCharge    String?
-  pvType      String
-  costUnit    String   // "65,000" 형식 그대로
-  costSelf    String   // "0"
-  writeDate   String?  // "26.02.28" 등 자유 형식
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             Int      @id @default(autoincrement())
+  childServiceId Int
+  childService   ChildService @relation(fields: [childServiceId], references: [id], onDelete: Cascade)
+  year           Int
+  month          Int
+  therapist      String
+  serviceType    String
+  target         Int
+  mgmtNumber     String?
+  pvOrg          String
+  pvTel          String?
+  pvCharge       String?
+  pvType         String
+  costUnit       String
+  costSelf       String
+  writeDate      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  createdById Int?
-  createdBy   User?    @relation("ScheduleCreatedBy", fields: [createdById], references: [id])
+  createdById    Int?
+  createdBy      User?    @relation("ScheduleCreatedBy", fields: [createdById], references: [id])
 
-  sessions    ScheduleSession[]
+  sessions       ScheduleSession[]
 
-  @@unique([childId, year, month])
+  @@unique([childServiceId, year, month])
 }
 
 model ScheduleSession {
   id         Int      @id @default(autoincrement())
   scheduleId Int
   schedule   Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
-  day        Int      // 1-31
-  time       String   // "16:00~16:50"
+  day        Int
+  time       String
   makeup     Boolean  @default(false)
 
   @@unique([scheduleId, day])
 }
 
 // ─── 기록지 ──────────────────────────────────────────────────────────────
-// 작성한 기록지를 DB 에 저장. 다음에 다시 열어 편집·재출력 가능.
 
 model Record {
-  id          Int      @id @default(autoincrement())
-  childId     Int
-  child       Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
-  year        Int
-  month       Int      // 1-12
-  // 작성 시점 스냅샷
-  org         String
-  childName   String
-  childBirth  String?
-  opinion     String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             Int      @id @default(autoincrement())
+  childServiceId Int
+  childService   ChildService @relation(fields: [childServiceId], references: [id], onDelete: Cascade)
+  year           Int
+  month          Int
+  org            String
+  childName      String
+  childBirth     String?
+  opinion        String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  createdById Int?
-  createdBy   User?    @relation("RecordCreatedBy", fields: [createdById], references: [id])
+  createdById    Int?
+  createdBy      User?    @relation("RecordCreatedBy", fields: [createdById], references: [id])
 
-  sessions    RecordSession[]
+  sessions       RecordSession[]
 
-  @@unique([childId, year, month])
+  @@unique([childServiceId, year, month])
 }
 
 model RecordSession {
   id          Int      @id @default(autoincrement())
   recordId    Int
   record      Record   @relation(fields: [recordId], references: [id], onDelete: Cascade)
-  ordinal     Int      // 1부터 시작하는 회기 순서
-  date        String?  // 'M/D' 헤더용
+  ordinal     Int
+  date        String?
   startTime   String?
   endTime     String?
-  voucher     String?  // 분
-  extra       String?  // 분
-  amount      String?  // 원 (포맷 포함)
-  useDay      String?  // 제공일자 (일자만)
-  payDay      String?  // 승인일자 (일자만)
+  voucher     String?
+  extra       String?
+  amount      String?
+  useDay      String?
+  payDay      String?
   apprNumber  String?
   result      String?
   resultExtra String?

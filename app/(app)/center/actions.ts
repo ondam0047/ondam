@@ -13,8 +13,17 @@ export async function updateCenter(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const address = String(formData.get("address") ?? "").trim();
   const phone = String(formData.get("phone") ?? "").trim();
+  const serviceTypesRaw = String(formData.get("serviceTypes") ?? "").trim();
   if (!name) {
     redirect("/center?err=" + encodeURIComponent("센터명은 비울 수 없어요"));
+  }
+  // 콤마 또는 줄바꿈 모두 허용
+  const services = serviceTypesRaw
+    .split(/[,\n]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (services.length === 0) {
+    redirect("/center?err=" + encodeURIComponent("치료 영역은 최소 1개 이상 필요해요"));
   }
   await prisma.center.update({
     where: { id: me.centerId! },
@@ -22,6 +31,7 @@ export async function updateCenter(formData: FormData) {
       name,
       address: address || null,
       phone: phone || null,
+      serviceTypes: services.join(","),
     },
   });
   revalidatePath("/center");

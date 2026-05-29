@@ -3,7 +3,13 @@
 import { useState } from "react";
 import { WEEK } from "@/lib/constants";
 
-export default function DaySelector({ initial }: { initial: number[] }) {
+export default function DaySelector({
+  initial,
+  name = "defaultDays",
+}: {
+  initial: number[];
+  name?: string;
+}) {
   const [days, setDays] = useState<number[]>(initial);
 
   function toggle(i: number) {
@@ -26,7 +32,7 @@ export default function DaySelector({ initial }: { initial: number[] }) {
           );
         })}
       </div>
-      <input type="hidden" name="defaultDays" value={days.join(",")} />
+      <input type="hidden" name={name} value={days.join(",")} />
     </>
   );
 }

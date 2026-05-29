@@ -35,15 +35,14 @@ export async function GET(req: NextRequest) {
     where: {
       year,
       month,
-      child: { therapistId, centerId: user.centerId ?? -1 },
+      childService: { therapistId, child: { centerId: user.centerId ?? -1 } },
     },
     include: {
       sessions: { orderBy: { day: "asc" } },
-      child: true,
+      childService: { include: { child: true } },
     },
   });
 
-  // 회기를 일자 순으로 펼치기
   type Row = {
     seq: number;
     date: string;
@@ -58,7 +57,7 @@ export async function GET(req: NextRequest) {
   const all: { day: number; time: string; makeup: boolean; childName: string }[] = [];
   for (const sch of schedules) {
     for (const s of sch.sessions) {
-      all.push({ day: s.day, time: s.time, makeup: s.makeup, childName: sch.child.name });
+      all.push({ day: s.day, time: s.time, makeup: s.makeup, childName: sch.childService.child.name });
     }
   }
   all.sort((a, b) => a.day - b.day || a.time.localeCompare(b.time));

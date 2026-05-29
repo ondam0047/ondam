@@ -103,16 +103,15 @@ export function isAdmin(user: SessionUser): boolean {
   return user.role === "OWNER" || user.role === "ADMIN";
 }
 
-// 치료사가 이 아동을 볼 권한이 있는지.
-// ADMIN(행정)은 센터의 모든 아동 접근 가능 — 운영 관리 목적.
-// OWNER·THERAPIST 는 본인 담당 아동만.
-export function canAccessChild(
+// ADMIN(행정)은 센터의 모든 ChildService 접근 가능 — 운영 관리 목적.
+// OWNER·THERAPIST 는 본인 담당 ChildService 만.
+export function canAccessService(
   user: SessionUser,
-  child: { therapistId: number | null }
+  service: { therapistId: number | null }
 ): boolean {
   if (user.role === "ADMIN") return true;
   if (user.therapistId !== null) {
-    return child.therapistId === user.therapistId;
+    return service.therapistId === user.therapistId;
   }
   return false;
 }

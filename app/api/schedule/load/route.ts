@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { getCurrentUser, canAccessChild } from "@/lib/auth";
+import { getCurrentUser, canAccessService } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
@@ -12,10 +12,13 @@ export async function GET(req: NextRequest) {
   }
   const schedule = await prisma.schedule.findUnique({
     where: { id },
-    include: { sessions: { orderBy: { day: "asc" } }, child: true },
+    include: {
+      sessions: { orderBy: { day: "asc" } },
+      childService: { include: { child: true } },
+    },
   });
   if (!schedule) return Response.json({ error: "not found" }, { status: 404 });
-  if (!canAccessChild(user, schedule.child)) {
+  if (schedule.childService.child.centerId !== user.centerId || !canAccessService(user, schedule.childService)) {
     return Response.json({ error: "forbidden" }, { status: 403 });
   }
   return Response.json(schedule);

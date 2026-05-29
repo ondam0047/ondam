@@ -249,25 +249,39 @@ async function loadMyStats(
   todayDay: number,
 ) {
   const tid = therapistId ?? -1;
-  const [myChildren, mySchedules] = await Promise.all([
-    prisma.child.findMany({
-      where: { centerId, active: true, therapistId: tid },
-      orderBy: { name: "asc" },
+  const [myServices, mySchedules] = await Promise.all([
+    prisma.childService.findMany({
+      where: { active: true, therapistId: tid, child: { centerId, active: true } },
+      include: { child: true },
+      orderBy: [{ child: { name: "asc" } }, { id: "asc" }],
     }),
     prisma.schedule.findMany({
-      where: { year: y, month: m, child: { centerId, therapistId: tid } },
-      include: { sessions: true, child: true },
+      where: {
+        year: y, month: m,
+        childService: { therapistId: tid, child: { centerId } },
+      },
+      include: { sessions: true, childService: { include: { child: true } } },
     }),
   ]);
 
-  const childIdsWithSchedule = [...new Set(mySchedules.map((s) => s.childId))];
+  // 미작성 = 일정표는 있는데 기록지가 없는 ChildService
+  const csIdsWithSchedule = [...new Set(mySchedules.map((s) => s.childServiceId))];
   const savedRecords = await prisma.record.findMany({
-    where: { year: y, month: m, childId: { in: childIdsWithSchedule } },
-    select: { childId: true },
+    where: { year: y, month: m, childServiceId: { in: csIdsWithSchedule } },
+    select: { childServiceId: true },
   });
-  const recordedChildIds = new Set(savedRecords.map((r) => r.childId));
-  const unwrittenChildren = childIdsWithSchedule.filter((id) => !recordedChildIds.has(id));
-  const unwrittenCount = unwrittenChildren.length;
+  const recordedCsIds = new Set(savedRecords.map((r) => r.childServiceId));
+  const unwrittenCsIds = csIdsWithSchedule.filter((id) => !recordedCsIds.has(id));
+  const unwrittenCount = unwrittenCsIds.length;
+
+  // 미작성 아동(서비스) 이름 — 한 아동에 여러 서비스면 "이름·서비스" 로 구분
+  const csById = new Map(myServices.map((s) => [s.id, s]));
+  const childIdCount = new Map<number, number>();
+  for (const s of myServices) childIdCount.set(s.childId, (childIdCount.get(s.childId) ?? 0) + 1);
+  const unwrittenChildNames = unwrittenCsIds
+    .map((id) => csById.get(id))
+    .filter((s): s is NonNullable<typeof s> => !!s)
+    .map((s) => (childIdCount.get(s.childId) ?? 1) > 1 ? `${s.child.name} · ${s.serviceType}` : s.child.name);
 
   let todaySessions = 0;
   const todaySessionList: { time: string; name: string }[] = [];
@@ -275,13 +289,13 @@ async function loadMyStats(
     const sess = sch.sessions.find((s) => s.day === todayDay);
     if (sess) {
       todaySessions++;
-      todaySessionList.push({ time: sess.time, name: sch.child.name });
+      todaySessionList.push({ time: sess.time, name: sch.childService.child.name });
     }
   }
   todaySessionList.sort((a, b) => a.time.localeCompare(b.time));
 
   const totalSessionsThisMonth = mySchedules.reduce((s, sch) => s + sch.sessions.length, 0);
-  const targetTotal = myChildren.reduce((s, c) => s + c.defaultTarget, 0);
+  const targetTotal = myServices.reduce((s, c) => s + c.defaultTarget, 0);
   const progressPct = targetTotal > 0 ? Math.round((totalSessionsThisMonth / targetTotal) * 100) : 0;
 
   const weekSessions = weekDates.map(({ d, weekday, isToday }) => {
@@ -292,7 +306,7 @@ async function loadMyStats(
         const sess = sch.sessions.find((s) => s.day === dayN);
         if (sess) items.push({
           time: sess.time.split("~")[0],
-          name: sch.child.name,
+          name: sch.childService.child.name,
           svc: sch.serviceType,
         });
       }
@@ -301,12 +315,8 @@ async function loadMyStats(
     return { day: weekday, date: `${d.getMonth() + 1}.${d.getDate()}`, isToday, items };
   });
 
-  const unwrittenChildNames = myChildren
-    .filter((c) => unwrittenChildren.includes(c.id))
-    .map((c) => c.name);
-
   return {
-    myChildrenCount: myChildren.length,
+    myChildrenCount: new Set(myServices.map((s) => s.childId)).size,
     todaySessions,
     todaySessionList,
     totalSessionsThisMonth,
@@ -324,26 +334,28 @@ async function loadCenterStats(
   m: number,
   weekDates: { d: Date; weekday: string; isToday: boolean }[],
 ) {
-  const [children, therapists, currentSchedules, pendingUsers] = await Promise.all([
+  const [children, services, therapists, currentSchedules, pendingUsers] = await Promise.all([
     prisma.child.findMany({
       where: { centerId, active: true },
-      include: { therapist: true },
+    }),
+    prisma.childService.findMany({
+      where: { active: true, child: { centerId, active: true } },
     }),
     prisma.therapist.findMany({ where: { centerId, active: true } }),
     prisma.schedule.findMany({
-      where: { year: y, month: m, child: { centerId } },
-      include: { sessions: true, child: true },
+      where: { year: y, month: m, childService: { child: { centerId } } },
+      include: { sessions: true, childService: { include: { child: true } } },
     }),
     prisma.user.count({ where: { centerId, role: "THERAPIST", active: false } }),
   ]);
 
-  const childIdsWithSchedule = [...new Set(currentSchedules.map((s) => s.childId))];
+  const csIdsWithSchedule = [...new Set(currentSchedules.map((s) => s.childServiceId))];
   const savedRecords = await prisma.record.findMany({
-    where: { year: y, month: m, childId: { in: childIdsWithSchedule } },
-    select: { childId: true },
+    where: { year: y, month: m, childServiceId: { in: csIdsWithSchedule } },
+    select: { childServiceId: true },
   });
-  const recordedChildIds = new Set(savedRecords.map((r) => r.childId));
-  const unwrittenCount = childIdsWithSchedule.filter((id) => !recordedChildIds.has(id)).length;
+  const recordedCsIds = new Set(savedRecords.map((r) => r.childServiceId));
+  const unwrittenCount = csIdsWithSchedule.filter((id) => !recordedCsIds.has(id)).length;
   const totalSessionsThisMonth = currentSchedules.reduce((s, sch) => s + sch.sessions.length, 0);
 
   const weekSessions = weekDates.map(({ d, weekday, isToday }) => {
@@ -354,7 +366,7 @@ async function loadCenterStats(
         const sess = sch.sessions.find((s) => s.day === dayN);
         if (sess) items.push({
           time: sess.time.split("~")[0],
-          name: sch.child.name,
+          name: sch.childService.child.name,
           svc: sch.serviceType,
         });
       }
@@ -363,17 +375,18 @@ async function loadCenterStats(
     return { day: weekday, date: `${d.getMonth() + 1}.${d.getDate()}`, isToday, items };
   });
 
+  // 서비스 종류 분포 (ChildService 단위)
   const distMap = new Map<string, number>();
-  for (const c of children) distMap.set(c.serviceType, (distMap.get(c.serviceType) ?? 0) + 1);
+  for (const s of services) distMap.set(s.serviceType, (distMap.get(s.serviceType) ?? 0) + 1);
   const dist = [...distMap.entries()]
     .map(([name, count]) => ({ name, count, color: SVC_COLORS[name] ?? "var(--primary)" }))
     .sort((a, b) => b.count - a.count);
 
   const therStats = therapists.map((t) => {
-    const tChildren = children.filter((c) => c.therapistId === t.id);
-    const target = tChildren.reduce((s, c) => s + c.defaultTarget, 0);
+    const tServices = services.filter((s) => s.therapistId === t.id);
+    const target = tServices.reduce((s, c) => s + c.defaultTarget, 0);
     const done = currentSchedules
-      .filter((sch) => tChildren.some((c) => c.id === sch.childId))
+      .filter((sch) => tServices.some((s) => s.id === sch.childServiceId))
       .reduce((s, sch) => s + sch.sessions.length, 0);
     return { name: t.name, done, total: Math.max(target, done) };
   }).filter((t) => t.total > 0).sort((a, b) => b.done - a.done);

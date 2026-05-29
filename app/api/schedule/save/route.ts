@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { getCurrentUser, canAccessChild } from "@/lib/auth";
+import { getCurrentUser, canAccessService } from "@/lib/auth";
 
 type SaveBody = {
-  childId: number;
+  childServiceId: number;
   year: number;
   month: number;
   therapist: string;
@@ -25,13 +25,15 @@ export async function POST(req: NextRequest) {
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
 
   const body = (await req.json()) as SaveBody;
-  if (!body.childId || !body.year || !body.month) {
-    return Response.json({ error: "missing childId/year/month" }, { status: 400 });
+  if (!body.childServiceId || !body.year || !body.month) {
+    return Response.json({ error: "missing childServiceId/year/month" }, { status: 400 });
   }
 
-  // 치료사는 본인 담당 아동만
-  const child = await prisma.child.findUnique({ where: { id: body.childId } });
-  if (!child || !canAccessChild(user, child)) {
+  const cs = await prisma.childService.findUnique({
+    where: { id: body.childServiceId },
+    include: { child: true },
+  });
+  if (!cs || cs.child.centerId !== user.centerId || !canAccessService(user, cs)) {
     return Response.json({ error: "forbidden" }, { status: 403 });
   }
 
@@ -49,9 +51,8 @@ export async function POST(req: NextRequest) {
     writeDate: body.writeDate || null,
   };
 
-  // upsert: 같은 (child, year, month) 면 덮어쓰기
   const existing = await prisma.schedule.findUnique({
-    where: { childId_year_month: { childId: body.childId, year: body.year, month: body.month } },
+    where: { childServiceId_year_month: { childServiceId: body.childServiceId, year: body.year, month: body.month } },
   });
 
   let scheduleId: number;
@@ -62,7 +63,7 @@ export async function POST(req: NextRequest) {
   } else {
     const created = await prisma.schedule.create({
       data: {
-        childId: body.childId,
+        childServiceId: body.childServiceId,
         year: body.year,
         month: body.month,
         ...meta,

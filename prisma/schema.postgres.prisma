@@ -1,6 +1,5 @@
-// 바로일지 — 데이터 스키마 (PostgreSQL 운영용)
-// 로컬 개발은 prisma/schema.prisma (SQLite) 그대로 사용.
-// 배포 시 이 파일로 generate / migrate.
+// 바로일지 — 데이터 스키마 (PostgreSQL, 운영용)
+// Prisma 7. 로컬은 prisma/schema.prisma (SQLite).
 
 generator client {
   provider = "prisma-client-js"
@@ -18,6 +17,7 @@ model Center {
   approvalCode  String   @unique
   address       String?
   phone         String?
+  serviceTypes  String   @default("언어재활,놀이치료,감각통합치료")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -73,7 +73,7 @@ model Therapist {
   centerId  Int?
   center    Center?  @relation(fields: [centerId], references: [id])
 
-  children  Child[]
+  services  ChildService[]
   user      User?
   blocks    TherapistBlock[]
 }
@@ -92,56 +92,72 @@ model TherapistBlock {
 }
 
 model Child {
-  id               Int       @id @default(autoincrement())
-  name             String
-  birthDate        String?
-  serviceType      String
-  mgmtNumber       String?
-  defaultSlot      String?
-  defaultDays      String?
-  defaultUnit      Int       @default(65000)
-  defaultTarget    Int       @default(5)
-  memo             String?
-  active           Boolean   @default(true)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  id         Int       @id @default(autoincrement())
+  name       String
+  birthDate  String?
+  mgmtNumber String?
+  memo       String?
+  active     Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
-  centerId         Int?
-  center           Center?    @relation(fields: [centerId], references: [id])
+  centerId   Int?
+  center     Center?   @relation(fields: [centerId], references: [id])
 
-  therapistId      Int?
-  therapist        Therapist? @relation(fields: [therapistId], references: [id])
+  services   ChildService[]
+}
 
-  schedules        Schedule[]
-  records          Record[]
+model ChildService {
+  id            Int       @id @default(autoincrement())
+  childId       Int
+  child         Child     @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  therapistId   Int?
+  therapist     Therapist? @relation(fields: [therapistId], references: [id])
+
+  serviceType   String
+  defaultSlot   String?
+  defaultDays   String?
+  defaultUnit   Int       @default(65000)
+  defaultTarget Int       @default(5)
+
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  schedules     Schedule[]
+  records       Record[]
+
+  @@index([childId])
+  @@index([therapistId])
 }
 
 model Schedule {
-  id          Int      @id @default(autoincrement())
-  childId     Int
-  child       Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
-  year        Int
-  month       Int
-  therapist   String
-  serviceType String
-  target      Int
-  mgmtNumber  String?
-  pvOrg       String
-  pvTel       String?
-  pvCharge    String?
-  pvType      String
-  costUnit    String
-  costSelf    String
-  writeDate   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             Int      @id @default(autoincrement())
+  childServiceId Int
+  childService   ChildService @relation(fields: [childServiceId], references: [id], onDelete: Cascade)
+  year           Int
+  month          Int
+  therapist      String
+  serviceType    String
+  target         Int
+  mgmtNumber     String?
+  pvOrg          String
+  pvTel          String?
+  pvCharge       String?
+  pvType         String
+  costUnit       String
+  costSelf       String
+  writeDate      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  createdById Int?
-  createdBy   User?    @relation("ScheduleCreatedBy", fields: [createdById], references: [id])
+  createdById    Int?
+  createdBy      User?    @relation("ScheduleCreatedBy", fields: [createdById], references: [id])
 
-  sessions    ScheduleSession[]
+  sessions       ScheduleSession[]
 
-  @@unique([childId, year, month])
+  @@unique([childServiceId, year, month])
 }
 
 model ScheduleSession {
@@ -155,27 +171,25 @@ model ScheduleSession {
   @@unique([scheduleId, day])
 }
 
-// ─── 기록지 ──────────────────────────────────────────────────────────────
-
 model Record {
-  id          Int      @id @default(autoincrement())
-  childId     Int
-  child       Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
-  year        Int
-  month       Int
-  org         String
-  childName   String
-  childBirth  String?
-  opinion     String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             Int      @id @default(autoincrement())
+  childServiceId Int
+  childService   ChildService @relation(fields: [childServiceId], references: [id], onDelete: Cascade)
+  year           Int
+  month          Int
+  org            String
+  childName      String
+  childBirth     String?
+  opinion        String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  createdById Int?
-  createdBy   User?    @relation("RecordCreatedBy", fields: [createdById], references: [id])
+  createdById    Int?
+  createdBy      User?    @relation("RecordCreatedBy", fields: [createdById], references: [id])
 
-  sessions    RecordSession[]
+  sessions       RecordSession[]
 
-  @@unique([childId, year, month])
+  @@unique([childServiceId, year, month])
 }
 
 model RecordSession {
