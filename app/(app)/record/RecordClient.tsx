@@ -536,6 +536,8 @@ function RecordSheet({
                   : <span className="warnflag">⚠ 제공일자≠승인일자 — 확인 필요</span>}
               </div>
               <textarea
+                className="textarea"
+                rows={6}
                 value={results[i]}
                 placeholder="이용자의 상태 및 서비스 결과를 입력하세요 (예: 종성 /ㄹ/ 단어 수준에서 …)"
                 onChange={(e) => setResults((p) => { const n = [...p]; n[i] = e.target.value; return n; })}
@@ -548,9 +550,10 @@ function RecordSheet({
       <div className="opinion">
         <h3>부모 상담 종합 의견</h3>
         <textarea
+          className="textarea"
+          rows={5}
           value={opinion}
           placeholder="부모 상담 종합 의견을 입력하세요"
-          style={{ minHeight: 80 }}
           onChange={(e) => setOpinion(e.target.value)}
         />
       </div>
