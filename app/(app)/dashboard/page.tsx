@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { WEEK } from "@/lib/constants";
+import { requireUser, isAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -14,11 +15,18 @@ const SVC_COLORS: Record<string, string> = {
 };
 
 export default async function DashboardPage() {
+  const user = await requireUser();
+  const canSeeAll = isAdmin(user);
+
   const now = new Date();
   const y = now.getFullYear();
   const m = now.getMonth() + 1;
   const todayDay = now.getDate();
   const todayDow = now.getDay(); // 0=일
+
+  const childWhere = canSeeAll
+    ? { active: true }
+    : { active: true, therapistId: user.therapistId ?? -1 };
 
   // 이번 주 월요일·토요일 계산 (월~토 6일)
   const monOffset = todayDow === 0 ? -6 : 1 - todayDow; // 0=일이면 -6, 1=월이면 0, 2=화면 -1...
@@ -32,14 +40,16 @@ export default async function DashboardPage() {
 
   const [children, therapists, currentSchedules] = await Promise.all([
     prisma.child.findMany({
-      where: { active: true },
+      where: childWhere,
       include: { therapist: true },
     }),
-    prisma.therapist.findMany({
-      where: { active: true },
-    }),
+    canSeeAll
+      ? prisma.therapist.findMany({ where: { active: true } })
+      : Promise.resolve([]),
     prisma.schedule.findMany({
-      where: { year: y, month: m },
+      where: canSeeAll
+        ? { year: y, month: m }
+        : { year: y, month: m, child: { therapistId: user.therapistId ?? -1 } },
       include: { sessions: true, child: true },
     }),
   ]);
@@ -104,8 +114,8 @@ export default async function DashboardPage() {
     <>
       <div className="section-head">
         <div>
-          <h2>안녕하세요 👋</h2>
-          <p>오늘은 {y}년 {m}월 {todayDay}일 ({WEEK[todayDow]}) · {y}년 {m}월 등록된 회기 {totalSessionsThisMonth}건</p>
+          <h2>안녕하세요, {user.name} 선생님 👋</h2>
+          <p>오늘은 {y}년 {m}월 {todayDay}일 ({WEEK[todayDow]}) · {canSeeAll ? `${y}년 ${m}월 전체 회기 ${totalSessionsThisMonth}건` : `이번 달 내 회기 ${totalSessionsThisMonth}건`}</p>
         </div>
       </div>
 

@@ -2,11 +2,19 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { deleteChild } from "./actions";
 import { WEEK } from "@/lib/constants";
+import { requireUser, isAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function ChildrenPage() {
+  const user = await requireUser();
+  const canManage = isAdmin(user);
+
+  // 치료사는 본인 담당 아동만, 관리자는 전체
   const children = await prisma.child.findMany({
+    where: canManage
+      ? {}
+      : { therapistId: user.therapistId ?? -1 },
     orderBy: [{ active: "desc" }, { name: "asc" }],
     include: { therapist: true },
   });
@@ -18,14 +26,20 @@ export default async function ChildrenPage() {
       <div className="section-head">
         <div>
           <h2>아동 관리</h2>
-          <p>활동 중 {activeCount}명 · 한 번 등록해두면 일정표·기록지에서 자동 호출됩니다.</p>
+          <p>
+            {canManage
+              ? `활동 중 ${activeCount}명 · 한 번 등록해두면 일정표·기록지에서 자동 호출됩니다.`
+              : `담당 아동 ${activeCount}명`}
+          </p>
         </div>
-        <Link className="btn btn-primary" href="/children/new">
-          <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-            <path d="M12 5v14 M5 12h14" />
-          </svg>
-          아동 등록
-        </Link>
+        {canManage && (
+          <Link className="btn btn-primary" href="/children/new">
+            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path d="M12 5v14 M5 12h14" />
+            </svg>
+            아동 등록
+          </Link>
+        )}
       </div>
 
       <div className="card">
@@ -35,7 +49,9 @@ export default async function ChildrenPage() {
         {children.length === 0 ? (
           <div className="card-body">
             <div className="placeholder">
-              아직 등록된 아동이 없어요. 우측 상단 <b>아동 등록</b>을 눌러 시작하세요.
+              {canManage
+                ? "아직 등록된 아동이 없어요. 우측 상단 “아동 등록”을 눌러보세요."
+                : "아직 담당 아동이 없어요. 원장님께 배정을 요청해주세요."}
             </div>
           </div>
         ) : (
@@ -44,11 +60,11 @@ export default async function ChildrenPage() {
               <tr>
                 <th>아동</th>
                 <th>서비스</th>
-                <th>담당 치료사</th>
+                {canManage && <th>담당 치료사</th>}
                 <th>기본 요일</th>
                 <th>기본 시간</th>
                 <th>목표</th>
-                <th></th>
+                {canManage && <th></th>}
               </tr>
             </thead>
             <tbody>
@@ -69,26 +85,30 @@ export default async function ChildrenPage() {
                       </div>
                     </td>
                     <td><span className="badge badge-primary">{c.serviceType}</span></td>
-                    <td>{c.therapist?.name ?? <span className="sub-mute">-</span>}</td>
+                    {canManage && (
+                      <td>{c.therapist?.name ?? <span className="sub-mute">-</span>}</td>
+                    )}
                     <td>{days.length > 0 ? days.map((d) => WEEK[d]).join(" ") : <span className="sub-mute">-</span>}</td>
                     <td className="num-cell">{c.defaultSlot ?? "-"}</td>
                     <td className="num-cell">{c.defaultTarget}회</td>
-                    <td style={{ textAlign: "right" }}>
-                      <div style={{ display: "inline-flex", gap: 6 }}>
-                        <Link className="btn btn-ghost btn-sm" href={`/children/${c.id}/edit`}>수정</Link>
-                        <form
-                          action={async () => {
-                            "use server";
-                            await deleteChild(c.id);
-                          }}
-                          style={{ display: "inline" }}
-                        >
-                          <button className="btn btn-ghost btn-sm" style={{ color: "var(--danger)" }} type="submit">
-                            삭제
-                          </button>
-                        </form>
-                      </div>
-                    </td>
+                    {canManage && (
+                      <td style={{ textAlign: "right" }}>
+                        <div style={{ display: "inline-flex", gap: 6 }}>
+                          <Link className="btn btn-ghost btn-sm" href={`/children/${c.id}/edit`}>수정</Link>
+                          <form
+                            action={async () => {
+                              "use server";
+                              await deleteChild(c.id);
+                            }}
+                            style={{ display: "inline" }}
+                          >
+                            <button className="btn btn-ghost btn-sm" style={{ color: "var(--danger)" }} type="submit">
+                              삭제
+                            </button>
+                          </form>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 );
               })}

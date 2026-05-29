@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
+import { getCurrentUser, canAccessChild } from "@/lib/auth";
 
 type SaveBody = {
   childId: number;
@@ -20,9 +21,18 @@ type SaveBody = {
 };
 
 export async function POST(req: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+
   const body = (await req.json()) as SaveBody;
   if (!body.childId || !body.year || !body.month) {
     return Response.json({ error: "missing childId/year/month" }, { status: 400 });
+  }
+
+  // 치료사는 본인 담당 아동만
+  const child = await prisma.child.findUnique({ where: { id: body.childId } });
+  if (!child || !canAccessChild(user, child)) {
+    return Response.json({ error: "forbidden" }, { status: 403 });
   }
 
   const meta = {
@@ -51,7 +61,13 @@ export async function POST(req: NextRequest) {
     scheduleId = existing.id;
   } else {
     const created = await prisma.schedule.create({
-      data: { childId: body.childId, year: body.year, month: body.month, ...meta },
+      data: {
+        childId: body.childId,
+        year: body.year,
+        month: body.month,
+        ...meta,
+        createdById: user.id,
+      },
     });
     scheduleId = created.id;
   }

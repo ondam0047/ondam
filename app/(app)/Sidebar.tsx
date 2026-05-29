@@ -32,13 +32,15 @@ const OWNER_ITEMS = [
   { href: "/record",     label: "기록지",        icon: IC.doc },
   { href: "/children",   label: "아동 관리",     icon: IC.user },
   { href: "/therapists", label: "치료사 관리",   icon: IC.team },
+  { href: "/users",      label: "사용자 관리",   icon: IC.team },
   { href: "/import",     label: "엑셀 가져오기", icon: IC.upload },
 ];
-const ADMIN_ITEMS = OWNER_ITEMS; // 행정도 동일하게
+const ADMIN_ITEMS = OWNER_ITEMS;
 const THERAPIST_ITEMS = [
   { href: "/dashboard",  label: "대시보드",  icon: IC.dash },
   { href: "/schedule",   label: "일정표",    icon: IC.calendar },
   { href: "/record",     label: "기록지",    icon: IC.doc },
+  { href: "/children",   label: "내 아동",   icon: IC.user },
 ];
 
 const ROLE_LABEL: Record<string, string> = {

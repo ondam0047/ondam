@@ -8,6 +8,7 @@ const META: Record<string, { title: string; crumb: string }> = {
   "/record":     { title: "기록지",      crumb: "엑셀 업로드 → 아동별 회기 확인 → 상태/결과 기록 → 한글파일 출력" },
   "/children":   { title: "아동 관리",   crumb: "아동 등록 → 기본값 설정 → 일정표에서 한 번에 불러오기" },
   "/therapists": { title: "치료사 관리", crumb: "치료사 등록 → 아동 배정" },
+  "/users":      { title: "사용자 관리", crumb: "치료사·행정 계정 발급 · 권한 관리" },
   "/import":     { title: "엑셀 가져오기", crumb: "센터의 기존 엑셀 → 아동·치료사 일괄 등록" },
 };
 

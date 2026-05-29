@@ -80,6 +80,37 @@ export async function requireUser(): Promise<SessionUser> {
   return user;
 }
 
+// 페이지에서 호출. 권한 없으면 /dashboard 로.
+export async function requireRole(allowed: Role[]): Promise<SessionUser> {
+  const { redirect } = await import("next/navigation");
+  const user = await getCurrentUser();
+  if (!user) {
+    redirect("/login");
+    throw new Error("unreachable"); // type narrowing
+  }
+  if (!allowed.includes(user.role)) {
+    redirect("/dashboard");
+    throw new Error("unreachable");
+  }
+  return user;
+}
+
+export function isAdmin(user: SessionUser): boolean {
+  return user.role === "OWNER" || user.role === "ADMIN";
+}
+
+// 치료사가 이 아동을 볼 권한이 있는지
+export function canAccessChild(
+  user: SessionUser,
+  child: { therapistId: number | null }
+): boolean {
+  if (isAdmin(user)) return true;
+  if (user.role === "THERAPIST" && user.therapistId !== null) {
+    return child.therapistId === user.therapistId;
+  }
+  return false;
+}
+
 // 원장만 OWNER 역할 자동 부여 (첫 사용자)
 export async function isFirstSignup(): Promise<boolean> {
   const count = await prisma.user.count();

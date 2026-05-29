@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { createTherapist, deleteTherapist } from "./actions";
+import { requireRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function TherapistsPage() {
+  await requireRole(["OWNER", "ADMIN"]);
   const therapists = await prisma.therapist.findMany({
     orderBy: [{ active: "desc" }, { name: "asc" }],
   });

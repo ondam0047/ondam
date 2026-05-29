@@ -1,12 +1,18 @@
 import { prisma } from "@/lib/db";
 import ScheduleClient from "./ScheduleClient";
+import { requireUser, isAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function SchedulePage() {
+  const user = await requireUser();
+  const canManage = isAdmin(user);
+
   const [children, therapists] = await Promise.all([
     prisma.child.findMany({
-      where: { active: true },
+      where: canManage
+        ? { active: true }
+        : { active: true, therapistId: user.therapistId ?? -1 },
       orderBy: { name: "asc" },
       include: { therapist: true },
     }),
