@@ -119,11 +119,11 @@ export default async function CenterPage({
               </div>
               <div className="field" style={{ gridColumn: "span 2" }}>
                 <label>주소 (선택)</label>
-                <input className="input" name="address" defaultValue={center.address ?? ""} placeholder="예: 경기도 양평군 ..." />
+                <input className="input" name="address" defaultValue={center.address ?? ""} />
               </div>
               <div className="field">
                 <label>대표 전화 (선택)</label>
-                <input className="input" name="phone" defaultValue={center.phone ?? ""} placeholder="예: 031-770-0000" />
+                <input className="input" name="phone" defaultValue={center.phone ?? ""} />
               </div>
             </div>
             <div className="divider" />

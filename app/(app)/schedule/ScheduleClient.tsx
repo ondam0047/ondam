@@ -562,7 +562,7 @@ export default function ScheduleClient({
               <tbody>
                 <tr>
                   <td className="lbl">관리번호</td>
-                  <td><input className="input" value={mgmt} onChange={(e) => setMgmt(e.target.value)} placeholder="(선택)" /></td>
+                  <td><input className="input" value={mgmt} onChange={(e) => setMgmt(e.target.value)} /></td>
                   <td className="lbl">성 명</td><td>{name}</td>
                 </tr>
                 <tr>

@@ -539,7 +539,7 @@ function RecordSheet({
                 className="textarea"
                 rows={6}
                 value={results[i]}
-                placeholder="이용자의 상태 및 서비스 결과를 입력하세요 (예: 종성 /ㄹ/ 단어 수준에서 …)"
+                placeholder=""
                 onChange={(e) => setResults((p) => { const n = [...p]; n[i] = e.target.value; return n; })}
               />
             </div>
@@ -553,7 +553,7 @@ function RecordSheet({
           className="textarea"
           rows={5}
           value={opinion}
-          placeholder="부모 상담 종합 의견을 입력하세요"
+          placeholder=""
           onChange={(e) => setOpinion(e.target.value)}
         />
       </div>

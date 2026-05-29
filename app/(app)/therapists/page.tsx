@@ -227,11 +227,11 @@ export default async function TherapistsPage({
           <form action={createTherapist} className="form-grid">
             <div className="field">
               <label>이름<span className="req">*</span></label>
-              <input className="input" name="name" required placeholder="예: 언어/주채린" />
+              <input className="input" name="name" required />
             </div>
             <div className="field">
               <label>전화 (선택)</label>
-              <input className="input" name="phone" placeholder="010-1234-5678" />
+              <input className="input" name="phone" />
             </div>
             <div className="field" style={{ alignSelf: "end" }}>
               <button className="btn btn-primary" type="submit">추가</button>
@@ -289,8 +289,8 @@ export default async function TherapistsPage({
                             action={async (fd) => { "use server"; await createTherapistAccount(t.id, fd); }}
                             style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}
                           >
-                            <input className="input" name="email" type="email" placeholder="이메일" required style={{ fontSize: 12 }} />
-                            <input className="input" name="password" type="text" placeholder="임시 비밀번호" minLength={6} required style={{ fontSize: 12 }} />
+                            <input className="input" name="email" type="email" required style={{ fontSize: 12 }} aria-label="이메일" />
+                            <input className="input" name="password" type="text" minLength={6} required style={{ fontSize: 12 }} aria-label="임시 비밀번호" />
                             <button className="btn btn-primary btn-sm" type="submit">발급</button>
                           </form>
                         </details>
@@ -312,7 +312,7 @@ export default async function TherapistsPage({
                               action={async (fd) => { "use server"; await resetTherapistPassword(t.user!.id, fd); }}
                               style={{ marginTop: 8, display: "flex", gap: 6 }}
                             >
-                              <input className="input" name="password" type="text" placeholder="새 비밀번호" minLength={6} required style={{ fontSize: 12, maxWidth: 140 }} />
+                              <input className="input" name="password" type="text" minLength={6} required style={{ fontSize: 12, maxWidth: 140 }} aria-label="새 비밀번호" />
                               <button className="btn btn-primary btn-sm" type="submit">변경</button>
                             </form>
                           </details>

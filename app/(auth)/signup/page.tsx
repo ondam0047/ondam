@@ -147,7 +147,7 @@ export default async function SignupPage({
           <form action={signupCenter}>
             <div className="field" style={{ marginBottom: 12 }}>
               <label>센터 이름<span className="req">*</span></label>
-              <input className="input" name="centerName" required placeholder="예: 한길발달센터" />
+              <input className="input" name="centerName" required />
             </div>
             <div className="field" style={{ marginBottom: 12 }}>
               <label>원장님 이름<span className="req">*</span></label>
@@ -172,11 +172,11 @@ export default async function SignupPage({
           <form action={signupTherapist}>
             <div className="field" style={{ marginBottom: 12 }}>
               <label>센터 승인코드<span className="req">*</span></label>
-              <input className="input" name="code" required placeholder="예: 7K3QPM" style={{ fontFamily: "monospace", letterSpacing: "0.1em", textTransform: "uppercase" }} />
+              <input className="input" name="code" required style={{ fontFamily: "monospace", letterSpacing: "0.1em", textTransform: "uppercase" }} />
             </div>
             <div className="field" style={{ marginBottom: 12 }}>
               <label>이름<span className="req">*</span></label>
-              <input className="input" name="name" required placeholder="예: 언어/주채린" />
+              <input className="input" name="name" required />
             </div>
             <div className="field" style={{ marginBottom: 12 }}>
               <label>이메일<span className="req">*</span></label>

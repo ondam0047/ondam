@@ -55,7 +55,7 @@ export default function ChildForm({
         </div>
         <div className="field">
           <label>생년월일 (자유 형식)</label>
-          <input className="input" name="birthDate" defaultValue={c.birthDate ?? ""} placeholder="예: 22.04.13" />
+          <input className="input" name="birthDate" defaultValue={c.birthDate ?? ""} />
         </div>
         <div className="field">
           <label>서비스 종류</label>
@@ -110,7 +110,7 @@ export default function ChildForm({
 
       <div className="field" style={{ marginTop: 14 }}>
         <label>메모 (선택)</label>
-        <textarea className="textarea" name="memo" defaultValue={c.memo ?? ""} placeholder="아동 특이사항·치료 목표 등" />
+        <textarea className="textarea" name="memo" defaultValue={c.memo ?? ""} />
       </div>
 
       {showActive && (
