@@ -26,6 +26,9 @@ const IC = {
 };
 
 // 역할별로 보이는 메뉴 분리
+// OWNER 원장: 행정 + 치료사 권한 모두 (직접 일정표·기록지도 작성)
+// ADMIN 행정: 운영 관리만 (일정표·기록지는 직접 안 만듦)
+// THERAPIST 치료사: 본인 작업만
 const OWNER_ITEMS = [
   { href: "/dashboard",  label: "대시보드",      icon: IC.dash },
   { href: "/schedule",   label: "일정표",        icon: IC.calendar },
@@ -34,7 +37,12 @@ const OWNER_ITEMS = [
   { href: "/therapists", label: "치료사 관리",   icon: IC.team },
   { href: "/import",     label: "엑셀 가져오기", icon: IC.upload },
 ];
-const ADMIN_ITEMS = OWNER_ITEMS;
+const ADMIN_ITEMS = [
+  { href: "/dashboard",  label: "대시보드",      icon: IC.dash },
+  { href: "/children",   label: "아동 관리",     icon: IC.user },
+  { href: "/therapists", label: "치료사 관리",   icon: IC.team },
+  { href: "/import",     label: "엑셀 가져오기", icon: IC.upload },
+];
 const THERAPIST_ITEMS = [
   { href: "/dashboard",  label: "대시보드",  icon: IC.dash },
   { href: "/schedule",   label: "일정표",    icon: IC.calendar },

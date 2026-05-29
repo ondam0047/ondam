@@ -1,11 +1,12 @@
 import { prisma } from "@/lib/db";
 import ScheduleClient from "./ScheduleClient";
-import { requireUser, isAdmin } from "@/lib/auth";
+import { requireRole, isAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function SchedulePage() {
-  const user = await requireUser();
+  // 일정표는 OWNER(원장 겸 치료사) 와 THERAPIST 만. 행정(ADMIN) 제외.
+  const user = await requireRole(["OWNER", "THERAPIST"]);
   const canManage = isAdmin(user);
 
   const centerId = user.centerId ?? -1;

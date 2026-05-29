@@ -1,11 +1,12 @@
 import { prisma } from "@/lib/db";
-import { requireUser, isAdmin } from "@/lib/auth";
+import { requireRole, isAdmin } from "@/lib/auth";
 import RecordClient from "./RecordClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function RecordPage() {
-  const user = await requireUser();
+  // 기록지는 OWNER(원장 겸 치료사) 와 THERAPIST 만. 행정(ADMIN) 제외.
+  const user = await requireRole(["OWNER", "THERAPIST"]);
   const centerId = user.centerId ?? -1;
 
   // 이 센터의 아동 목록 (이름 ↔ id 매핑용). 치료사면 본인 담당만.
