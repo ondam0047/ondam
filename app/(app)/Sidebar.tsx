@@ -55,6 +55,7 @@ const IC = {
 const COG_ICON = "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.07a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.07a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z";
 const GRID_ICON = "M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z";
 const CLOCK_ICON = "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M12 6v6l4 2";
+const HELP_ICON = "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3 M12 17h.01";
 
 const OWNER_ITEMS = [
   { href: "/dashboard",  label: "대시보드",        icon: IC.dash },
@@ -66,6 +67,7 @@ const OWNER_ITEMS = [
   { href: "/therapists", label: "치료사 관리",     icon: IC.team },
   { href: "/import",     label: "엑셀 가져오기",   icon: IC.upload },
   { href: "/center",     label: "센터 설정",       icon: COG_ICON },
+  { href: "/guide",      label: "도움말",          icon: HELP_ICON },
 ];
 const ADMIN_ITEMS = [
   { href: "/dashboard",  label: "대시보드",      icon: IC.dash },
@@ -74,6 +76,7 @@ const ADMIN_ITEMS = [
   { href: "/therapists", label: "치료사 관리",   icon: IC.team },
   { href: "/import",     label: "엑셀 가져오기", icon: IC.upload },
   { href: "/center",     label: "센터 설정",     icon: COG_ICON },
+  { href: "/guide",      label: "도움말",        icon: HELP_ICON },
 ];
 const THERAPIST_ITEMS = [
   { href: "/dashboard",    label: "대시보드",      icon: IC.dash },
@@ -81,6 +84,7 @@ const THERAPIST_ITEMS = [
   { href: "/record",       label: "기록지",        icon: IC.doc },
   { href: "/availability", label: "내 차단 시간",  icon: CLOCK_ICON },
   { href: "/children",     label: "내 아동",       icon: IC.user },
+  { href: "/guide",        label: "도움말",        icon: HELP_ICON },
 ];
 
 const ROLE_LABEL: Record<string, string> = {
