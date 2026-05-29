@@ -6,18 +6,39 @@ import { requireUser, isAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-export default async function ChildrenPage() {
+export default async function ChildrenPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; therapistId?: string; unassigned?: string }>;
+}) {
   const user = await requireUser();
   const canManage = isAdmin(user);
+  const sp = await searchParams;
+  const q = sp.q?.trim() ?? "";
+  const filterTherapistId = sp.therapistId ? Number(sp.therapistId) : null;
+  const onlyUnassigned = sp.unassigned === "1";
 
-  // 치료사는 본인 담당 아동만, 관리자는 전체
-  const children = await prisma.child.findMany({
-    where: canManage
-      ? {}
-      : { therapistId: user.therapistId ?? -1 },
-    orderBy: [{ active: "desc" }, { name: "asc" }],
-    include: { therapist: true },
-  });
+  // 치료사는 본인 담당 아동만 (필터 무시), 관리자는 필터 적용
+  let where: Record<string, unknown> = {};
+  if (canManage) {
+    if (filterTherapistId) where.therapistId = filterTherapistId;
+    else if (onlyUnassigned) where.therapistId = null;
+    if (q) where = { ...where, name: { contains: q } };
+  } else {
+    where = { therapistId: user.therapistId ?? -1 };
+    if (q) where = { ...where, name: { contains: q } };
+  }
+
+  const [children, allTherapists] = await Promise.all([
+    prisma.child.findMany({
+      where,
+      orderBy: [{ active: "desc" }, { name: "asc" }],
+      include: { therapist: true },
+    }),
+    canManage
+      ? prisma.therapist.findMany({ where: { active: true }, orderBy: { name: "asc" } })
+      : Promise.resolve([]),
+  ]);
 
   const activeCount = children.filter((c) => c.active).length;
 
@@ -42,9 +63,49 @@ export default async function ChildrenPage() {
         )}
       </div>
 
+      {canManage && (
+        <div className="card">
+          <div className="card-header">
+            <h2>검색·필터</h2>
+          </div>
+          <div className="card-body">
+            <form method="get" style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}>
+              <div className="field" style={{ flex: 1, minWidth: 180 }}>
+                <label>이름 검색</label>
+                <input className="input" name="q" defaultValue={q} placeholder="아동 이름 일부" />
+              </div>
+              <div className="field" style={{ minWidth: 180 }}>
+                <label>담당 치료사</label>
+                <select className="select" name="therapistId" defaultValue={filterTherapistId?.toString() ?? ""}>
+                  <option value="">— 전체 —</option>
+                  {allTherapists.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="field">
+                <label className="modal-check">
+                  <input type="checkbox" name="unassigned" value="1" defaultChecked={onlyUnassigned} />
+                  미배정만
+                </label>
+              </div>
+              <button className="btn btn-primary" type="submit">적용</button>
+              <Link className="btn btn-ghost" href="/children">초기화</Link>
+            </form>
+          </div>
+        </div>
+      )}
+
       <div className="card">
         <div className="card-header">
           <h2>아동 목록 ({children.length}명)</h2>
+          {(q || filterTherapistId || onlyUnassigned) && (
+            <span className="hint">
+              {q && `이름: "${q}"`}
+              {filterTherapistId && ` · 담당: ${allTherapists.find((t) => t.id === filterTherapistId)?.name ?? "?"}`}
+              {onlyUnassigned && " · 미배정"}
+            </span>
+          )}
         </div>
         {children.length === 0 ? (
           <div className="card-body">
