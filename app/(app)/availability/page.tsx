@@ -64,12 +64,13 @@ export default async function AvailabilityPage({
               </select>
             </div>
             <div className="field">
-              <label>시작 시간<span className="req">*</span></label>
-              <input className="input" name="startTime" type="time" required />
-            </div>
-            <div className="field">
-              <label>종료 시간<span className="req">*</span></label>
-              <input className="input" name="endTime" type="time" required />
+              <label>치료 시간대<span className="req">*</span></label>
+              <select className="select" name="slot" required defaultValue="">
+                <option value="" disabled>선택</option>
+                {SLOTS.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
             </div>
             <div className="field" style={{ gridColumn: "span 2" }}>
               <label>사유 (선택)</label>
@@ -79,10 +80,6 @@ export default async function AvailabilityPage({
               <button className="btn btn-primary" type="submit">추가</button>
             </div>
           </form>
-
-          <div className="tip" style={{ marginTop: 14 }}>
-            💡 자주 막는 시간 빠른 추가: {SLOTS.slice(0, 4).join(", ")} 같은 시간대를 위 폼에서 입력하면 됩니다.
-          </div>
         </div>
       </div>
 
@@ -95,7 +92,7 @@ export default async function AvailabilityPage({
           {blocks.length === 0 ? (
             <div className="placeholder">차단된 시간이 없어요. 받기 어려운 시간을 위에서 추가하세요.</div>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 10 }}>
+            <div className="grid-scroll" style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(120px, 1fr))", gap: 10 }}>
               {WEEK.map((w, i) => (
                 <div key={i} style={{
                   background: "var(--surface-2)",

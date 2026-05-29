@@ -116,43 +116,43 @@ export default async function ChildrenPage({
             </div>
           </div>
         ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>아동</th>
-                <th>서비스</th>
-                {canManage && <th>담당 치료사</th>}
-                <th>기본 요일</th>
-                <th>기본 시간</th>
-                <th>목표</th>
-                {canManage && <th></th>}
-              </tr>
-            </thead>
-            <tbody>
-              {children.map((c) => {
-                const days = (c.defaultDays ?? "").split(",").filter(Boolean).map(Number);
-                const initial = c.name[0];
-                return (
-                  <tr key={c.id} style={c.active ? undefined : { opacity: 0.55 }}>
-                    <td>
-                      <div className="row-name">
-                        <span className="avatar-sm">{initial}</span>
-                        <div>
-                          <div style={{ fontWeight: 600 }}>{c.name}</div>
-                          {c.birthDate && (
-                            <div className="sub-mute" style={{ fontSize: 11.5 }}>{c.birthDate}</div>
-                          )}
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>아동</th>
+                  <th>서비스</th>
+                  {canManage && <th>담당 치료사</th>}
+                  <th>기본 요일</th>
+                  <th>기본 시간</th>
+                  <th>목표</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {children.map((c) => {
+                  const days = (c.defaultDays ?? "").split(",").filter(Boolean).map(Number);
+                  const initial = c.name[0];
+                  return (
+                    <tr key={c.id} style={c.active ? undefined : { opacity: 0.55 }}>
+                      <td>
+                        <div className="row-name">
+                          <span className="avatar-sm">{initial}</span>
+                          <div>
+                            <div style={{ fontWeight: 600 }}>{c.name}</div>
+                            {c.birthDate && (
+                              <div className="sub-mute" style={{ fontSize: 11.5 }}>{c.birthDate}</div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td><span className="badge badge-primary">{c.serviceType}</span></td>
-                    {canManage && (
-                      <td>{c.therapist?.name ?? <span className="sub-mute">-</span>}</td>
-                    )}
-                    <td>{days.length > 0 ? days.map((d) => WEEK[d]).join(" ") : <span className="sub-mute">-</span>}</td>
-                    <td className="num-cell">{c.defaultSlot ?? "-"}</td>
-                    <td className="num-cell">{c.defaultTarget}회</td>
-                    {canManage && (
+                      </td>
+                      <td><span className="badge badge-primary">{c.serviceType}</span></td>
+                      {canManage && (
+                        <td>{c.therapist?.name ?? <span className="sub-mute">-</span>}</td>
+                      )}
+                      <td>{days.length > 0 ? days.map((d) => WEEK[d]).join(" ") : <span className="sub-mute">-</span>}</td>
+                      <td className="num-cell">{c.defaultSlot ?? "-"}</td>
+                      <td className="num-cell">{c.defaultTarget}회</td>
                       <td style={{ textAlign: "right" }}>
                         <div style={{ display: "inline-flex", gap: 6 }}>
                           <Link className="btn btn-ghost btn-sm" href={`/children/${c.id}/edit`}>수정</Link>
@@ -169,12 +169,12 @@ export default async function ChildrenPage({
                           </form>
                         </div>
                       </td>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </>
