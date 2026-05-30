@@ -406,6 +406,9 @@ function RecordSheet({
   const [results, setResults] = useState(rows.map(() => ""));
   // 제공일자(일정표) ≠ 승인일자(엑셀) 일 때 입력하는 사유. 저장 시 resultExtra 로 들어감.
   const [mismatchReasons, setMismatchReasons] = useState(rows.map(() => ""));
+  // 일정표에서 가져온 회기 예정일 (제공일자). 일정표 회기 ↔ 엑셀 행을 ordinal 로 매칭.
+  // 일정표 없으면 null → 그땐 엑셀의 use 날짜로 대체.
+  const [scheduleDays, setScheduleDays] = useState<(number | null)[]>(rows.map(() => null));
   const [opinion, setOpinion] = useState("");
   const [downloading, setDownloading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -415,6 +418,26 @@ function RecordSheet({
   const monthNumForLoad = typeof month === "number" ? month : parseInt(String(month)) || 0;
 
   // 저장된 기록지가 있으면 자동으로 불러와서 state 채우기 (월 단위)
+  // 일정표 회기 날짜 불러와 scheduleDays 에 채워넣기.
+  // ordinal(1번째, 2번째...) 로 엑셀 행과 매칭.
+  useEffect(() => {
+    if (!childServiceId || !monthNumForLoad) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`/api/schedule/load?childServiceId=${childServiceId}&year=${year}&month=${monthNumForLoad}`);
+        if (!r.ok || cancelled) return;
+        const sched = await r.json();
+        if (cancelled) return;
+        if (sched && Array.isArray(sched.sessions)) {
+          const days: number[] = sched.sessions.map((s: { day: number }) => s.day);
+          setScheduleDays(rows.map((_, i) => days[i] ?? null));
+        }
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [childServiceId, monthNumForLoad, year, rows]);
+
   useEffect(() => {
     if (!childServiceId || !monthNumForLoad) return;
     let cancelled = false;
@@ -492,6 +515,8 @@ function RecordSheet({
         sessions: rows.map((s, i) => {
           const pu = parseYMD(s.use);
           const pp = parseYMD(s.pay);
+          // 제공일자(useDay) 는 일정표 우선, 없으면 엑셀의 서비스이용일자.
+          const useDayNum = scheduleDays[i] ?? (pu ? pu.d : null);
           return {
             ordinal: i + 1,
             date: pu ? `${pu.mo}/${pu.d}` : "",
@@ -500,7 +525,7 @@ function RecordSheet({
             voucher: vouchers[i],
             extra: extras[i],
             amount: amounts[i],
-            useDay: pu ? String(pu.d) : "",
+            useDay: useDayNum !== null ? String(useDayNum) : "",
             payDay: pp ? String(pp.d) : "",
             apprNumber: s.appr,
             result: results[i],
@@ -532,6 +557,7 @@ function RecordSheet({
       const sessionsPayload = rows.map((s, i) => {
         const pu = parseYMD(s.use);
         const pp = parseYMD(s.pay);
+        const useDayNum = scheduleDays[i] ?? (pu ? pu.d : null);
         return {
           date: pu ? `${pu.mo}/${pu.d}` : "",
           startTime: times[i].start,
@@ -539,7 +565,7 @@ function RecordSheet({
           voucher: vouchers[i],
           extra: extras[i],
           amount: amounts[i],
-          useDay: pu ? String(pu.d) : "",
+          useDay: useDayNum !== null ? String(useDayNum) : "",
           payDay: pp ? String(pp.d) : "",
           apprNumber: s.appr,
           result: results[i],
@@ -727,18 +753,22 @@ function RecordSheet({
         </h3>
         {rows.map((s, i) => {
           const pu = parseYMD(s.use), pp = parseYMD(s.pay);
-          const useD = pu ? pu.d : "?";
-          const payD = pp ? pp.d : "?";
-          const match = !!pu && !!pp && pu.y === pp.y && pu.mo === pp.mo && pu.d === pp.d;
+          // 제공일자: 일정표 우선, 일정표 없으면 엑셀의 서비스이용일자
+          const useD = scheduleDays[i] ?? (pu ? pu.d : null);
+          const payD = pp ? pp.d : null;
+          const hasBoth = useD !== null && payD !== null;
+          const match = hasBoth && useD === payD;
           return (
-            <div key={i} className={"result-row" + (match ? "" : " mismatch")}>
+            <div key={i} className={"result-row" + (match ? "" : hasBoth ? " mismatch" : "")}>
               <div className="rr-head">
-                <span className="pill">제공일자 {useD}일</span>
-                <span className="pill">승인일자 {payD}일</span>
+                <span className="pill">제공일자 {useD ?? "?"}일</span>
+                <span className="pill">승인일자 {payD ?? "?"}일</span>
                 <span className="pill appr">승인 {s.appr}</span>
-                {match
-                  ? <span className="okflag">✓ 일치</span>
-                  : <span className="warnflag">⚠ 제공일자≠승인일자 — 확인 필요</span>}
+                {!hasBoth
+                  ? <span className="sub-mute" style={{ fontSize: 11.5 }}>(엑셀 미업로드)</span>
+                  : match
+                    ? <span className="okflag">✓ 일치</span>
+                    : <span className="warnflag">⚠ 제공일자≠승인일자 — 사유 작성 필요</span>}
               </div>
               <textarea
                 className="textarea"
@@ -747,15 +777,15 @@ function RecordSheet({
                 placeholder=""
                 onChange={(e) => setResults((p) => { const n = [...p]; n[i] = e.target.value; return n; })}
               />
-              {!match && (
+              {hasBoth && !match && (
                 <div style={{ marginTop: 8 }}>
                   <label style={{ display: "block", fontSize: 12.5, fontWeight: 600, color: "var(--danger)", marginBottom: 4 }}>
-                    📝 불일치 사유 <span className="sub-mute" style={{ fontWeight: 400 }}>(예: '아동 독감으로 보강수업', '치료사 사정')</span>
+                    📝 불일치 사유 <span className="sub-mute" style={{ fontWeight: 400 }}>(예: 아동 독감으로 보강수업)</span>
                   </label>
                   <input
                     className="input"
                     value={mismatchReasons[i]}
-                    placeholder="예: - 4일 수업이나 아동 독감으로 10일에 보강수업함"
+                    placeholder={`예: - ${useD}일 수업이나, 사정으로 ${payD}일에 보강수업함.`}
                     onChange={(e) => setMismatchReasons((p) => { const n = [...p]; n[i] = e.target.value; return n; })}
                   />
                 </div>
