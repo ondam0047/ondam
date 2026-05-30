@@ -44,11 +44,17 @@ export function parseZipEntries(buf: Buffer): ZipEntry[] {
   return entries;
 }
 
-export function buildZip(entries: ZipEntry[]): Buffer {
+export function buildZip(entries: ZipEntry[], opts?: { utf8Names?: boolean }): Buffer {
   const chunks: Buffer[] = [];
   const offsets: number[] = [];
   let offset = 0;
-  const flagFor = (m: number) => (m === 8 ? 0x0004 : 0x0000);
+  // 일반 zip 의 한글 파일명을 위해 UTF-8 플래그(bit 11, 0x0800) 필요.
+  // HWPX 내부 패키지는 원본 호환성을 위해 호출 측에서 false 로 둠.
+  const flagFor = (m: number) => {
+    let f = m === 8 ? 0x0004 : 0x0000;
+    if (opts?.utf8Names) f |= 0x0800;
+    return f;
+  };
   const DOS_DATE_1980 = 33; // (1980-1980)<<9 | 1<<5 | 1
   const DOS_TIME_ZERO = 0;
   const VERSION_NEEDED = 20;

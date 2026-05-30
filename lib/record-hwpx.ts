@@ -183,7 +183,8 @@ export function buildRecordSheets(templateBuf: Buffer, p: RecordPayload): Buffer
   );
 }
 
-// 여러 .hwpx 또는 .xlsx 등을 일반 zip 으로 묶기
+// 여러 .hwpx 또는 .xlsx 등을 일반 zip 으로 묶기.
+// utf8Names: true → 윈도우 기본 압축해제기가 한글 파일명을 깨뜨리지 않음.
 export function bundleAsZip(files: { name: string; data: Buffer }[]): Buffer {
   const entries: ZipEntry[] = files.map((f) => {
     const compressed = deflateRawSync(f.data, { level: 6 });
@@ -196,7 +197,7 @@ export function bundleAsZip(files: { name: string; data: Buffer }[]): Buffer {
       compressedData: compressed,
     };
   });
-  return buildZip(entries);
+  return buildZip(entries, { utf8Names: true });
 }
 
 export function safeFileName(s: string): string {
