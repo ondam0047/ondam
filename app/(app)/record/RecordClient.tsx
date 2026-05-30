@@ -84,6 +84,7 @@ export default function RecordClient({
 
   // 일정표·기록지 사이 이동 시 미리보기 화면 그대로 복원
   const LS_DRAFT = "baroilji_record_draft";
+  const LS_SCROLL = "baroilji_record_scroll";
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => {
     try {
@@ -129,6 +130,39 @@ export default function RecordClient({
       localStorage.setItem("baroilji_last_ym", manualYm);
     } catch {}
   }, [hydrated, manualCSId, manualYm, therapist, uploadInfo, grouped, curChild]);
+
+  // 스크롤 위치 복원
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      const saved = localStorage.getItem(LS_SCROLL);
+      if (saved) {
+        const y = Number(saved);
+        if (!Number.isNaN(y) && y > 0) {
+          const t1 = window.setTimeout(() => window.scrollTo(0, y), 50);
+          const t2 = window.setTimeout(() => window.scrollTo(0, y), 250);
+          return () => { window.clearTimeout(t1); window.clearTimeout(t2); };
+        }
+      }
+    } catch {}
+  }, [hydrated]);
+
+  // 스크롤할 때마다 위치 저장 (debounce)
+  useEffect(() => {
+    if (!hydrated) return;
+    let to: number | null = null;
+    const onScroll = () => {
+      if (to !== null) window.clearTimeout(to);
+      to = window.setTimeout(() => {
+        try { localStorage.setItem(LS_SCROLL, String(window.scrollY)); } catch {}
+      }, 150);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (to !== null) window.clearTimeout(to);
+    };
+  }, [hydrated]);
 
   async function startManual() {
     if (!manualCSId || !manualYm) return;

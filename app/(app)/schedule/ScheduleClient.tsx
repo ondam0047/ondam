@@ -73,6 +73,7 @@ export default function ScheduleClient({
   const LS_YM = "baroilji_last_ym";
   // 미리보기(생성된 sessions + 메타) 통째 저장 — 탭 이동해도 그대로
   const LS_DRAFT = "baroilji_schedule_draft";
+  const LS_SCROLL = "baroilji_schedule_scroll";
 
   // form
   const [selectedChildId, setSelectedChildId] = useState<number | "">("");
@@ -192,6 +193,39 @@ export default function ScheduleClient({
     mgmt, pvOrg, pvTel, pvCharge, pvType, costUnit, costSelf, writeDate,
     sessions, genY, genM, loadedScheduleId,
   ]);
+
+  // 스크롤 위치 복원 (hydration 후 layout 안정될 시간을 주기 위해 약간 지연)
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      const saved = localStorage.getItem(LS_SCROLL);
+      if (saved) {
+        const y = Number(saved);
+        if (!Number.isNaN(y) && y > 0) {
+          const t1 = window.setTimeout(() => window.scrollTo(0, y), 50);
+          const t2 = window.setTimeout(() => window.scrollTo(0, y), 250);
+          return () => { window.clearTimeout(t1); window.clearTimeout(t2); };
+        }
+      }
+    } catch {}
+  }, [hydrated]);
+
+  // 스크롤할 때마다 위치를 저장 (debounce)
+  useEffect(() => {
+    if (!hydrated) return;
+    let to: number | null = null;
+    const onScroll = () => {
+      if (to !== null) window.clearTimeout(to);
+      to = window.setTimeout(() => {
+        try { localStorage.setItem(LS_SCROLL, String(window.scrollY)); } catch {}
+      }, 150);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (to !== null) window.clearTimeout(to);
+    };
+  }, [hydrated]);
 
   function togglePattern(i: number) {
     setPattern((prev) => (prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i].sort()));
