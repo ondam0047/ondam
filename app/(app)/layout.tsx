@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import WelcomeTooltip from "./WelcomeTooltip";
+import SessionGuard from "./SessionGuard";
 import { getCurrentUser, generateApprovalCode, getEffectiveTherapistId } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { ensureLegacyDataLinked } from "@/lib/migrate-center";
@@ -45,6 +46,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="app">
+      <SessionGuard userId={user.id} />
       <Sidebar user={user} />
       <div className="main">
         <Topbar />

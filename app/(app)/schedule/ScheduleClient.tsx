@@ -48,7 +48,7 @@ function buildMonthOptions(): { value: string; label: string; current: boolean }
 }
 
 export default function ScheduleClient({
-  children: childrenOpts,
+  children: initialChildrenOpts,
   therapists,
   serviceTypes,
   slots,
@@ -64,6 +64,8 @@ export default function ScheduleClient({
   defaultOrg?: string;
   centerDefaultUnit?: number;
 }) {
+  // 일정표에서 새 아동을 등록하면 여기에 추가 → 드롭다운 즉시 갱신
+  const [childrenOpts, setChildrenOpts] = useState<ChildOption[]>(initialChildrenOpts);
   // 오늘 기준 월 옵션 (매 렌더 한 번 계산)
   const monthOptions = useMemo(() => buildMonthOptions(), []);
   const defaultYm = monthOptions.find((o) => o.current)?.value ?? monthOptions[0].value;
@@ -120,6 +122,43 @@ export default function ScheduleClient({
   const [editMakeup, setEditMakeup] = useState(false);
   const editExists = editDay !== null && sessions !== null && sessions[editDay] !== undefined;
 
+  // 새 아동 등록 모달
+  const [showNewChild, setShowNewChild] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newBirth, setNewBirth] = useState("");
+  const [newCopay, setNewCopay] = useState("");
+  const [creatingChild, setCreatingChild] = useState(false);
+
+  async function createNewChild() {
+    if (!newName.trim()) { alert("이름을 입력해주세요."); return; }
+    setCreatingChild(true);
+    try {
+      const res = await fetch("/api/children/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newName.trim(),
+          birthDate: newBirth.trim() || undefined,
+          serviceType: serviceTypes[0] ?? "언어재활",
+          defaultUnit: centerDefaultUnit,
+          monthlyCopay: newCopay.trim() ? Number(newCopay.replace(/[^\d]/g, "")) : null,
+        }),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        alert("아동 등록 실패: " + (e.error ?? res.status));
+        return;
+      }
+      const created = (await res.json()) as ChildOption;
+      setChildrenOpts((arr) => [...arr, created]);
+      setShowNewChild(false);
+      setNewName(""); setNewBirth(""); setNewCopay("");
+      loadChild(String(created.id));
+    } finally {
+      setCreatingChild(false);
+    }
+  }
+
   // 페이지 진입 시 localStorage 에서 마지막 작업 상태 복원
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => {
@@ -135,7 +174,10 @@ export default function ScheduleClient({
         }
         if (typeof d.name === "string") setName(d.name);
         if (typeof d.therapist === "string" && d.therapist) setTherapist(d.therapist);
-        if (typeof d.serviceType === "string" && d.serviceType) setServiceType(d.serviceType);
+        // 서비스 종류는 가입 시 선택한 치료사 종류로 고정. draft 값이 다르면 무시.
+        if (typeof d.serviceType === "string" && d.serviceType && serviceTypes.includes(d.serviceType)) {
+          setServiceType(d.serviceType);
+        }
         if (typeof d.target === "number") setTarget(d.target);
         if (typeof d.defaultSlot === "string") setDefaultSlot(d.defaultSlot);
         if (Array.isArray(d.pattern)) setPattern(d.pattern.filter((n: unknown) => typeof n === "number"));
@@ -587,28 +629,43 @@ export default function ScheduleClient({
                       </span>
                     )}
                   </label>
-                  <select
-                    className="select"
-                    value={selectedChildId === "" ? "" : String(selectedChildId)}
-                    onChange={(e) => loadChild(e.target.value)}
-                  >
-                    <option value="">— 직접 입력 —</option>
-                    {filtered.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                        {c.hasMultipleServices ? ` · ${c.serviceType}` : ""}
-                        {c.therapistName ? ` · ${c.therapistName}` : ""}
-                        {c.defaultSlot ? ` · ${c.defaultSlot}` : ""}
-                      </option>
-                    ))}
-                  </select>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <select
+                      className="select"
+                      value={selectedChildId === "" ? "" : String(selectedChildId)}
+                      onChange={(e) => loadChild(e.target.value)}
+                      style={{ flex: 1 }}
+                    >
+                      <option value="">— 직접 입력 —</option>
+                      {filtered.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                          {c.hasMultipleServices ? ` · ${c.serviceType}` : ""}
+                          {c.therapistName ? ` · ${c.therapistName}` : ""}
+                          {c.defaultSlot ? ` · ${c.defaultSlot}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      style={{ whiteSpace: "nowrap" }}
+                      onClick={() => setShowNewChild(true)}
+                      title="새 아동을 바로 등록 (내 아동에 자동 동기화)"
+                    >+ 새 아동</button>
+                  </div>
                 </div>
               </div>
             );
           })()}
           {childrenOpts.length === 0 && (
-            <div className="tip">
-              💡 <Link href="/children/new"><b>아동을 미리 등록</b></Link>해두면 매월 정보 입력 없이 한 번에 불러올 수 있어요.
+            <div className="tip" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+              <span>💡 아직 등록된 아동이 없어요. 여기서 바로 등록할 수 있어요.</span>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => setShowNewChild(true)}
+              >+ 새 아동 등록</button>
             </div>
           )}
 
@@ -834,6 +891,47 @@ export default function ScheduleClient({
               <button className="btn btn-primary" onClick={downloadHwpx} disabled={downloadingHwpx}>
                 {downloadingHwpx ? "생성 중..." : "한글파일(.hwpx) 다운로드"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showNewChild && (
+        <div className="modal-bg" onClick={(e) => { if (e.target === e.currentTarget) setShowNewChild(false); }}>
+          <div className="modal" style={{ minWidth: 340 }}>
+            <div className="modal-title">새 아동 등록</div>
+            <div className="sub-mute" style={{ fontSize: 12, marginBottom: 12 }}>
+              여기서 저장하면 "내 아동" 목록에도 즉시 추가됩니다. 서비스 종류는 {serviceTypes[0]} (가입 시 선택한 종류).
+            </div>
+            <div className="field" style={{ marginBottom: 10 }}>
+              <label>이름<span className="req">*</span></label>
+              <input
+                className="input"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="field" style={{ marginBottom: 10 }}>
+              <label>생년월일 <span className="sub-mute">(선택)</span></label>
+              <input className="input" value={newBirth} onChange={(e) => setNewBirth(e.target.value)} />
+            </div>
+            <div className="field" style={{ marginBottom: 10 }}>
+              <label>월 본인부담금 (원) <span className="sub-mute">(선택)</span></label>
+              <input
+                className="input"
+                type="number"
+                min={0}
+                step={1000}
+                value={newCopay}
+                onChange={(e) => setNewCopay(e.target.value)}
+              />
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn-primary btn-sm" onClick={createNewChild} disabled={creatingChild || !newName.trim()}>
+                {creatingChild ? "저장 중..." : "등록"}
+              </button>
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowNewChild(false)}>취소</button>
             </div>
           </div>
         </div>

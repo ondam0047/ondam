@@ -59,7 +59,8 @@ export default async function BetaAdminPage() {
                 {code}
               </div>
               <div className="sub-mute" style={{ fontSize: 13, maxWidth: 400 }}>
-                10명 베타 사용자에게 이 코드를 알려주세요. 가입 화면에서 코드를 입력해야만 통과합니다.
+                베타 사용자에게 이 코드를 알려주세요. 가입 화면에서 코드를 입력해야 통과합니다.
+                인원 제한은 없어요 — 코드를 아는 사람은 누구나 가입 가능.
                 <br />
                 <b>변경하려면</b> 서버의 환경변수 <code>BETA_ACCESS_CODE</code> 를 수정한 뒤 재시작.
               </div>
