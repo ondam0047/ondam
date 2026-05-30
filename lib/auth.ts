@@ -32,7 +32,12 @@ function newToken(): string {
   return randomBytes(32).toString("hex");
 }
 
+// 새 로그인 시 같은 user 의 기존 세션을 모두 무효화 → 단일 활성 세션 강제.
+// 같은 계정을 두 사람이 동시에 쓰면 서로 자동 로그아웃 핑퐁 → 사실상 공유 불가.
 export async function createSession(userId: number): Promise<string> {
+  // 1) 기존 세션 다 삭제 (다른 기기에서 로그인된 상태 해제)
+  await prisma.authSession.deleteMany({ where: { userId } });
+  // 2) 새 세션 생성
   const token = newToken();
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 3600 * 1000);
   await prisma.authSession.create({

@@ -62,6 +62,10 @@ export default async function LoginPage({
           </Link>
           {" "}— 본인만 보는 사물함이 만들어져요.
         </div>
+        <div className="tip" style={{ marginBottom: 14, wordBreak: "keep-all", lineHeight: 1.65, background: "#FFF8E1", borderColor: "#F0CD5A" }}>
+          🔒 한 계정은 <b>한 기기</b>에서만 로그인 유지됩니다.
+          새 기기에서 로그인하면 다른 곳은 자동 로그아웃돼요. (1인 1계정 보호)
+        </div>
         <form action={login}>
           <div className="field" style={{ marginBottom: 12 }}>
             <label>이메일</label>
