@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { deleteBetaUser } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -89,26 +90,51 @@ export default async function BetaAdminPage() {
                 <th>역할</th>
                 <th>가입일</th>
                 <th>상태</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
-              {recentUsers.map((u) => (
-                <tr key={u.id}>
-                  <td><b>{u.name}</b></td>
-                  <td className="sub-mute" style={{ fontSize: 12 }}>{u.email}</td>
-                  <td>{u.therapistType ?? "-"}</td>
-                  <td>{u.center?.name ?? "-"}</td>
-                  <td>
-                    <span className="badge badge-primary">
-                      {u.role === "OWNER" ? "사물함 주인" : u.role}
-                    </span>
-                  </td>
-                  <td className="sub-mute" style={{ fontSize: 12 }}>
-                    {new Date(u.createdAt).toLocaleDateString("ko-KR")}
-                  </td>
-                  <td>{u.active ? "✓ 활성" : "❌ 비활성"}</td>
-                </tr>
-              ))}
+              {recentUsers.map((u) => {
+                const isMe = u.email.toLowerCase() === BETA_ADMIN_EMAIL;
+                return (
+                  <tr key={u.id}>
+                    <td><b>{u.name}</b></td>
+                    <td className="sub-mute" style={{ fontSize: 12 }}>{u.email}</td>
+                    <td>{u.therapistType ?? "-"}</td>
+                    <td>{u.center?.name ?? "-"}</td>
+                    <td>
+                      <span className="badge badge-primary">
+                        {u.role === "OWNER" ? "사물함 주인" : u.role}
+                      </span>
+                    </td>
+                    <td className="sub-mute" style={{ fontSize: 12 }}>
+                      {new Date(u.createdAt).toLocaleDateString("ko-KR")}
+                    </td>
+                    <td>{u.active ? "✓ 활성" : "❌ 비활성"}</td>
+                    <td style={{ textAlign: "right" }}>
+                      {isMe ? (
+                        <span className="sub-mute" style={{ fontSize: 11 }}>(나)</span>
+                      ) : (
+                        <form
+                          action={async () => {
+                            "use server";
+                            await deleteBetaUser(u.id);
+                          }}
+                          style={{ display: "inline" }}
+                        >
+                          <button
+                            type="submit"
+                            className="btn btn-ghost btn-sm"
+                            style={{ color: "var(--danger)" }}
+                          >
+                            삭제
+                          </button>
+                        </form>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

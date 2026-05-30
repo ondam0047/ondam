@@ -77,13 +77,34 @@ export default async function ChildrenPage({
                 : `담당 아동 ${activeCount}명`}
           </p>
         </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Link className="btn btn-ghost" href="/import">📥 엑셀 가져오기</Link>
-          <Link className="btn btn-primary" href="/children/new">
-            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <Link
+            className="btn"
+            href="/import"
+            style={{
+              background: "linear-gradient(135deg, #6FA1E5, #1F4E91)",
+              color: "#fff",
+              border: "1px solid #1F4E91",
+              fontWeight: 700,
+              padding: "12px 18px",
+              fontSize: 14,
+              boxShadow: "0 2px 6px rgba(31,78,145,0.25)",
+            }}
+          >
+            <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2}>
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M17 8l-5-5-5 5 M12 3v12" />
+            </svg>
+            엑셀로 한꺼번에 가져오기
+          </Link>
+          <Link
+            className="btn btn-primary"
+            href="/children/new"
+            style={{ padding: "12px 18px", fontSize: 14, fontWeight: 700 }}
+          >
+            <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2}>
               <path d="M12 5v14 M5 12h14" />
             </svg>
-            아동 등록
+            한 명씩 등록
           </Link>
         </div>
       </div>
@@ -133,9 +154,34 @@ export default async function ChildrenPage({
           )}
         </div>
         {children.length === 0 ? (
-          <div className="card-body">
-            <div className="placeholder">
-              아직 담당 아동이 없어요. 우측 상단 “아동 등록”을 눌러보세요.
+          <div className="card-body" style={{ padding: "32px 24px" }}>
+            <div style={{ textAlign: "center", maxWidth: 520, margin: "0 auto" }}>
+              <div style={{ fontSize: 38, marginBottom: 10 }}>👶</div>
+              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>
+                아직 등록된 아동이 없어요
+              </div>
+              <div className="sub-mute" style={{ fontSize: 13.5, marginBottom: 20, lineHeight: 1.7 }}>
+                매월 일정표·기록지에서 자동으로 회기를 만들려면 먼저 아동을 등록하세요.
+              </div>
+              <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+                <Link
+                  className="btn"
+                  href="/import"
+                  style={{
+                    background: "linear-gradient(135deg, #6FA1E5, #1F4E91)",
+                    color: "#fff",
+                    border: "1px solid #1F4E91",
+                    fontWeight: 700,
+                    padding: "12px 20px",
+                    fontSize: 14,
+                  }}
+                >
+                  📥 엑셀로 한꺼번에 가져오기
+                </Link>
+                <Link className="btn btn-primary" href="/children/new" style={{ padding: "12px 20px", fontWeight: 700 }}>
+                  ✏️ 한 명씩 등록
+                </Link>
+              </div>
             </div>
           </div>
         ) : (
