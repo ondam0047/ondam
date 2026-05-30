@@ -139,28 +139,54 @@ function substituteRecordXml(xml: string, p: RecordPayload): string {
   out = replaceSequence(out, T.extraMins, sessions.map((s) => s.extra));
   out = replaceSequence(out, T.amounts, sessions.map((s) => s.amount));
 
+  // 슬롯 없는 회기(2·5번째)에 사용자가 사유를 입력하면 별도 줄로 들어가도록,
+  // 슬롯 있는 회기의 사유 문단(<hp:p>...</hp:p>) 을 템플릿으로 캡처해둠.
+  const firstWithExtra = T.records.find((r) => !!r.resultExtra);
+  let extraParaTemplate = "";
+  let extraOldText = "";
+  if (firstWithExtra) {
+    extraOldText = firstWithExtra.resultExtra!;
+    const search = `<hp:t>${extraOldText}</hp:t>`;
+    const idx = out.indexOf(search);
+    if (idx >= 0) {
+      const pStart = out.lastIndexOf("<hp:p ", idx);
+      const pEndIdx = out.indexOf("</hp:p>", idx);
+      if (pStart >= 0 && pEndIdx >= 0) {
+        // linesegarray 는 제거 — 새 위치에 삽입되면 한글에서 재계산
+        extraParaTemplate = out
+          .slice(pStart, pEndIdx + "</hp:p>".length)
+          .replace(/<hp:linesegarray>[\s\S]*?<\/hp:linesegarray>/, "");
+      }
+    }
+  }
+
   const anchorIdx = out.indexOf("※");
   let recordCursor = anchorIdx >= 0 ? anchorIdx : 0;
   for (let i = 0; i < T.records.length; i++) {
     const tr = T.records[i];
     const ns = sessions[i];
-    // 사유는 일지 본문과 구분되도록 항상 "- " 접두어를 붙임 (이미 붙어 있으면 중복 방지)
+    // 사유는 일지 본문과 구분되도록 항상 "- " 접두어 (이미 붙어 있으면 중복 방지)
     const rawExtra = (ns.resultExtra ?? "").trim();
     const extra = rawExtra
       ? (rawExtra.startsWith("- ") ? rawExtra : `- ${rawExtra}`)
       : "";
-    // 템플릿 슬롯에 resultExtra 가 있는 회기는 별도 줄로 치환,
-    // 없는 회기(예: 2·5번째)는 사유를 잃지 않도록 결과 본문 뒤에 인라인 부착.
     const hasExtraSlot = !!tr.resultExtra;
-    const sessionResult = !hasExtraSlot && extra
-      ? `${ns.result || ""} ${extra}`.trim()
-      : (ns.result || "");
     const olds = [tr.day, tr.apprDay, tr.apprNum, tr.resultMain, ...(hasExtraSlot ? [tr.resultExtra!] : [])];
-    const news = [ns.useDay || "", ns.payDay || "", ns.apprNumber || "", sessionResult, extra];
+    const news = [ns.useDay || "", ns.payDay || "", ns.apprNumber || "", ns.result || "", extra];
     for (let j = 0; j < olds.length; j++) {
       const r = replaceWithLinesegReset(out, olds[j], news[j], recordCursor);
       out = r.out;
       recordCursor = r.nextCursor;
+    }
+
+    // 슬롯 없는 회기에 사유가 있으면 별도 문단 복제·삽입 (결과 본문 다음 줄에)
+    if (!hasExtraSlot && extra && extraParaTemplate && extraOldText) {
+      const cloned = extraParaTemplate.replace(
+        `<hp:t>${extraOldText}</hp:t>`,
+        `<hp:t>${xmlEscape(extra)}</hp:t>`
+      );
+      out = out.slice(0, recordCursor) + cloned + out.slice(recordCursor);
+      recordCursor += cloned.length;
     }
   }
 
