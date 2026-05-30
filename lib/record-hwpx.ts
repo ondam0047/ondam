@@ -144,8 +144,13 @@ function substituteRecordXml(xml: string, p: RecordPayload): string {
   for (let i = 0; i < T.records.length; i++) {
     const tr = T.records[i];
     const ns = sessions[i];
+    // 사유는 일지 본문과 구분되도록 항상 "- " 접두어를 붙임 (이미 붙어 있으면 중복 방지)
+    const rawExtra = (ns.resultExtra ?? "").trim();
+    const extra = rawExtra
+      ? (rawExtra.startsWith("- ") ? rawExtra : `- ${rawExtra}`)
+      : "";
     const olds = [tr.day, tr.apprDay, tr.apprNum, tr.resultMain, ...(tr.resultExtra ? [tr.resultExtra] : [])];
-    const news = [ns.useDay || "", ns.payDay || "", ns.apprNumber || "", ns.result || "", ns.resultExtra ?? ""];
+    const news = [ns.useDay || "", ns.payDay || "", ns.apprNumber || "", ns.result || "", extra];
     for (let j = 0; j < olds.length; j++) {
       const r = replaceWithLinesegReset(out, olds[j], news[j], recordCursor);
       out = r.out;

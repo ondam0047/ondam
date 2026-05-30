@@ -23,6 +23,7 @@ type SessionRow = {
   appr: string;
   amt: string;
   org: string;
+  payKind?: string;   // 결제구분 — "정상결제" / "소급결제"
 };
 
 type Grouped = Record<string, SessionRow[]>;
@@ -30,6 +31,33 @@ type Grouped = Record<string, SessionRow[]>;
 function parseYMD(s: string): { y: number; mo: number; d: number } | null {
   const m = String(s).match(/(\d{4})[.\-\/]\s*(\d{1,2})[.\-\/]\s*(\d{1,2})/);
   return m ? { y: +m[1], mo: +m[2], d: +m[3] } : null;
+}
+
+// 일정표 회기 ↔ 엑셀 행을 "같은 일자" 기준으로 우선 매칭. 정확히 일치하는 일자는 그대로
+// 매치, 남은 회기는 순서대로 빈 행에 채워넣음. (1,3,8,13,15 vs 3,5,8,13,15 의 경우
+// 3·8·13·15 가 일치 처리되고 남은 1 이 5 행에 할당됨)
+function pairScheduleDays(
+  scheduleDays: (number | null)[],
+  rowPayDays: (number | null)[]
+): (number | null)[] {
+  const schedSet = new Set<number>();
+  for (const d of scheduleDays) if (d != null) schedSet.add(d);
+  const usedSched = new Set<number>();
+  const result: (number | null)[] = rowPayDays.map((pd) => {
+    if (pd != null && schedSet.has(pd)) {
+      usedSched.add(pd);
+      return pd;
+    }
+    return null;
+  });
+  const unused = [...schedSet].filter((d) => !usedSched.has(d)).sort((a, b) => a - b);
+  let ui = 0;
+  for (let i = 0; i < result.length; i++) {
+    if (result[i] === null && ui < unused.length) {
+      result[i] = unused[ui++];
+    }
+  }
+  return result;
 }
 
 type MyServiceOption = {
@@ -238,14 +266,18 @@ export default function RecordClient({
           name: col("대상자"), birth: col("생년월일"), use: col("서비스이용일자"),
           end: col("서비스종료시간"), start: col("서비스시작시간"), pay: col("결제일자"),
           appr: col("승인번호"), amt: col("결제금액"), org: col("제공기관명"),
+          kind: col("결제구분"),
         };
 
         const g: Grouped = {};
+        let retroCount = 0;
         for (let i = hi + 1; i < rows.length; i++) {
           const row = rows[i] as string[] | undefined;
           if (!row || !row[ci.name]) continue;
           const nm = String(row[ci.name]).trim();
           if (!nm) continue;
+          const payKind = ci.kind >= 0 ? String(row[ci.kind] || "").trim() : "";
+          if (payKind.includes("소급")) retroCount += 1;
           (g[nm] = g[nm] || []).push({
             name: nm,
             birth: String(row[ci.birth] || ""),
@@ -255,6 +287,7 @@ export default function RecordClient({
             appr: String(row[ci.appr] || ""),
             amt: String(row[ci.amt] || ""),
             org: String(row[ci.org] || ""),
+            payKind,
           });
         }
         Object.values(g).forEach((arr) => arr.sort((a, b) => {
@@ -272,7 +305,10 @@ export default function RecordClient({
         const names = Object.keys(g);
         const total = Object.values(g).reduce((a, b) => a + b.length, 0);
         setTherapist(ther);
-        setUploadInfo(`✓ 불러오기 완료 · 치료사 ${ther || "-"} · 아동 ${names.length}명 · 총 ${total}건`);
+        const retroMsg = retroCount > 0
+          ? `<br/><span style="color:var(--danger); font-weight:700;">⚠ 소급결제 ${retroCount}건 있음 — 사유서 작성 확인</span>`
+          : "";
+        setUploadInfo(`✓ 불러오기 완료 · 치료사 ${ther || "-"} · 아동 ${names.length}명 · 총 ${total}건${retroMsg}`);
         setGrouped(g);
         setCurChild(names[0] ?? null);
       } catch (err) {
@@ -567,8 +603,7 @@ function RecordSheet({
         sessions: rows.map((s, i) => {
           const pu = parseYMD(s.use);
           const pp = parseYMD(s.pay);
-          // 제공일자(useDay) 는 일정표 우선, 없으면 엑셀의 서비스이용일자.
-          const useDayNum = scheduleDays[i] ?? (pu ? pu.d : null);
+          const useDayNum = useDays[i];
           return {
             ordinal: i + 1,
             date: pu ? `${pu.mo}/${pu.d}` : "",
@@ -609,7 +644,7 @@ function RecordSheet({
       const sessionsPayload = rows.map((s, i) => {
         const pu = parseYMD(s.use);
         const pp = parseYMD(s.pay);
-        const useDayNum = scheduleDays[i] ?? (pu ? pu.d : null);
+        const useDayNum = useDays[i];
         return {
           date: pu ? `${pu.mo}/${pu.d}` : "",
           startTime: times[i].start,
@@ -708,9 +743,18 @@ function RecordSheet({
     });
   }
 
+  // 제공일자(useDay) 매칭 — 같은 일자 우선, 남는 회기는 순서대로 할당.
+  // 1,3,8,13,15 일정에 3,5,8,13,15 엑셀이 오면 3·8·13·15 는 자동 일치, 5 는 1 로 매핑.
+  const useDays = useMemo(() => {
+    const payDs = rows.map((s) => parseYMD(s.pay)?.d ?? null);
+    const matched = pairScheduleDays(scheduleDays, payDs);
+    return matched.map((d, i) => d ?? (parseYMD(rows[i].use)?.d ?? null));
+  }, [scheduleDays, rows]);
+
   const topCols = rows.map((s, i) => {
-    const p = parseYMD(s.use);
-    const md = p ? `${p.mo}/${p.d}` : s.use;
+    const ud = useDays[i];
+    const monthForCol = typeof month === "number" ? month : (parseYMD(s.use)?.mo ?? "");
+    const md = ud != null && monthForCol !== "" ? `${monthForCol}/${ud}` : (parseYMD(s.use) ? `${parseYMD(s.use)!.mo}/${parseYMD(s.use)!.d}` : s.use);
     return { i, md };
   });
 
@@ -804,18 +848,23 @@ function RecordSheet({
           </span>
         </h3>
         {rows.map((s, i) => {
-          const pu = parseYMD(s.use), pp = parseYMD(s.pay);
-          // 제공일자: 일정표 우선, 일정표 없으면 엑셀의 서비스이용일자
-          const useD = scheduleDays[i] ?? (pu ? pu.d : null);
+          const pp = parseYMD(s.pay);
+          const useD = useDays[i];
           const payD = pp ? pp.d : null;
           const hasBoth = useD !== null && payD !== null;
           const match = hasBoth && useD === payD;
+          const isRetro = (s.payKind || "").includes("소급");
           return (
             <div key={i} className={"result-row" + (match ? "" : hasBoth ? " mismatch" : "")}>
               <div className="rr-head">
                 <span className="pill">제공일자 {useD ?? "?"}일</span>
                 <span className="pill">승인일자 {payD ?? "?"}일</span>
                 <span className="pill appr">승인 {s.appr}</span>
+                {isRetro && (
+                  <span className="pill" style={{ background: "var(--danger)", color: "#fff", fontWeight: 700 }}>
+                    소급결제
+                  </span>
+                )}
                 {!hasBoth
                   ? <span className="sub-mute" style={{ fontSize: 11.5 }}>(엑셀 미업로드)</span>
                   : match
