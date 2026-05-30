@@ -52,7 +52,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <Topbar />
         <main className="content">{children}</main>
       </div>
-      <WelcomeTooltip role={user.role} />
+      <WelcomeTooltip role={user.role} userId={user.id} />
     </div>
   );
 }

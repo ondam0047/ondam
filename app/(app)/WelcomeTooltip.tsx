@@ -8,7 +8,11 @@ import Link from "next/link";
 
 type Role = "OWNER" | "ADMIN" | "THERAPIST";
 
-const STORAGE_KEY = "baroilji_welcome_seen_v1";
+// 사용자별로 한 번씩만 노출. 키는 baroilji_welcome_seen_* 패턴 — SessionGuard 가
+// 다른 사용자로 바뀌어도 보존되도록 (각 사용자가 본인 처음에만 봄).
+function storageKey(userId: number) {
+  return `baroilji_welcome_seen_v1_${userId}`;
+}
 
 const TIPS: Record<Role, { emoji: string; title: string; body: React.ReactNode }[]> = {
   OWNER: [
@@ -47,19 +51,20 @@ const TIPS: Record<Role, { emoji: string; title: string; body: React.ReactNode }
   ],
 };
 
-export default function WelcomeTooltip({ role }: { role: Role }) {
+export default function WelcomeTooltip({ role, userId }: { role: Role; userId: number }) {
   const [open, setOpen] = useState(false);
+  const KEY = storageKey(userId);
 
   useEffect(() => {
     try {
-      if (!localStorage.getItem(STORAGE_KEY)) {
+      if (!localStorage.getItem(KEY)) {
         setOpen(true);
       }
     } catch {}
-  }, []);
+  }, [KEY]);
 
   function close() {
-    try { localStorage.setItem(STORAGE_KEY, "1"); } catch {}
+    try { localStorage.setItem(KEY, "1"); } catch {}
     setOpen(false);
   }
 
