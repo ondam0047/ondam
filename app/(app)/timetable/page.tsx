@@ -39,16 +39,19 @@ export default async function TimetablePage({
   const year = sp.year ? Number(sp.year) : now.getFullYear();
   const month = sp.month ? Number(sp.month) : now.getMonth() + 1;
 
-  const therapists = await prisma.therapist.findMany({
-    where: { centerId, active: true },
-    include: { services: { where: { active: true }, select: { id: true } } },
-    orderBy: { name: "asc" },
-  });
-
-  const selectedTherapistId = sp.therapistId
-    ? Number(sp.therapistId)
-    : therapists[0]?.id;
-  const selected = therapists.find((t) => t.id === selectedTherapistId) ?? null;
+  // 1인 모드: 본인 Therapist 만. user.therapistId 우선, 없으면 같은 센터 본인 이름.
+  const myTherapist = user.therapistId
+    ? await prisma.therapist.findUnique({
+        where: { id: user.therapistId },
+        include: { services: { where: { active: true }, select: { id: true } } },
+      })
+    : await prisma.therapist.findFirst({
+        where: { centerId, active: true, name: user.name },
+        include: { services: { where: { active: true }, select: { id: true } } },
+      });
+  const therapists = myTherapist ? [myTherapist] : [];
+  const selectedTherapistId = myTherapist?.id;
+  const selected = myTherapist;
 
   // 해당 치료사의 이번 달 일정 + 회기, 시간 차단
   const [schedules, blocks] = selected

@@ -53,7 +53,7 @@ async function signupSolo(formData: FormData) {
     ? [primaryService, ...DEFAULT_SERVICE_TYPES.filter((s) => s !== primaryService)].join(",")
     : DEFAULT_SERVICE_TYPES.join(",");
 
-  // 내부적으로 Center 자동 생성 (사물함 컨테이너 역할).
+  // 내부적으로 Center 자동 생성 + 본인 Therapist 자동 생성·연결.
   // 사용자가 센터명을 안 적으면 본인 이름으로.
   const workplaceName = centerName || name;
   const approvalCode = await generateApprovalCode();
@@ -64,6 +64,9 @@ async function signupSolo(formData: FormData) {
       serviceTypes: defaultServices,
     },
   });
+  const therapist = await prisma.therapist.create({
+    data: { name, centerId: center.id, active: true },
+  });
   const user = await prisma.user.create({
     data: {
       email,
@@ -72,6 +75,7 @@ async function signupSolo(formData: FormData) {
       role: "OWNER",
       active: true,
       centerId: center.id,
+      therapistId: therapist.id,
       therapistType,
     },
   });
@@ -141,7 +145,6 @@ export default async function SignupPage({
             <input
               className="input"
               name="centerName"
-              placeholder="예: 온담말언어발달센터 — 비우면 본인 이름으로"
             />
             <div className="sub-mute" style={{ fontSize: 11, marginTop: 4 }}>
               일정표·기록지의 '제공기관명' 기본값으로 사용돼요. 추후 변경 가능.

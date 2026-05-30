@@ -1,18 +1,18 @@
 import { prisma } from "@/lib/db";
 import ScheduleClient from "./ScheduleClient";
 import { requireRole, getEffectiveTherapistId } from "@/lib/auth";
-import { parseServiceTypes, parseSlots } from "@/lib/constants";
+import { parseSlots, THERAPIST_TO_SERVICE } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
 export default async function SchedulePage() {
-  // OWNER(원장 겸 치료사) 와 THERAPIST 만 일정표 작성. 행정(ADMIN) 제외.
   const user = await requireRole(["OWNER", "THERAPIST"]);
   const centerId = user.centerId ?? -1;
-
   const myTherapistId = await getEffectiveTherapistId(user);
 
-  const [services, therapists, center] = await Promise.all([
+  // 본인 사용자 + 본인 Therapist 만 가져옴 (1인 모드)
+  const [userRow, services, center] = await Promise.all([
+    prisma.user.findUnique({ where: { id: user.id }, select: { therapistType: true } }),
     prisma.childService.findMany({
       where: {
         active: true,
@@ -22,21 +22,16 @@ export default async function SchedulePage() {
       include: { child: true, therapist: true },
       orderBy: [{ child: { name: "asc" } }, { id: "asc" }],
     }),
-    prisma.therapist.findMany({
-      where: { active: true, centerId },
-      orderBy: { name: "asc" },
-    }),
     prisma.center.findUnique({ where: { id: centerId }, select: { serviceTypes: true, slots: true } }),
   ]);
 
-  // 같은 childId 에 서비스가 둘 이상인지 카운트 → 라벨에 종류 표시 여부
   const childIdCount = new Map<number, number>();
   for (const s of services) {
     childIdCount.set(s.childId, (childIdCount.get(s.childId) ?? 0) + 1);
   }
 
   const childOptions = services.map((s) => ({
-    id: s.id, // ChildService.id
+    id: s.id,
     childId: s.childId,
     name: s.child.name,
     birthDate: s.child.birthDate,
@@ -50,9 +45,14 @@ export default async function SchedulePage() {
     hasMultipleServices: (childIdCount.get(s.childId) ?? 0) > 1,
   }));
 
-  const therapistOptions = therapists.map((t) => ({ id: t.id, name: t.name }));
-  const myTherapistName = therapists.find((t) => t.id === myTherapistId)?.name ?? null;
-  const serviceTypes = parseServiceTypes(center?.serviceTypes);
+  // 1인 사물함: 치료사 목록은 본인 한 명만
+  const therapistOptions = [{ id: myTherapistId ?? 0, name: user.name }];
+
+  // 서비스 종류는 가입 시 선택한 치료사 종류로 고정 (잠금)
+  const lockedService = userRow?.therapistType
+    ? (THERAPIST_TO_SERVICE[userRow.therapistType] ?? userRow.therapistType)
+    : null;
+  const serviceTypes = lockedService ? [lockedService] : ["언어재활"];
   const slots = parseSlots(center?.slots);
 
   return (
@@ -61,7 +61,7 @@ export default async function SchedulePage() {
       therapists={therapistOptions}
       serviceTypes={serviceTypes}
       slots={slots}
-      defaultFilterTherapist={myTherapistName}
+      defaultFilterTherapist={user.name}
       defaultOrg={user.centerName ?? ""}
     />
   );

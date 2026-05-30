@@ -553,10 +553,13 @@ export default function ScheduleClient({
               )}
             </div>
             <div className="field">
-              <label>서비스 종류</label>
-              <select className="select" value={serviceType} onChange={(e) => setServiceType(e.target.value)}>
-                {serviceTypes.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
+              <label>서비스 종류 <span className="sub-mute">(가입 시 선택한 종류로 자동)</span></label>
+              <input
+                className="input"
+                value={serviceType}
+                readOnly
+                style={{ background: "var(--surface-2)", cursor: "not-allowed" }}
+              />
             </div>
             <div className="field">
               <label>대상 월</label>

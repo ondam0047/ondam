@@ -58,15 +58,13 @@ const CLOCK_ICON = "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M12 6v6l4 2";
 const HELP_ICON = "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3 M12 17h.01";
 
 const OWNER_ITEMS = [
-  { href: "/dashboard",    label: "대시보드",      icon: IC.dash },
-  { href: "/schedule",     label: "일정표",        icon: IC.calendar },
-  { href: "/record",       label: "기록지",        icon: IC.doc },
-  { href: "/availability", label: "내 차단 시간",  icon: CLOCK_ICON },
-  { href: "/timetable",    label: "내 시간표",     icon: GRID_ICON },
-  { href: "/children",     label: "내 아동",       icon: IC.user },
-  { href: "/import",       label: "엑셀 가져오기", icon: IC.upload },
-  { href: "/center",       label: "내 설정",       icon: COG_ICON },
-  { href: "/guide",        label: "도움말",        icon: HELP_ICON },
+  { href: "/dashboard",    label: "대시보드",  icon: IC.dash },
+  { href: "/schedule",     label: "일정표",    icon: IC.calendar },
+  { href: "/record",       label: "기록지",    icon: IC.doc },
+  { href: "/timetable",    label: "내 시간표", icon: GRID_ICON },
+  { href: "/children",     label: "내 아동",   icon: IC.user },
+  { href: "/center",       label: "내 설정",   icon: COG_ICON },
+  { href: "/guide",        label: "도움말",    icon: HELP_ICON },
 ];
 const ADMIN_ITEMS = [
   { href: "/dashboard",  label: "대시보드",      icon: IC.dash },

@@ -78,12 +78,7 @@ export default async function ChildrenPage({
           </p>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {canManage && !onlyWaiting && (
-            <Link className="btn btn-ghost" href="/children?waiting=1">⏳ 대기 명단</Link>
-          )}
-          {canManage && onlyWaiting && (
-            <Link className="btn btn-ghost" href="/children">← 등록 아동</Link>
-          )}
+          <Link className="btn btn-ghost" href="/import">📥 엑셀 가져오기</Link>
           <Link className="btn btn-primary" href="/children/new">
             <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <path d="M12 5v14 M5 12h14" />

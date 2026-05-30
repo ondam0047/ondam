@@ -216,7 +216,15 @@ async function TherapistDashboard({ user, centerId, year: y, month: m, todayDay,
 
       {data.myChildrenCount === 0 && (
         <div className="tip">
-          💡 아직 담당 아동이 없어요. 원장님께 아동 배정을 요청해주세요.
+          💡 아직 담당 아동이 없어요.{" "}
+          <Link href="/children/new" style={{ color: "var(--primary)", fontWeight: 700 }}>
+            아동 직접 등록
+          </Link>{" "}
+          또는{" "}
+          <Link href="/children" style={{ color: "var(--primary)", fontWeight: 700 }}>
+            엑셀로 한꺼번에 가져오기
+          </Link>{" "}
+          로 시작하세요.
         </div>
       )}
 

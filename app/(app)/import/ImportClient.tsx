@@ -252,28 +252,13 @@ export default function ImportClient({ serviceTypes }: { serviceTypes: string[] 
           <h2>무엇을 등록할까요?</h2>
         </div>
         <div className="card-body">
-          <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-            <button
-              className={"chip" + (mode === "child" ? " on" : "")}
-              onClick={() => { setMode("child"); setChildren(null); setTherapists(null); setError(""); }}
-            >아동 일괄 등록</button>
-            <button
-              className={"chip" + (mode === "therapist" ? " on" : "")}
-              onClick={() => { setMode("therapist"); setChildren(null); setTherapists(null); setError(""); }}
-            >치료사 일괄 등록</button>
-          </div>
-
           <div className="tip" style={{ marginBottom: 14 }}>
-            {mode === "child" ? (
-              <span>
-                컬럼: <b>성명 · 생년월일 · 서비스 · 담당 · 시간 · 요일</b>{" "}
-                (단가·목표·메모는 선택). 한 아동이 여러 서비스를 받으면 줄을 여러 개 적으면 같은 사람으로 묶입니다.<br />
-                💡 <b>전자바우처 '서비스제공내역' 엑셀</b>도 그대로 올리면 자동으로 명단을 추출합니다.<br />
-                💡 양식이 없으면 아래 <b>[기본 양식 다운로드]</b> 를 받아 채워주세요.
-              </span>
-            ) : (
-              <span>컬럼: <b>이름 · 전화</b>.</span>
-            )}
+            <span>
+              컬럼: <b>성명 · 생년월일 · 서비스 · 담당 · 시간 · 요일</b>{" "}
+              (단가·목표·메모는 선택). 한 아동이 여러 서비스를 받으면 줄을 여러 개 적으면 같은 사람으로 묶입니다.<br />
+              💡 <b>전자바우처 '서비스제공내역' 엑셀</b>도 그대로 올리면 자동으로 명단을 추출합니다.<br />
+              💡 양식이 없으면 아래 <b>[기본 양식 다운로드]</b> 를 받아 채워주세요.
+            </span>
           </div>
 
           {mode === "child" && (
@@ -333,28 +318,6 @@ export default function ImportClient({ serviceTypes }: { serviceTypes: string[] 
         </div>
       )}
 
-      {therapists && therapists.length > 0 && (
-        <div className="card">
-          <div className="card-header">
-            <h2>미리보기 — 치료사 {therapists.length}명</h2>
-            <span style={{ flex: 1 }} />
-            <button className="btn btn-primary" onClick={save} disabled={saving}>
-              {saving ? "저장 중..." : "이대로 저장"}
-            </button>
-          </div>
-          <table className="table">
-            <thead><tr><th>이름</th><th>전화</th></tr></thead>
-            <tbody>
-              {therapists.map((t, i) => (
-                <tr key={i}>
-                  <td><b>{t.name}</b></td>
-                  <td className="num-cell">{t.phone ?? "-"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
 
       <div className="card">
         <div className="card-header">
@@ -363,7 +326,7 @@ export default function ImportClient({ serviceTypes }: { serviceTypes: string[] 
         <div className="card-body">
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             <Link className="btn btn-ghost" href="/children/new">아동 한 명씩 등록</Link>
-            <Link className="btn btn-ghost" href="/therapists">치료사 직접 등록</Link>
+            <Link className="btn btn-ghost" href="/children">목록 보기</Link>
           </div>
         </div>
       </div>
