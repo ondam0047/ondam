@@ -222,7 +222,7 @@ async function TherapistDashboard({ user, centerId, year: y, month: m, todayDay,
           </Link>{" "}
           또는{" "}
           <Link href="/children" style={{ color: "var(--primary)", fontWeight: 700 }}>
-            엑셀로 한꺼번에 가져오기
+            엑셀로 가져오기
           </Link>{" "}
           로 시작하세요.
         </div>

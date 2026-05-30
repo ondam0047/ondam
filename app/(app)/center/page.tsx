@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
+import { PRIMARY_SERVICE_OPTIONS } from "@/lib/constants";
 import { updateCenter } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +34,7 @@ export default async function CenterPage({
       <div className="section-head">
         <div>
           <h2>내 설정</h2>
-          <p>본인 정보·치료 영역·시간대를 관리합니다.</p>
+          <p>본인 정보·주력 치료 영역을 관리합니다.</p>
         </div>
       </div>
 
@@ -63,30 +64,14 @@ export default async function CenterPage({
                 <input className="input" name="phone" defaultValue={center.phone ?? ""} />
               </div>
               <div className="field" style={{ gridColumn: "1 / -1" }}>
-                <label>치료 영역 (콤마 또는 줄바꿈으로 구분)</label>
-                <textarea
-                  className="textarea"
-                  name="serviceTypes"
-                  defaultValue={center.serviceTypes}
-                  rows={3}
-                  placeholder="예: 언어재활, 놀이치료, 감각통합치료, 인지재활"
-                />
+                <label>주력 치료 영역</label>
+                <select className="select" name="serviceTypes" defaultValue={(center.serviceTypes.split(",")[0] ?? "").trim() || PRIMARY_SERVICE_OPTIONS[0]}>
+                  {PRIMARY_SERVICE_OPTIONS.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
                 <div className="sub-mute" style={{ fontSize: 11, marginTop: 4 }}>
-                  아동 등록·일정표·기록지에서 보이는 드롭다운 항목입니다.
-                </div>
-              </div>
-              <div className="field" style={{ gridColumn: "1 / -1" }}>
-                <label>치료 시간대 (콤마 또는 줄바꿈으로 구분, HH:MM~HH:MM)</label>
-                <textarea
-                  className="textarea"
-                  name="slots"
-                  defaultValue={center.slots}
-                  rows={4}
-                  placeholder="예: 09:00~09:50, 09:50~10:40, ..."
-                  style={{ fontFamily: "monospace", fontSize: 13 }}
-                />
-                <div className="sub-mute" style={{ fontSize: 11, marginTop: 4 }}>
-                  일정표·내 차단 시간·세션 편집에서 보이는 시간 옵션입니다. 본인의 회기 운영 시간에 맞춰 설정하세요.
+                  기본값이에요. 일정표·기록지에서 회기마다 다른 종류로 바꿀 수 있습니다.
                 </div>
               </div>
             </div>

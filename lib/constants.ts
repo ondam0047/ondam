@@ -10,6 +10,19 @@ export const SLOTS = [
 export const DEFAULT_SERVICE_TYPES = ["언어재활", "놀이치료", "감각통합치료"] as const;
 export type ServiceType = string;
 
+// 1인 모드에서 내 설정 드롭다운에 노출할 주력 서비스 종류 후보.
+export const PRIMARY_SERVICE_OPTIONS = [
+  "언어재활",
+  "놀이치료",
+  "감각통합치료",
+  "미술심리",
+  "음악심리",
+  "심리상담",
+  "행동재활",
+  "운동재활",
+  "기타",
+] as const;
+
 // 보건복지부 발달재활서비스 제공인력 8종 + 기타.
 // 가입 시 선택받고, 본인이 기본으로 다루는 서비스 종류를 자동 설정에 사용.
 export const THERAPIST_TYPES = [
