@@ -1,5 +1,8 @@
 import { NextRequest } from "next/server";
+import { prisma } from "@/lib/db";
+import { getCurrentUser } from "@/lib/auth";
 import {
+  applyManualMode,
   buildRecordSheets,
   bundleAsZip,
   readRecordTemplate,
@@ -8,7 +11,9 @@ import {
 } from "@/lib/record-hwpx";
 
 export async function POST(req: NextRequest) {
-  const p = (await req.json()) as RecordPayload;
+  const user = await getCurrentUser();
+  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const raw = (await req.json()) as RecordPayload;
 
   let templateBuf: Buffer;
   try {
@@ -19,6 +24,13 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
+
+  // 수기 기록지 모드면 결과·사유 + 토글된 보조 칸을 비워서 출력.
+  const center = await prisma.center.findUnique({
+    where: { id: user.centerId ?? -1 },
+    select: { manualMode: true, printUseDay: true, printPayDay: true, printApprNo: true },
+  });
+  const p = center ? applyManualMode(raw, center) : raw;
 
   const sheets = buildRecordSheets(templateBuf, p);
   const baseName = `${safeFileName(p.childName)}_${String(p.month).padStart(2, "0")}월_기록지`;

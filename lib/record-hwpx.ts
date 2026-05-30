@@ -36,6 +36,30 @@ export type RecordPayload = {
   opinion?: string;
 };
 
+// 수기 기록지 모드 — 결과·총평을 비워서 인쇄하면 사용자가 손으로 채움.
+// 보조 3칸은 토글로 출력 여부 결정 (지자체·선생님마다 다름).
+export type ManualPrintOptions = {
+  manualMode: boolean;
+  printUseDay: boolean;
+  printPayDay: boolean;
+  printApprNo: boolean;
+};
+
+export function applyManualMode(p: RecordPayload, o: ManualPrintOptions): RecordPayload {
+  if (!o.manualMode) return p;
+  return {
+    ...p,
+    sessions: p.sessions.map((s) => ({
+      ...s,
+      useDay: o.printUseDay ? s.useDay : "",
+      payDay: o.printPayDay ? s.payDay : "",
+      apprNumber: o.printApprNo ? s.apprNumber : "",
+      result: "",          // '상태 및 결과 기록' 영역 — 손으로 작성
+      resultExtra: undefined,
+    })),
+  };
+}
+
 export const RECORD_TEMPLATE_PATH = path.join(process.cwd(), "samples", "기록지_template.hwpx");
 
 const T = {

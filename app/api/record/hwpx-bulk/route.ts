@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { getCurrentUser, getEffectiveTherapistId } from "@/lib/auth";
 import { pad } from "@/lib/constants";
 import {
+  applyManualMode,
   buildRecordSheets,
   bundleAsZip,
   readRecordTemplate,
@@ -53,6 +54,13 @@ export async function GET(req: NextRequest) {
     return Response.json({ error: "템플릿 파일을 찾을 수 없어요." }, { status: 500 });
   }
 
+  // 수기 기록지 모드 — 전체 일괄에도 동일 적용.
+  const center = await prisma.center.findUnique({
+    where: { id: user.centerId ?? -1 },
+    select: { manualMode: true, printUseDay: true, printPayDay: true, printApprNo: true },
+  });
+  const manualOpts = center ?? { manualMode: false, printUseDay: true, printPayDay: true, printApprNo: true };
+
   const files: { name: string; data: Buffer }[] = [];
   const usedNames = new Set<string>();
 
@@ -78,7 +86,7 @@ export async function GET(req: NextRequest) {
       })),
       opinion: r.opinion ?? undefined,
     };
-    const sheets = buildRecordSheets(templateBuf, payload);
+    const sheets = buildRecordSheets(templateBuf, applyManualMode(payload, manualOpts));
 
     const baseName = `${safeFileName(child.name)}_${pad(r.month)}월_기록지`;
     if (sheets.length === 1) {
