@@ -228,14 +228,13 @@ export default function ApprovalCheckClient() {
                 <thead>
                   <tr>
                     <th style={{ width: 32 }}>#</th>
-                    <th>대상자</th>
-                    <th>이용일자</th>
-                    <th>서비스 시간</th>
-                    <th>결제일자</th>
-                    <th>결제시간</th>
+                    <th style={{ whiteSpace: "nowrap" }}>대상자</th>
+                    <th style={{ whiteSpace: "nowrap" }}>이용일자</th>
+                    <th style={{ whiteSpace: "nowrap" }}>결제일자</th>
+                    <th style={{ whiteSpace: "nowrap" }}>결제시간</th>
                     <th>직전과 간격</th>
-                    <th>구분</th>
-                    <th>승인번호</th>
+                    <th style={{ whiteSpace: "nowrap" }}>구분</th>
+                    <th style={{ whiteSpace: "nowrap" }}>승인번호</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -254,13 +253,10 @@ export default function ApprovalCheckClient() {
                         fontWeight: v ? 600 : undefined,
                       }}>
                         <td>{i + 1}</td>
-                        <td>{r.name}</td>
-                        <td>{r.useDate}</td>
-                        <td style={{ fontFamily: "monospace", fontSize: 12 }}>
-                          {r.serviceStart || "-"} ~ {r.serviceEnd || "-"}
-                        </td>
-                        <td>{r.payDate}</td>
-                        <td style={{ fontFamily: "monospace", fontWeight: 700 }}>{r.payTime || "-"}</td>
+                        <td style={{ whiteSpace: "nowrap" }}>{r.name}</td>
+                        <td style={{ whiteSpace: "nowrap" }}>{r.useDate}</td>
+                        <td style={{ whiteSpace: "nowrap" }}>{r.payDate}</td>
+                        <td style={{ fontFamily: "monospace", fontWeight: 700, whiteSpace: "nowrap" }}>{r.payTime || "-"}</td>
                         <td>
                           {gap == null ? "-" : (
                             <>
@@ -273,12 +269,12 @@ export default function ApprovalCheckClient() {
                             </>
                           )}
                         </td>
-                        <td>
+                        <td style={{ whiteSpace: "nowrap" }}>
                           {retro ? (
                             <span style={{ color: "var(--danger)", fontWeight: 700 }}>소급결제</span>
                           ) : (r.payKind || "-")}
                         </td>
-                        <td style={{ fontFamily: "monospace", fontSize: 11 }}>{r.apprNo}</td>
+                        <td style={{ fontFamily: "monospace", fontSize: 11, whiteSpace: "nowrap" }}>{r.apprNo}</td>
                       </tr>
                     );
                   })}
