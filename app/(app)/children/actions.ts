@@ -7,6 +7,8 @@ import { requireUser, isAdmin, getEffectiveTherapistId } from "@/lib/auth";
 
 type ServiceInput = {
   id: number | null;
+  programType: string;
+  programAlias: string | null;
   serviceType: string;
   therapistId: number | null;
   defaultSlot: string | null;
@@ -15,6 +17,12 @@ type ServiceInput = {
   defaultTarget: number;
   monthlyCopay: number | null;
 };
+
+function normalizeProgramType(raw: string): string {
+  const v = (raw || "").trim().toUpperCase();
+  if (v === "JITU" || v === "DEVREHAB") return v;
+  return "DEVREHAB";
+}
 
 function parseChildHeader(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
@@ -43,8 +51,12 @@ function parseServices(formData: FormData): ServiceInput[] {
     const idRaw = String(formData.get(`svc[${i}][id]`) ?? "");
     const therapistIdRaw = String(formData.get(`svc[${i}][therapistId]`) ?? "");
     const copayRaw = String(formData.get(`svc[${i}][monthlyCopay]`) ?? "").trim();
+    const programType = normalizeProgramType(String(formData.get(`svc[${i}][programType]`) ?? "DEVREHAB"));
+    const programAliasRaw = String(formData.get(`svc[${i}][programAlias]`) ?? "").trim();
     out.push({
       id: idRaw ? Number(idRaw) : null,
+      programType,
+      programAlias: programType === "JITU" && programAliasRaw ? programAliasRaw : null,
       serviceType,
       therapistId: therapistIdRaw ? Number(therapistIdRaw) : null,
       defaultSlot: String(formData.get(`svc[${i}][defaultSlot]`) ?? "") || null,
@@ -81,6 +93,8 @@ export async function createChild(formData: FormData) {
       centerId: user.centerId,
       services: {
         create: services.map((s) => ({
+          programType: s.programType,
+          programAlias: s.programAlias,
           serviceType: s.serviceType,
           therapistId: forcedTherapistId ?? s.therapistId,
           defaultSlot: s.defaultSlot,
@@ -147,6 +161,8 @@ export async function updateChild(id: number, formData: FormData) {
     // 기존 + 신규 업서트
     for (const s of services) {
       const data = {
+        programType: s.programType,
+        programAlias: s.programAlias,
         serviceType: s.serviceType,
         therapistId: forcedTherapistId ?? s.therapistId,
         defaultSlot: s.defaultSlot,

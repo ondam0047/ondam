@@ -35,6 +35,8 @@ export default async function SchedulePage() {
     childId: s.childId,
     name: s.child.name,
     birthDate: s.child.birthDate,
+    programType: s.programType,
+    programAlias: s.programAlias,
     serviceType: s.serviceType,
     mgmtNumber: s.child.mgmtNumber,
     defaultSlot: s.defaultSlot,

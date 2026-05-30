@@ -65,6 +65,8 @@ type MyServiceOption = {
   childId: number;
   name: string;
   birthDate: string | null;
+  programType: string;
+  programAlias: string | null;
   serviceType: string;
   hasMultipleServices?: boolean;
 };
@@ -477,6 +479,7 @@ function RecordSheet({
     return tag === child;
   }) ?? myServices.find((c) => c.name === child);
   const childServiceId = matchedService?.id ?? null;
+  const isJituRecord = (matchedService?.programType ?? "DEVREHAB") === "JITU";
   const year = new Date().getFullYear(); // 단순화: 올해 기준 (대부분 맞음)
   const birth = rows[0]?.birth ?? "";
   const org = rows[0]?.org ?? "";
@@ -638,6 +641,10 @@ function RecordSheet({
   }
 
   async function downloadHwpx() {
+    if (isJituRecord) {
+      alert("지투(지역사회서비스투자사업) 한글파일 양식은 준비 중이에요.\n양식 작업이 완료되면 한 번에 지원돼요.");
+      return;
+    }
     setDownloading(true);
     try {
       const monthNum = typeof month === "number" ? month : parseInt(String(month)) || 0;
@@ -910,6 +917,11 @@ function RecordSheet({
       {!childServiceId && (
         <div className="flash warn" style={{ marginTop: 14 }}>
           ⚠ <b>{child}</b> 가 시스템에 등록된 아동과 일치하지 않아요. 저장하려면 같은 이름으로 먼저 아동을 등록해주세요.
+        </div>
+      )}
+      {isJituRecord && (
+        <div className="flash warn" style={{ marginTop: 14 }}>
+          ⚠️ 지투(지역사회서비스투자사업) 아동입니다. 기록 저장은 가능하지만 <b>한글파일(.hwpx) 다운로드는 양식 준비 중</b>이라 곧 지원됩니다.
         </div>
       )}
 

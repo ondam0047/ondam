@@ -4,11 +4,14 @@ import Link from "next/link";
 import { useState } from "react";
 // slots 는 prop 으로 받음 (센터마다 다름)
 import DaySelector from "./DaySelector";
+import { PROGRAMS, SERVICES_BY_PROGRAM, PROGRAM_ALIAS_HINTS, type ProgramType } from "@/lib/constants";
 
 type TherapistOpt = { id: number; name: string; active: boolean };
 
 export type ServiceInput = {
   id?: number;             // 기존 ChildService 의 id (수정 시)
+  programType: ProgramType;     // 발달바우처 / 지투
+  programAlias: string | null;  // 지자체 별칭 (선택)
   serviceType: string;
   therapistId: number | null;
   defaultSlot: string | null;
@@ -53,45 +56,40 @@ export default function ChildForm({
   hideTherapistSelect?: boolean;
   canSetWaiting?: boolean;
 }) {
+  function blankService(seedServiceType: string): ServiceInput {
+    return {
+      programType: "DEVREHAB",
+      programAlias: null,
+      serviceType: seedServiceType,
+      therapistId: null,
+      defaultSlot: null,
+      defaultDays: null,
+      defaultUnit: defaultUnit,
+      defaultTarget: 5,
+      monthlyCopay: null,
+    };
+  }
+
   const c: ChildInput = child ?? {
     name: "",
     birthDate: null,
     mgmtNumber: null,
     memo: null,
-    services: [{
-      serviceType: serviceTypes[0] ?? "언어재활",
-      therapistId: null,
-      defaultSlot: null,
-      defaultDays: null,
-      defaultUnit: defaultUnit,
-      defaultTarget: 5,
-      monthlyCopay: null,
-    }],
+    services: [blankService(serviceTypes[0] ?? "언어재활")],
   };
 
-  const [services, setServices] = useState<ServiceInput[]>(c.services.length ? c.services : [{
-    serviceType: serviceTypes[0] ?? "언어재활",
-    therapistId: null,
-    defaultSlot: null,
-    defaultDays: null,
-    defaultUnit: defaultUnit,
-    defaultTarget: 5,
-      monthlyCopay: null,
-  }]);
+  const [services, setServices] = useState<ServiceInput[]>(
+    c.services.length ? c.services : [blankService(serviceTypes[0] ?? "언어재활")]
+  );
 
   function updateSvc(idx: number, patch: Partial<ServiceInput>) {
     setServices((arr) => arr.map((s, i) => i === idx ? { ...s, ...patch } : s));
   }
   function addSvc() {
-    setServices((arr) => [...arr, {
-      serviceType: serviceTypes[arr.length % serviceTypes.length] ?? "언어재활",
-      therapistId: null,
-      defaultSlot: null,
-      defaultDays: null,
-      defaultUnit: defaultUnit,
-      defaultTarget: 5,
-      monthlyCopay: null,
-    }]);
+    setServices((arr) => [
+      ...arr,
+      blankService(serviceTypes[arr.length % serviceTypes.length] ?? "언어재활"),
+    ]);
   }
   function removeSvc(idx: number) {
     setServices((arr) => arr.length > 1 ? arr.filter((_, i) => i !== idx) : arr);
@@ -174,7 +172,38 @@ export default function ChildForm({
               )}
             </div>
             <input type="hidden" name={`svc[${i}][id]`} value={s.id ?? ""} />
+            <input type="hidden" name={`svc[${i}][programType]`} value={s.programType} />
+            <input type="hidden" name={`svc[${i}][programAlias]`} value={s.programAlias ?? ""} />
             <div className="form-grid">
+              <div className="field">
+                <label>사업<span className="req">*</span></label>
+                <select
+                  className="select"
+                  value={s.programType}
+                  onChange={(e) => {
+                    const nextProgram = e.target.value as ProgramType;
+                    const nextServices = SERVICES_BY_PROGRAM[nextProgram];
+                    const nextServiceType = nextServices.includes(s.serviceType)
+                      ? s.serviceType
+                      : nextServices[0];
+                    updateSvc(i, {
+                      programType: nextProgram,
+                      serviceType: nextServiceType,
+                      programAlias: nextProgram === "DEVREHAB" ? null : s.programAlias,
+                    });
+                  }}
+                  required
+                >
+                  {(Object.keys(PROGRAMS) as ProgramType[]).map((k) => (
+                    <option key={k} value={k}>{PROGRAMS[k]}</option>
+                  ))}
+                </select>
+                {s.programType === "JITU" && (
+                  <div className="sub-mute" style={{ fontSize: 11, marginTop: 4, color: "var(--accent)" }}>
+                    ⚠️ 지투 양식은 준비 중 — 등록·일정은 가능, 한글파일 생성은 곧 지원
+                  </div>
+                )}
+              </div>
               <div className="field">
                 <label>서비스 종류<span className="req">*</span></label>
                 <select
@@ -184,9 +213,25 @@ export default function ChildForm({
                   onChange={(e) => updateSvc(i, { serviceType: e.target.value })}
                   required
                 >
-                  {serviceTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+                  {(SERVICES_BY_PROGRAM[s.programType] ?? serviceTypes).map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
                 </select>
               </div>
+              {s.programType === "JITU" && (
+                <div className="field" style={{ gridColumn: "1 / -1" }}>
+                  <label>지자체 별칭 <span className="sub-mute">(선택)</span></label>
+                  <input
+                    className="input"
+                    value={s.programAlias ?? ""}
+                    onChange={(e) => updateSvc(i, { programAlias: e.target.value || null })}
+                    placeholder={PROGRAM_ALIAS_HINTS[s.serviceType]?.[0] ?? ""}
+                  />
+                  <div className="sub-mute" style={{ fontSize: 11, marginTop: 4 }}>
+                    예: 부천·안양 → "우리아이심리지원". 비우면 표준명만 사용.
+                  </div>
+                </div>
+              )}
               {!hideTherapistSelect && (
                 <div className="field">
                   <label>담당 치료사</label>

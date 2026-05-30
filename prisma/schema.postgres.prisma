@@ -141,6 +141,8 @@ model ChildService {
   therapist     Therapist? @relation(fields: [therapistId], references: [id])
 
   serviceType   String
+  programType   String    @default("DEVREHAB")
+  programAlias  String?
   defaultSlot   String?
   defaultDays   String?
   defaultUnit   Int       @default(65000)

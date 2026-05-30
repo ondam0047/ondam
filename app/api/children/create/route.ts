@@ -6,6 +6,8 @@ type Body = {
   name: string;
   birthDate?: string;
   mgmtNumber?: string;
+  programType?: string;     // "DEVREHAB" | "JITU"
+  programAlias?: string | null;
   serviceType: string;
   defaultUnit?: number;
   defaultTarget?: number;
@@ -30,6 +32,11 @@ export async function POST(req: NextRequest) {
     therapistId = await getEffectiveTherapistId(user);
   }
 
+  const programType = body.programType === "JITU" ? "JITU" : "DEVREHAB";
+  const programAlias = programType === "JITU" && body.programAlias?.trim()
+    ? body.programAlias.trim()
+    : null;
+
   const child = await prisma.child.create({
     data: {
       name,
@@ -41,6 +48,8 @@ export async function POST(req: NextRequest) {
       centerId: user.centerId,
       services: {
         create: [{
+          programType,
+          programAlias,
           serviceType,
           therapistId,
           defaultSlot: body.defaultSlot || null,
@@ -61,6 +70,8 @@ export async function POST(req: NextRequest) {
     name: child.name,
     birthDate: child.birthDate,
     mgmtNumber: child.mgmtNumber,
+    programType: svc.programType,
+    programAlias: svc.programAlias,
     serviceType: svc.serviceType,
     defaultSlot: svc.defaultSlot,
     defaultDays: svc.defaultDays,

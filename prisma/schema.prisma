@@ -151,6 +151,11 @@ model ChildService {
   therapist     Therapist? @relation(fields: [therapistId], references: [id])
 
   serviceType   String    // "언어재활" 등 — Center.serviceTypes 중 하나
+  // 어떤 바우처 사업인지. "DEVREHAB" (발달바우처) | "JITU" (지역사회서비스투자사업).
+  // 기존 데이터는 모두 발달바우처로 디폴트.
+  programType   String    @default("DEVREHAB")
+  // 지자체별 별칭 (예: 우리아이심리지원). 비우면 표준명만 사용.
+  programAlias  String?
   defaultSlot   String?
   defaultDays   String?
   defaultUnit   Int       @default(65000)

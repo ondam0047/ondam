@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   WEEK, holiday, pad,
+  PROGRAMS, SERVICES_BY_PROGRAM, PROGRAM_ALIAS_HINTS, isJitu, displayProgramName,
+  type ProgramType,
 } from "@/lib/constants";
 
 type Session = { time: string; makeup: boolean };
@@ -16,6 +18,8 @@ type ChildOption = {
   childId: number;              // 사람 id (동명이인 구분용)
   name: string;                 // 아동 이름
   birthDate: string | null;
+  programType: string;           // "DEVREHAB" | "JITU"
+  programAlias: string | null;
   serviceType: string;
   mgmtNumber: string | null;
   defaultSlot: string | null;
@@ -127,7 +131,13 @@ export default function ScheduleClient({
   const [newName, setNewName] = useState("");
   const [newBirth, setNewBirth] = useState("");
   const [newCopay, setNewCopay] = useState("");
+  const [newProgram, setNewProgram] = useState<ProgramType>("DEVREHAB");
+  const [newService, setNewService] = useState<string>(serviceTypes[0] ?? "언어재활");
+  const [newAlias, setNewAlias] = useState("");
   const [creatingChild, setCreatingChild] = useState(false);
+
+  // 사업이 바뀌면 서비스 목록도 바꿔주기
+  const newServiceOptions = SERVICES_BY_PROGRAM[newProgram] ?? serviceTypes;
 
   async function createNewChild() {
     if (!newName.trim()) { alert("이름을 입력해주세요."); return; }
@@ -139,7 +149,9 @@ export default function ScheduleClient({
         body: JSON.stringify({
           name: newName.trim(),
           birthDate: newBirth.trim() || undefined,
-          serviceType: serviceTypes[0] ?? "언어재활",
+          programType: newProgram,
+          programAlias: newProgram === "JITU" ? (newAlias.trim() || null) : null,
+          serviceType: newServiceOptions.includes(newService) ? newService : newServiceOptions[0],
           defaultUnit: centerDefaultUnit,
           monthlyCopay: newCopay.trim() ? Number(newCopay.replace(/[^\d]/g, "")) : null,
         }),
@@ -152,7 +164,9 @@ export default function ScheduleClient({
       const created = (await res.json()) as ChildOption;
       setChildrenOpts((arr) => [...arr, created]);
       setShowNewChild(false);
-      setNewName(""); setNewBirth(""); setNewCopay("");
+      setNewName(""); setNewBirth(""); setNewCopay(""); setNewAlias("");
+      setNewProgram("DEVREHAB");
+      setNewService(serviceTypes[0] ?? "언어재활");
       loadChild(String(created.id));
     } finally {
       setCreatingChild(false);
@@ -515,8 +529,20 @@ export default function ScheduleClient({
   const unitNumber = parseInt(costUnit.replace(/[^\d]/g, "")) || 0;
   const costTotal = unitNumber * totalCount;
 
+  // 선택된 아동의 사업 유형 (없으면 발달바우처).
+  const selectedProgramType = useMemo(() => {
+    if (typeof selectedChildId !== "number") return "DEVREHAB";
+    const c = childrenOpts.find((x) => x.id === selectedChildId);
+    return c?.programType ?? "DEVREHAB";
+  }, [selectedChildId, childrenOpts]);
+  const selectedIsJitu = isJitu(selectedProgramType);
+
   async function downloadHwpx() {
     if (!sessions) return;
+    if (selectedIsJitu) {
+      alert("지투(지역사회서비스투자사업) 한글파일 양식은 준비 중이에요.\n양식 작업이 완료되면 한 번에 지원돼요.");
+      return;
+    }
     setDownloadingHwpx(true);
     try {
       // 이 달의 모든 공휴일 (해당 월의 1일~말일 검사)
@@ -636,6 +662,7 @@ export default function ScheduleClient({
                       {filtered.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.name}
+                          {isJitu(c.programType) ? " 🅙" : ""}
                           {c.hasMultipleServices ? ` · ${c.serviceType}` : ""}
                           {c.therapistName ? ` · ${c.therapistName}` : ""}
                           {c.defaultSlot ? ` · ${c.defaultSlot}` : ""}
@@ -662,6 +689,13 @@ export default function ScheduleClient({
                 className="btn btn-primary btn-sm"
                 onClick={() => setShowNewChild(true)}
               >+ 새 아동 등록</button>
+            </div>
+          )}
+
+          {selectedIsJitu && (
+            <div className="flash warn" style={{ marginBottom: 14 }}>
+              ⚠️ <b>{displayProgramName(selectedProgramType, childrenOpts.find((c) => c.id === selectedChildId)?.programAlias)}</b> 아동입니다.
+              일정표 생성·저장은 가능하지만 <b>한글파일(.hwpx) 다운로드는 양식 준비 중</b>이라 곧 지원됩니다.
             </div>
           )}
 
@@ -897,7 +931,7 @@ export default function ScheduleClient({
           <div className="modal" style={{ minWidth: 340 }}>
             <div className="modal-title">새 아동 등록</div>
             <div className="sub-mute" style={{ fontSize: 12, marginBottom: 12 }}>
-              여기서 저장하면 "내 아동" 목록에도 즉시 추가됩니다. 서비스 종류는 {serviceTypes[0]} (가입 시 선택한 종류).
+              여기서 저장하면 "내 아동" 목록에도 즉시 추가됩니다.
             </div>
             <div className="field" style={{ marginBottom: 10 }}>
               <label>이름<span className="req">*</span></label>
@@ -912,6 +946,50 @@ export default function ScheduleClient({
               <label>생년월일 <span className="sub-mute">(선택)</span></label>
               <input className="input" value={newBirth} onChange={(e) => setNewBirth(e.target.value)} />
             </div>
+            <div className="field" style={{ marginBottom: 10 }}>
+              <label>사업<span className="req">*</span></label>
+              <select
+                className="select"
+                value={newProgram}
+                onChange={(e) => {
+                  const next = e.target.value as ProgramType;
+                  setNewProgram(next);
+                  const opts = SERVICES_BY_PROGRAM[next];
+                  if (!opts.includes(newService)) setNewService(opts[0]);
+                  if (next === "DEVREHAB") setNewAlias("");
+                }}
+              >
+                {(Object.keys(PROGRAMS) as ProgramType[]).map((k) => (
+                  <option key={k} value={k}>{PROGRAMS[k]}</option>
+                ))}
+              </select>
+              {newProgram === "JITU" && (
+                <div className="sub-mute" style={{ fontSize: 11, marginTop: 4, color: "var(--accent)" }}>
+                  ⚠️ 지투 양식은 준비 중 — 등록·일정은 가능, 한글파일 생성은 곧 지원
+                </div>
+              )}
+            </div>
+            <div className="field" style={{ marginBottom: 10 }}>
+              <label>서비스 종류<span className="req">*</span></label>
+              <select
+                className="select"
+                value={newService}
+                onChange={(e) => setNewService(e.target.value)}
+              >
+                {newServiceOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            {newProgram === "JITU" && (
+              <div className="field" style={{ marginBottom: 10 }}>
+                <label>지자체 별칭 <span className="sub-mute">(선택)</span></label>
+                <input
+                  className="input"
+                  value={newAlias}
+                  onChange={(e) => setNewAlias(e.target.value)}
+                  placeholder={PROGRAM_ALIAS_HINTS[newService]?.[0] ?? ""}
+                />
+              </div>
+            )}
             <div className="field" style={{ marginBottom: 10 }}>
               <label>월 본인부담금 (원) <span className="sub-mute">(선택)</span></label>
               <input

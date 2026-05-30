@@ -33,6 +33,8 @@ export async function GET(req: NextRequest) {
       month,
       childService: {
         therapistId: myTherapistId,
+        // 지투는 양식 준비 중 — 일괄 출력에서 자동 제외
+        programType: "DEVREHAB",
         child: { centerId: user.centerId ?? -1 },
       },
     },
@@ -44,7 +46,7 @@ export async function GET(req: NextRequest) {
   });
 
   if (records.length === 0) {
-    return Response.json({ error: `${year}년 ${month}월 저장된 기록지가 없어요.` }, { status: 404 });
+    return Response.json({ error: `${year}년 ${month}월 발달바우처로 저장된 기록지가 없어요.` }, { status: 404 });
   }
 
   let templateBuf: Buffer;

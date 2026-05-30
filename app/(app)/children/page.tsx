@@ -227,6 +227,11 @@ export default async function ChildrenPage({
                                 fontSize: 12.5,
                               }}>
                                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+                                  {s.programType === "JITU" && (
+                                    <span className="badge" style={{ background: "var(--accent)", color: "#fff" }} title={s.programAlias ?? "지역사회서비스투자사업"}>
+                                      🅙 {s.programAlias ?? "지투"}
+                                    </span>
+                                  )}
                                   <span className="badge badge-primary">{s.serviceType}</span>
                                   {canManage && (
                                     <span style={{ fontSize: 12, color: "var(--text-soft)" }}>

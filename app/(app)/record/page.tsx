@@ -28,6 +28,8 @@ export default async function RecordPage() {
     childId: s.childId,
     name: s.child.name,
     birthDate: s.child.birthDate,
+    programType: s.programType,
+    programAlias: s.programAlias,
     serviceType: s.serviceType,
     hasMultipleServices: (childCount.get(s.childId) ?? 0) > 1,
   }));

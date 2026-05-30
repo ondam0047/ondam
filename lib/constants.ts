@@ -56,6 +56,61 @@ export function parseServiceTypes(str: string | null | undefined): string[] {
   return str.split(",").map((s) => s.trim()).filter(Boolean);
 }
 
+// ─── 바우처 사업 분기 ──────────────────────────────────────────────────
+// 발달바우처 (발달재활서비스) 와 지투 (지역사회서비스투자사업) 둘 다 운영하는
+// 치료사 다수. ChildService.programType 으로 분기해 일정표·기록지 양식·옵션을
+// 사업별로 다르게 처리.
+
+export const PROGRAMS = {
+  DEVREHAB: "발달바우처",
+  JITU: "지역사회서비스투자사업",
+} as const;
+export type ProgramType = keyof typeof PROGRAMS;
+
+// 사업별 서비스 종류. 지투는 우선 인기 TOP3 만 (양식 준비되면 확장).
+export const SERVICES_BY_PROGRAM: Record<ProgramType, string[]> = {
+  DEVREHAB: [
+    "언어재활",
+    "놀이치료",
+    "감각통합치료",
+    "미술심리",
+    "음악심리",
+    "심리상담",
+    "행동재활",
+    "운동재활",
+  ],
+  JITU: [
+    "아동·청소년 심리지원",
+    "영유아 발달지원",
+    "아동·청소년 정서발달지원",
+  ],
+};
+
+// 지자체별 흔히 쓰는 별칭 — 사용자 입력 시 placeholder/추천용. 자유 입력 가능.
+export const PROGRAM_ALIAS_HINTS: Record<string, string[]> = {
+  "아동·청소년 심리지원": ["우리아이심리지원", "아이마음돌봄", "마음건강서비스"],
+  "영유아 발달지원": ["우리아이발달지원", "영유아발달바우처"],
+  "아동·청소년 정서발달지원": ["음악정서지원", "미술정서지원"],
+};
+
+// 치료사 종류 → 기본 사업·서비스 추론. 가입 시 자동 채움에 사용.
+export function defaultProgramForTherapist(therapistType: string | null | undefined): ProgramType {
+  if (!therapistType) return "DEVREHAB";
+  // 모든 발달재활 종류는 발달바우처가 디폴트. 지투는 사용자가 명시적으로 선택.
+  return "DEVREHAB";
+}
+
+export function isJitu(programType: string | null | undefined): boolean {
+  return programType === "JITU";
+}
+
+// 사업의 표시명 (별칭 우선, 없으면 표준명).
+export function displayProgramName(programType: string, alias?: string | null): string {
+  const standard = PROGRAMS[(programType as ProgramType)] ?? "발달바우처";
+  if (alias && alias.trim()) return `${alias.trim()} · ${standard}`;
+  return standard;
+}
+
 // 센터별 시간대 (Center.slots) 파싱
 export function parseSlots(str: string | null | undefined): string[] {
   if (!str) return [...SLOTS];

@@ -73,6 +73,8 @@ export default async function EditChildPage(props: PageProps<"/children/[id]/edi
               waiting: child.waiting,
               services: visibleServices.map((s) => ({
                 id: s.id,
+                programType: (s.programType === "JITU" ? "JITU" : "DEVREHAB") as "DEVREHAB" | "JITU",
+                programAlias: s.programAlias,
                 serviceType: s.serviceType,
                 therapistId: s.therapistId,
                 defaultSlot: s.defaultSlot,
