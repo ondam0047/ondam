@@ -10,6 +10,34 @@ export const SLOTS = [
 export const DEFAULT_SERVICE_TYPES = ["언어재활", "놀이치료", "감각통합치료"] as const;
 export type ServiceType = string;
 
+// 보건복지부 발달재활서비스 제공인력 8종 + 기타.
+// 가입 시 선택받고, 본인이 기본으로 다루는 서비스 종류를 자동 설정에 사용.
+export const THERAPIST_TYPES = [
+  "언어재활사",
+  "놀이심리상담사",
+  "감각통합치료사",
+  "미술심리상담사",
+  "음악심리상담사",
+  "임상심리사",
+  "행동발달재활사",
+  "운동발달재활사",
+  "기타",
+] as const;
+export type TherapistType = (typeof THERAPIST_TYPES)[number];
+
+// 치료사 종류 → 기본 서비스 종류 매핑.
+// 가입 시 자동으로 Center.serviceTypes 에 본인 종류 첫 번째로.
+export const THERAPIST_TO_SERVICE: Record<string, string> = {
+  "언어재활사":       "언어재활",
+  "놀이심리상담사":   "놀이치료",
+  "감각통합치료사":   "감각통합치료",
+  "미술심리상담사":   "미술심리",
+  "음악심리상담사":   "음악심리",
+  "임상심리사":       "심리상담",
+  "행동발달재활사":   "행동재활",
+  "운동발달재활사":   "운동재활",
+};
+
 export function parseServiceTypes(str: string | null | undefined): string[] {
   if (!str) return [...DEFAULT_SERVICE_TYPES];
   return str.split(",").map((s) => s.trim()).filter(Boolean);

@@ -56,6 +56,8 @@ model User {
   passwordHash String
   role         String
   active       Boolean  @default(true)
+  // 치료사 종류 — 보건복지부 발달재활서비스 제공인력 분류 + 기타
+  therapistType String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

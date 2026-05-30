@@ -53,6 +53,7 @@ model User {
   passwordHash String
   role         String
   active       Boolean  @default(true)
+  therapistType String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

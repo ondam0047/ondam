@@ -92,11 +92,17 @@ const ROLE_LABEL: Record<string, string> = {
   THERAPIST: "선생님",
 };
 
+const BETA_GEAR_ICON = "M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z";
+
 export default function Sidebar({ user }: { user: SessionUser }) {
   const pathname = usePathname();
-  const items = user.role === "OWNER"
+  const baseItems = user.role === "OWNER"
     ? OWNER_ITEMS
     : user.role === "ADMIN" ? ADMIN_ITEMS : THERAPIST_ITEMS;
+  // 베타 운영자에게만 운영 메뉴 추가
+  const items = user.email.toLowerCase() === "yj2000102@gmail.com"
+    ? [...baseItems, { href: "/admin/beta", label: "🛠️ 베타 운영", icon: BETA_GEAR_ICON }]
+    : baseItems;
   const initial = user.name.charAt(0) || "?";
 
   return (
