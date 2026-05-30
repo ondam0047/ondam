@@ -79,7 +79,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     role: session.user.role as Role,
     therapistId: session.user.therapistId,
     centerId: session.user.centerId,
-    centerName: session.user.center?.name ?? null,
+    centerName: (session.user.center?.name?.trim() || null),
   };
 }
 

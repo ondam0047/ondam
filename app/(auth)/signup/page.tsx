@@ -54,12 +54,11 @@ async function signupSolo(formData: FormData) {
     : DEFAULT_SERVICE_TYPES.join(",");
 
   // 내부적으로 Center 자동 생성 + 본인 Therapist 자동 생성·연결.
-  // 사용자가 센터명을 안 적으면 본인 이름으로.
-  const workplaceName = centerName || name;
+  // 사용자가 센터명을 안 적으면 빈 문자열 — 일정표 제공기관명도 빈칸으로 시작.
   const approvalCode = await generateApprovalCode();
   const center = await prisma.center.create({
     data: {
-      name: workplaceName,
+      name: centerName,
       approvalCode,
       serviceTypes: defaultServices,
     },

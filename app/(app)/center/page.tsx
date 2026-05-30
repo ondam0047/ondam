@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
-import { PRIMARY_SERVICE_OPTIONS } from "@/lib/constants";
+import { PRIMARY_SERVICE_OPTIONS, THERAPIST_TYPES } from "@/lib/constants";
 import { updateCenter } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -14,12 +14,13 @@ export default async function CenterPage({
   const sp = await searchParams;
   const centerId = me.centerId ?? -1;
 
-  const [center, childCount] = await Promise.all([
+  const [center, userRow, childCount] = await Promise.all([
     prisma.center.findUnique({ where: { id: centerId } }),
+    prisma.user.findUnique({ where: { id: me.id }, select: { name: true, therapistType: true } }),
     prisma.child.count({ where: { centerId, active: true } }),
   ]);
 
-  if (!center) {
+  if (!center || !userRow) {
     return (
       <div className="card">
         <div className="card-body">
@@ -34,7 +35,7 @@ export default async function CenterPage({
       <div className="section-head">
         <div>
           <h2>내 설정</h2>
-          <p>본인 정보·주력 치료 영역을 관리합니다.</p>
+          <p>회원가입 때 입력한 내용을 여기서 모두 수정할 수 있어요. 변경 즉시 일정표·기록지에 반영됩니다.</p>
         </div>
       </div>
 
@@ -48,14 +49,33 @@ export default async function CenterPage({
         <div className="card-body">
           <form action={updateCenter}>
             <div className="form-grid">
-              <div className="field" style={{ gridColumn: "span 2" }}>
-                <label>이름 / 소속 센터명<span className="req">*</span></label>
-                <input className="input" name="name" defaultValue={center.name} required />
+              <div className="field">
+                <label>내 이름<span className="req">*</span></label>
+                <input className="input" name="userName" defaultValue={userRow.name} required />
                 <div className="sub-mute" style={{ fontSize: 11, marginTop: 4 }}>
-                  일정표·기록지의 '제공기관명' 기본값으로 사용됩니다.
+                  일정표·기록지의 '담당' · '치료사명' 으로 들어가요.
                 </div>
               </div>
-              <div className="field" style={{ gridColumn: "span 2" }}>
+              <div className="field">
+                <label>치료사 종류<span className="req">*</span></label>
+                <select className="select" name="therapistType" defaultValue={userRow.therapistType ?? ""} required>
+                  <option value="" disabled>— 선택 —</option>
+                  {THERAPIST_TYPES.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+                <div className="sub-mute" style={{ fontSize: 11, marginTop: 4 }}>
+                  일정표·기록지의 서비스 종류 자동 채움.
+                </div>
+              </div>
+              <div className="field" style={{ gridColumn: "1 / -1" }}>
+                <label>소속 센터명 <span className="sub-mute">(선택)</span></label>
+                <input className="input" name="centerName" defaultValue={center.name} />
+                <div className="sub-mute" style={{ fontSize: 11, marginTop: 4 }}>
+                  일정표·기록지의 '제공기관명' 으로 들어가요. 프리랜서면 비워두세요.
+                </div>
+              </div>
+              <div className="field">
                 <label>주소 (선택)</label>
                 <input className="input" name="address" defaultValue={center.address ?? ""} />
               </div>
@@ -71,7 +91,7 @@ export default async function CenterPage({
                   ))}
                 </select>
                 <div className="sub-mute" style={{ fontSize: 11, marginTop: 4 }}>
-                  기본값이에요. 일정표·기록지에서 회기마다 다른 종류로 바꿀 수 있습니다.
+                  일정표·기록지의 '서비스 종류' 기본값. 회기마다 다른 종류로 바꿀 수 있어요.
                 </div>
               </div>
               <div className="field">

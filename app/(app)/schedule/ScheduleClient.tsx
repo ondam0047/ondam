@@ -173,20 +173,16 @@ export default function ScheduleClient({
           setYm(d.ym);
         }
         if (typeof d.name === "string") setName(d.name);
-        if (typeof d.therapist === "string" && d.therapist) setTherapist(d.therapist);
-        // 서비스 종류는 가입 시 선택한 치료사 종류로 고정. draft 값이 다르면 무시.
-        if (typeof d.serviceType === "string" && d.serviceType && serviceTypes.includes(d.serviceType)) {
-          setServiceType(d.serviceType);
-        }
+        // 치료사명·서비스 종류·제공기관명 은 모두 내 설정에서 옴.
+        // draft 값이 옛 설정일 수 있으니 복원하지 않고 props 의 최신값(defaultFilterTherapist,
+        // serviceTypes[0], defaultOrg) 을 그대로 사용.
         if (typeof d.target === "number") setTarget(d.target);
         if (typeof d.defaultSlot === "string") setDefaultSlot(d.defaultSlot);
         if (Array.isArray(d.pattern)) setPattern(d.pattern.filter((n: unknown) => typeof n === "number"));
         if (typeof d.childBirth === "string") setChildBirth(d.childBirth);
         if (typeof d.mgmt === "string") setMgmt(d.mgmt);
-        if (typeof d.pvOrg === "string") setPvOrg(d.pvOrg);
+        // pvOrg(제공기관명), pvCharge(담당), pvType(서비스 종류) 도 설정에서 옴 — 복원 안 함.
         if (typeof d.pvTel === "string") setPvTel(d.pvTel);
-        if (typeof d.pvCharge === "string") setPvCharge(d.pvCharge);
-        if (typeof d.pvType === "string") setPvType(d.pvType);
         if (typeof d.costUnit === "string") setCostUnit(d.costUnit);
         if (typeof d.costSelf === "string") setCostSelf(d.costSelf);
         if (typeof d.writeDate === "string") setWriteDate(d.writeDate);
