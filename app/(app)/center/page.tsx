@@ -95,7 +95,6 @@ export default async function CenterPage({
                   name="slots"
                   defaultValue={center.slots}
                   rows={4}
-                  placeholder="예: 09:00~09:50, 10:00~10:50, ..."
                   style={{ fontFamily: "monospace", fontSize: 13 }}
                 />
                 <div className="sub-mute" style={{ fontSize: 11, marginTop: 4 }}>

@@ -71,6 +71,8 @@ export default function ScheduleClient({
   // 일정표·기록지 사이 이동 시 선택 상태 유지용 localStorage 키
   const LS_CSID = "baroilji_last_childServiceId";
   const LS_YM = "baroilji_last_ym";
+  // 미리보기(생성된 sessions + 메타) 통째 저장 — 탭 이동해도 그대로
+  const LS_DRAFT = "baroilji_schedule_draft";
 
   // form
   const [selectedChildId, setSelectedChildId] = useState<number | "">("");
@@ -117,35 +119,79 @@ export default function ScheduleClient({
   const [editMakeup, setEditMakeup] = useState(false);
   const editExists = editDay !== null && sessions !== null && sessions[editDay] !== undefined;
 
-  // 페이지 진입 시 localStorage 에 마지막 (아동, 연·월) 있으면 자동 복원
+  // 페이지 진입 시 localStorage 에서 마지막 작업 상태 복원
+  const [hydrated, setHydrated] = useState(false);
   useEffect(() => {
     try {
-      const savedYm = localStorage.getItem(LS_YM);
-      if (savedYm && monthOptions.some((o) => o.value === savedYm)) {
-        setYm(savedYm);
-      }
-      const savedCsId = localStorage.getItem(LS_CSID);
-      if (savedCsId) {
-        const id = Number(savedCsId);
-        if (childrenOpts.some((c) => c.id === id)) {
-          loadChild(String(id));
+      const raw = localStorage.getItem(LS_DRAFT);
+      if (raw) {
+        const d = JSON.parse(raw);
+        if (typeof d.csId === "number" && childrenOpts.some((c) => c.id === d.csId)) {
+          setSelectedChildId(d.csId);
+        }
+        if (typeof d.ym === "string" && monthOptions.some((o) => o.value === d.ym)) {
+          setYm(d.ym);
+        }
+        if (typeof d.name === "string") setName(d.name);
+        if (typeof d.therapist === "string" && d.therapist) setTherapist(d.therapist);
+        if (typeof d.serviceType === "string" && d.serviceType) setServiceType(d.serviceType);
+        if (typeof d.target === "number") setTarget(d.target);
+        if (typeof d.defaultSlot === "string") setDefaultSlot(d.defaultSlot);
+        if (Array.isArray(d.pattern)) setPattern(d.pattern.filter((n: unknown) => typeof n === "number"));
+        if (typeof d.childBirth === "string") setChildBirth(d.childBirth);
+        if (typeof d.mgmt === "string") setMgmt(d.mgmt);
+        if (typeof d.pvOrg === "string") setPvOrg(d.pvOrg);
+        if (typeof d.pvTel === "string") setPvTel(d.pvTel);
+        if (typeof d.pvCharge === "string") setPvCharge(d.pvCharge);
+        if (typeof d.pvType === "string") setPvType(d.pvType);
+        if (typeof d.costUnit === "string") setCostUnit(d.costUnit);
+        if (typeof d.costSelf === "string") setCostSelf(d.costSelf);
+        if (typeof d.writeDate === "string") setWriteDate(d.writeDate);
+        if (d.sessions && typeof d.sessions === "object" && typeof d.genY === "number" && typeof d.genM === "number") {
+          setSessions(d.sessions as SessionMap);
+          setGenY(d.genY);
+          setGenM(d.genM);
+        }
+        if (typeof d.loadedScheduleId === "number") setLoadedScheduleId(d.loadedScheduleId);
+      } else {
+        // 구버전 호환 — 분리된 키도 한 번 확인
+        const savedYm = localStorage.getItem(LS_YM);
+        if (savedYm && monthOptions.some((o) => o.value === savedYm)) setYm(savedYm);
+        const savedCsId = localStorage.getItem(LS_CSID);
+        if (savedCsId) {
+          const id = Number(savedCsId);
+          if (childrenOpts.some((c) => c.id === id)) loadChild(String(id));
         }
       }
     } catch {}
+    setHydrated(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 선택값이 바뀔 때마다 localStorage 에 저장
+  // 모든 편집 가능한 상태를 localStorage 에 저장 (탭 이동 후 돌아와도 그대로)
   useEffect(() => {
+    if (!hydrated) return;
     try {
+      const draft = {
+        csId: typeof selectedChildId === "number" ? selectedChildId : null,
+        ym,
+        name, therapist, serviceType, target, defaultSlot, pattern, childBirth,
+        mgmt, pvOrg, pvTel, pvCharge, pvType, costUnit, costSelf, writeDate,
+        sessions, genY, genM,
+        loadedScheduleId,
+      };
+      localStorage.setItem(LS_DRAFT, JSON.stringify(draft));
       if (typeof selectedChildId === "number") {
         localStorage.setItem(LS_CSID, String(selectedChildId));
       }
+      localStorage.setItem(LS_YM, ym);
     } catch {}
-  }, [selectedChildId]);
-  useEffect(() => {
-    try { localStorage.setItem(LS_YM, ym); } catch {}
-  }, [ym]);
+  }, [
+    hydrated, selectedChildId, ym,
+    name, therapist, serviceType, target, defaultSlot, pattern, childBirth,
+    mgmt, pvOrg, pvTel, pvCharge, pvType, costUnit, costSelf, writeDate,
+    sessions, genY, genM, loadedScheduleId,
+  ]);
 
   function togglePattern(i: number) {
     setPattern((prev) => (prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i].sort()));

@@ -79,35 +79,56 @@ export default function RecordClient({
   const [manualYm, setManualYm] = useState(monthOptions.find((o) => o.label.includes("이번 달"))?.value ?? monthOptions[0].value);
   const [manualLoading, setManualLoading] = useState(false);
 
-  // 일정표·기록지 사이 이동 시 마지막 (아동, 연·월) 자동 복원
+  const [grouped, setGrouped] = useState<Grouped>({});
+  const [curChild, setCurChild] = useState<string | null>(null);
+
+  // 일정표·기록지 사이 이동 시 미리보기 화면 그대로 복원
+  const LS_DRAFT = "baroilji_record_draft";
+  const [hydrated, setHydrated] = useState(false);
   useEffect(() => {
     try {
-      const savedYm = localStorage.getItem("baroilji_last_ym");
-      if (savedYm && monthOptions.some((o) => o.value === savedYm)) {
-        setManualYm(savedYm);
-      }
-      const savedCsId = localStorage.getItem("baroilji_last_childServiceId");
-      if (savedCsId) {
-        const id = Number(savedCsId);
-        if (myServices.some((s) => s.id === id)) {
-          setManualCSId(id);
+      const raw = localStorage.getItem(LS_DRAFT);
+      if (raw) {
+        const d = JSON.parse(raw);
+        if (typeof d.manualCSId === "number" && myServices.some((s) => s.id === d.manualCSId)) {
+          setManualCSId(d.manualCSId);
+        }
+        if (typeof d.manualYm === "string" && monthOptions.some((o) => o.value === d.manualYm)) {
+          setManualYm(d.manualYm);
+        }
+        if (typeof d.therapist === "string" && d.therapist) setTherapist(d.therapist);
+        if (typeof d.uploadInfo === "string") setUploadInfo(d.uploadInfo);
+        if (d.grouped && typeof d.grouped === "object") setGrouped(d.grouped as Grouped);
+        if (typeof d.curChild === "string") setCurChild(d.curChild);
+      } else {
+        // 구버전 호환
+        const savedYm = localStorage.getItem("baroilji_last_ym");
+        if (savedYm && monthOptions.some((o) => o.value === savedYm)) setManualYm(savedYm);
+        const savedCsId = localStorage.getItem("baroilji_last_childServiceId");
+        if (savedCsId) {
+          const id = Number(savedCsId);
+          if (myServices.some((s) => s.id === id)) setManualCSId(id);
         }
       }
     } catch {}
+    setHydrated(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 선택값 변경 시 localStorage 에 저장 (일정표와 공유)
   useEffect(() => {
+    if (!hydrated) return;
     try {
+      const draft = {
+        manualCSId: typeof manualCSId === "number" ? manualCSId : null,
+        manualYm, therapist, uploadInfo, grouped, curChild,
+      };
+      localStorage.setItem(LS_DRAFT, JSON.stringify(draft));
       if (typeof manualCSId === "number") {
         localStorage.setItem("baroilji_last_childServiceId", String(manualCSId));
       }
+      localStorage.setItem("baroilji_last_ym", manualYm);
     } catch {}
-  }, [manualCSId]);
-  useEffect(() => {
-    try { localStorage.setItem("baroilji_last_ym", manualYm); } catch {}
-  }, [manualYm]);
+  }, [hydrated, manualCSId, manualYm, therapist, uploadInfo, grouped, curChild]);
 
   async function startManual() {
     if (!manualCSId || !manualYm) return;
@@ -161,9 +182,6 @@ export default function RecordClient({
       setManualLoading(false);
     }
   }
-  const [grouped, setGrouped] = useState<Grouped>({});
-  const [curChild, setCurChild] = useState<string | null>(null);
-
   function readExcel(file: File) {
     setError("");
     const r = new FileReader();
@@ -780,12 +798,11 @@ function RecordSheet({
               {hasBoth && !match && (
                 <div style={{ marginTop: 8 }}>
                   <label style={{ display: "block", fontSize: 12.5, fontWeight: 600, color: "var(--danger)", marginBottom: 4 }}>
-                    📝 불일치 사유 <span className="sub-mute" style={{ fontWeight: 400 }}>(예: 아동 독감으로 보강수업)</span>
+                    📝 불일치 사유
                   </label>
                   <input
                     className="input"
                     value={mismatchReasons[i]}
-                    placeholder={`예: - ${useD}일 수업이나, 사정으로 ${payD}일에 보강수업함.`}
                     onChange={(e) => setMismatchReasons((p) => { const n = [...p]; n[i] = e.target.value; return n; })}
                   />
                 </div>
