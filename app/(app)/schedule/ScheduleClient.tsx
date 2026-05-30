@@ -65,6 +65,10 @@ export default function ScheduleClient({
   const monthOptions = useMemo(() => buildMonthOptions(), []);
   const defaultYm = monthOptions.find((o) => o.current)?.value ?? monthOptions[0].value;
 
+  // 일정표·기록지 사이 이동 시 선택 상태 유지용 localStorage 키
+  const LS_CSID = "baroilji_last_childServiceId";
+  const LS_YM = "baroilji_last_ym";
+
   // form
   const [selectedChildId, setSelectedChildId] = useState<number | "">("");
   const [name, setName] = useState("");
@@ -109,6 +113,36 @@ export default function ScheduleClient({
   const [editTime, setEditTime] = useState(defaultSlot);
   const [editMakeup, setEditMakeup] = useState(false);
   const editExists = editDay !== null && sessions !== null && sessions[editDay] !== undefined;
+
+  // 페이지 진입 시 localStorage 에 마지막 (아동, 연·월) 있으면 자동 복원
+  useEffect(() => {
+    try {
+      const savedYm = localStorage.getItem(LS_YM);
+      if (savedYm && monthOptions.some((o) => o.value === savedYm)) {
+        setYm(savedYm);
+      }
+      const savedCsId = localStorage.getItem(LS_CSID);
+      if (savedCsId) {
+        const id = Number(savedCsId);
+        if (childrenOpts.some((c) => c.id === id)) {
+          loadChild(String(id));
+        }
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 선택값이 바뀔 때마다 localStorage 에 저장
+  useEffect(() => {
+    try {
+      if (typeof selectedChildId === "number") {
+        localStorage.setItem(LS_CSID, String(selectedChildId));
+      }
+    } catch {}
+  }, [selectedChildId]);
+  useEffect(() => {
+    try { localStorage.setItem(LS_YM, ym); } catch {}
+  }, [ym]);
 
   function togglePattern(i: number) {
     setPattern((prev) => (prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i].sort()));

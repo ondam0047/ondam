@@ -79,6 +79,36 @@ export default function RecordClient({
   const [manualYm, setManualYm] = useState(monthOptions.find((o) => o.label.includes("이번 달"))?.value ?? monthOptions[0].value);
   const [manualLoading, setManualLoading] = useState(false);
 
+  // 일정표·기록지 사이 이동 시 마지막 (아동, 연·월) 자동 복원
+  useEffect(() => {
+    try {
+      const savedYm = localStorage.getItem("baroilji_last_ym");
+      if (savedYm && monthOptions.some((o) => o.value === savedYm)) {
+        setManualYm(savedYm);
+      }
+      const savedCsId = localStorage.getItem("baroilji_last_childServiceId");
+      if (savedCsId) {
+        const id = Number(savedCsId);
+        if (myServices.some((s) => s.id === id)) {
+          setManualCSId(id);
+        }
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 선택값 변경 시 localStorage 에 저장 (일정표와 공유)
+  useEffect(() => {
+    try {
+      if (typeof manualCSId === "number") {
+        localStorage.setItem("baroilji_last_childServiceId", String(manualCSId));
+      }
+    } catch {}
+  }, [manualCSId]);
+  useEffect(() => {
+    try { localStorage.setItem("baroilji_last_ym", manualYm); } catch {}
+  }, [manualYm]);
+
   async function startManual() {
     if (!manualCSId || !manualYm) return;
     setManualLoading(true);
