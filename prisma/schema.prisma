@@ -21,6 +21,8 @@ model Center {
   serviceTypes  String   @default("언어재활,놀이치료,감각통합치료")
   // 센터별 치료 시간대. 콤마 구분. 일정표·차단 시간 드롭다운에 사용.
   slots         String   @default("09:00~09:50,09:50~10:40,10:40~11:30,11:30~12:20,13:30~14:20,14:20~15:10,15:10~16:00,16:00~16:50,16:50~17:40,17:40~18:30,18:30~19:20")
+  // 회당 기본 단가 (원). 아동 새로 등록할 때 자동 채움.
+  defaultUnit   Int      @default(60000)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

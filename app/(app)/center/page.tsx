@@ -74,6 +74,20 @@ export default async function CenterPage({
                   기본값이에요. 일정표·기록지에서 회기마다 다른 종류로 바꿀 수 있습니다.
                 </div>
               </div>
+              <div className="field">
+                <label>회당 기본 단가 (원)</label>
+                <input
+                  className="input"
+                  name="defaultUnit"
+                  type="number"
+                  min={0}
+                  step={1000}
+                  defaultValue={center.defaultUnit}
+                />
+                <div className="sub-mute" style={{ fontSize: 11, marginTop: 4 }}>
+                  새 아동 등록·일정표의 회당 단가에 자동 채워져요. 일정표에서 회기마다 수정 가능.
+                </div>
+              </div>
               <div className="field" style={{ gridColumn: "1 / -1" }}>
                 <label>회기 시간대 <span className="sub-mute">(콤마 또는 줄바꿈으로 구분, HH:MM~HH:MM)</span></label>
                 <textarea

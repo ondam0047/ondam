@@ -19,11 +19,12 @@ export default async function NewChildPage() {
           select: { id: true, name: true, active: true },
         })
       : Promise.resolve([] as { id: number; name: string; active: boolean }[]),
-    prisma.center.findUnique({ where: { id: centerId }, select: { serviceTypes: true, slots: true } }),
+    prisma.center.findUnique({ where: { id: centerId }, select: { serviceTypes: true, slots: true, defaultUnit: true } }),
   ]);
 
   const serviceTypes = parseServiceTypes(center?.serviceTypes);
   const slots = parseSlots(center?.slots);
+  const defaultUnit = center?.defaultUnit ?? 60000;
 
   return (
     <>
@@ -46,6 +47,7 @@ export default async function NewChildPage() {
             therapists={therapists}
             serviceTypes={serviceTypes}
             slots={slots}
+            defaultUnit={defaultUnit}
             action={createChild}
             submitLabel="등록"
             hideTherapistSelect={!isAdmin(user)}

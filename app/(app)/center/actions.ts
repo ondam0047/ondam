@@ -15,6 +15,7 @@ export async function updateCenter(formData: FormData) {
   const phone = String(formData.get("phone") ?? "").trim();
   const serviceType = String(formData.get("serviceTypes") ?? "").trim();
   const slotsRaw = String(formData.get("slots") ?? "").trim();
+  const defaultUnit = Number(formData.get("defaultUnit") ?? 60000) || 60000;
   if (!name) {
     redirect("/center?err=" + encodeURIComponent("이름은 비울 수 없어요"));
   }
@@ -41,6 +42,7 @@ export async function updateCenter(formData: FormData) {
       phone: phone || null,
       serviceTypes: serviceType,
       slots: slots.join(","),
+      defaultUnit,
     },
   });
   revalidatePath("/center");

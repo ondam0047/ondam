@@ -34,6 +34,7 @@ export default function ChildForm({
   therapists,
   serviceTypes,
   slots,
+  defaultUnit = 60000,
   action,
   submitLabel,
   showActive = false,
@@ -44,6 +45,7 @@ export default function ChildForm({
   therapists: TherapistOpt[];
   serviceTypes: string[];
   slots: string[];
+  defaultUnit?: number;
   action: (formData: FormData) => void | Promise<void>;
   submitLabel: string;
   showActive?: boolean;
@@ -60,7 +62,7 @@ export default function ChildForm({
       therapistId: null,
       defaultSlot: null,
       defaultDays: null,
-      defaultUnit: 65000,
+      defaultUnit: defaultUnit,
       defaultTarget: 5,
     }],
   };
@@ -70,7 +72,7 @@ export default function ChildForm({
     therapistId: null,
     defaultSlot: null,
     defaultDays: null,
-    defaultUnit: 65000,
+    defaultUnit: defaultUnit,
     defaultTarget: 5,
   }]);
 
@@ -83,7 +85,7 @@ export default function ChildForm({
       therapistId: null,
       defaultSlot: null,
       defaultDays: null,
-      defaultUnit: 65000,
+      defaultUnit: defaultUnit,
       defaultTarget: 5,
     }]);
   }

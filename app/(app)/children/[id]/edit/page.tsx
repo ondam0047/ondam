@@ -35,10 +35,11 @@ export default async function EditChildPage(props: PageProps<"/children/[id]/edi
           select: { id: true, name: true, active: true },
         })
       : Promise.resolve([] as { id: number; name: string; active: boolean }[]),
-    prisma.center.findUnique({ where: { id: user.centerId ?? -1 }, select: { serviceTypes: true, slots: true } }),
+    prisma.center.findUnique({ where: { id: user.centerId ?? -1 }, select: { serviceTypes: true, slots: true, defaultUnit: true } }),
   ]);
   const serviceTypes = parseServiceTypes(center?.serviceTypes);
   const slots = parseSlots(center?.slots);
+  const defaultUnit = center?.defaultUnit ?? 60000;
 
   const update = updateChild.bind(null, child.id);
 
@@ -83,6 +84,7 @@ export default async function EditChildPage(props: PageProps<"/children/[id]/edi
             therapists={therapists}
             serviceTypes={serviceTypes}
             slots={slots}
+            defaultUnit={defaultUnit}
             action={update}
             submitLabel="저장"
             showActive

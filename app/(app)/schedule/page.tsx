@@ -22,7 +22,7 @@ export default async function SchedulePage() {
       include: { child: true, therapist: true },
       orderBy: [{ child: { name: "asc" } }, { id: "asc" }],
     }),
-    prisma.center.findUnique({ where: { id: centerId }, select: { serviceTypes: true, slots: true } }),
+    prisma.center.findUnique({ where: { id: centerId }, select: { serviceTypes: true, slots: true, defaultUnit: true } }),
   ]);
 
   const childIdCount = new Map<number, number>();
@@ -63,6 +63,7 @@ export default async function SchedulePage() {
       slots={slots}
       defaultFilterTherapist={user.name}
       defaultOrg={user.centerName ?? ""}
+      centerDefaultUnit={center?.defaultUnit ?? 60000}
     />
   );
 }
