@@ -59,32 +59,32 @@ const HELP_ICON = "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M9.09 9a3 3 0 0 1 5
 
 const CHECK_ICON = "M9 12l2 2 4-4 M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z";
 const OWNER_ITEMS = [
-  { href: "/dashboard",       label: "대시보드",       icon: IC.dash },
-  { href: "/schedule",        label: "일정표",         icon: IC.calendar },
-  { href: "/record",          label: "기록지",         icon: IC.doc },
-  { href: "/approval-check",  label: "승인내역 점검",  icon: CHECK_ICON },
-  { href: "/timetable",       label: "내 시간표",      icon: GRID_ICON },
-  { href: "/children",        label: "내 아동",        icon: IC.user },
-  { href: "/center",          label: "내 설정",        icon: COG_ICON },
-  { href: "/guide",           label: "도움말",         icon: HELP_ICON },
+  { href: "/dashboard",       label: "대시보드",       icon: IC.dash,     tour: "dash"   },
+  { href: "/schedule",        label: "일정표",         icon: IC.calendar, tour: "sched"  },
+  { href: "/record",          label: "기록지",         icon: IC.doc,      tour: "rec"    },
+  { href: "/approval-check",  label: "승인내역 점검",  icon: CHECK_ICON,  tour: "appr"   },
+  { href: "/timetable",       label: "내 시간표",      icon: GRID_ICON,   tour: "time"   },
+  { href: "/children",        label: "내 아동",        icon: IC.user,     tour: "child"  },
+  { href: "/center",          label: "내 설정",        icon: COG_ICON,    tour: "set"    },
+  { href: "/guide",           label: "도움말",         icon: HELP_ICON,   tour: "help"   },
 ];
 const ADMIN_ITEMS = [
-  { href: "/dashboard",  label: "대시보드",      icon: IC.dash },
-  { href: "/timetable",  label: "치료사 시간표", icon: GRID_ICON },
-  { href: "/children",   label: "아동 관리",     icon: IC.user },
-  { href: "/therapists", label: "치료사 관리",   icon: IC.team },
-  { href: "/import",     label: "엑셀 가져오기", icon: IC.upload },
-  { href: "/center",     label: "센터 설정",     icon: COG_ICON },
-  { href: "/guide",      label: "도움말",        icon: HELP_ICON },
+  { href: "/dashboard",  label: "대시보드",      icon: IC.dash,     tour: "dash"  },
+  { href: "/timetable",  label: "치료사 시간표", icon: GRID_ICON,   tour: "time"  },
+  { href: "/children",   label: "아동 관리",     icon: IC.user,     tour: "child" },
+  { href: "/therapists", label: "치료사 관리",   icon: IC.team,     tour: ""      },
+  { href: "/import",     label: "엑셀 가져오기", icon: IC.upload,   tour: ""      },
+  { href: "/center",     label: "센터 설정",     icon: COG_ICON,    tour: "set"   },
+  { href: "/guide",      label: "도움말",        icon: HELP_ICON,   tour: "help"  },
 ];
 const THERAPIST_ITEMS = [
-  { href: "/dashboard",       label: "대시보드",       icon: IC.dash },
-  { href: "/schedule",        label: "일정표",         icon: IC.calendar },
-  { href: "/record",          label: "기록지",         icon: IC.doc },
-  { href: "/approval-check",  label: "승인내역 점검",  icon: CHECK_ICON },
-  { href: "/availability",    label: "내 차단 시간",   icon: CLOCK_ICON },
-  { href: "/children",        label: "내 아동",        icon: IC.user },
-  { href: "/guide",           label: "도움말",         icon: HELP_ICON },
+  { href: "/dashboard",       label: "대시보드",       icon: IC.dash,     tour: "dash"  },
+  { href: "/schedule",        label: "일정표",         icon: IC.calendar, tour: "sched" },
+  { href: "/record",          label: "기록지",         icon: IC.doc,      tour: "rec"   },
+  { href: "/approval-check",  label: "승인내역 점검",  icon: CHECK_ICON,  tour: "appr"  },
+  { href: "/availability",    label: "내 차단 시간",   icon: CLOCK_ICON,  tour: ""      },
+  { href: "/children",        label: "내 아동",        icon: IC.user,     tour: "child" },
+  { href: "/guide",           label: "도움말",         icon: HELP_ICON,   tour: "help"  },
 ];
 
 const ROLE_LABEL: Record<string, string> = {
@@ -119,11 +119,13 @@ export default function Sidebar({ user }: { user: SessionUser }) {
       <div className="nav-section">메뉴</div>
       {items.map((it) => {
         const active = pathname === it.href || pathname.startsWith(it.href + "/");
+        const tourAttr = (it as { tour?: string }).tour;
         return (
           <Link
             key={it.href}
             href={it.href}
             className={"nav-item" + (active ? " active" : "")}
+            data-tour={tourAttr || undefined}
           >
             <Icon d={it.icon} />
             <span>{it.label}</span>

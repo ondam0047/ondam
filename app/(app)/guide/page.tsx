@@ -1,4 +1,5 @@
 import { requireUser } from "@/lib/auth";
+import TourReplay from "./TourReplay";
 
 export const dynamic = "force-dynamic";
 
@@ -117,24 +118,29 @@ export default async function GuidePage() {
           </div>
         </div>
 
-        {/* PDF */}
+        {/* 도움 버튼들 */}
         <div style={{
           background: "var(--surface)",
           border: "1px solid var(--border)",
           borderRadius: "var(--r-md)",
           padding: "16px 18px",
           marginBottom: 36,
+          display: "flex",
+          gap: 10,
+          flexWrap: "wrap",
+          alignItems: "center",
         }}>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, color: "var(--text)" }}>
-            📄 PDF 매뉴얼 다운로드 — 인쇄·보관용
+          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", marginRight: 8 }}>
+            빠른 시작
           </div>
+          <TourReplay userId={user.id} />
           <a
             href={PDF_HREF}
             target="_blank"
             rel="noopener noreferrer"
-            className="btn btn-primary"
+            className="btn btn-ghost"
           >
-            치료사용 설명서 PDF
+            📄 PDF 매뉴얼
           </a>
         </div>
 

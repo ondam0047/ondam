@@ -7,7 +7,8 @@ import { useEffect } from "react";
 // 단, 환영 모달 표시 기록(baroilji_welcome_seen_*)은 사용자별로 따로 저장되니
 // 다른 사용자가 와도 지우지 않음.
 function shouldPreserve(key: string): boolean {
-  return key.startsWith("baroilji_welcome_seen_");
+  // 환영 모달·인앱 투어는 사용자별로 한 번씩만 — 다른 사용자가 와도 본인 키는 유지.
+  return key.startsWith("baroilji_welcome_seen_") || key.startsWith("baroilji_tour_done_");
 }
 
 export default function SessionGuard({ userId }: { userId: number }) {

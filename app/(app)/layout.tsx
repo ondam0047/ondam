@@ -3,6 +3,7 @@ import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import WelcomeTooltip from "./WelcomeTooltip";
 import SessionGuard from "./SessionGuard";
+import Tour from "./Tour";
 import { getCurrentUser, generateApprovalCode, getEffectiveTherapistId } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { ensureLegacyDataLinked } from "@/lib/migrate-center";
@@ -53,6 +54,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <main className="content">{children}</main>
       </div>
       <WelcomeTooltip role={user.role} userId={user.id} />
+      <Tour userId={user.id} role={user.role} />
     </div>
   );
 }
