@@ -133,6 +133,12 @@ async function OwnerDashboard({
           <a className="btn btn-ghost" href={`/api/attendance?year=${y}&month=${m}`}>
             📊 이번 달 출석부
           </a>
+          <a className="btn btn-ghost" href={`/api/schedule/hwpx-bulk?year=${y}&month=${m}`}>
+            📦 일정표 한꺼번에
+          </a>
+          <a className="btn btn-ghost" href={`/api/record/hwpx-bulk?year=${y}&month=${m}`}>
+            📦 기록지 한꺼번에
+          </a>
           <Link className="btn btn-ghost" href="/record">기록지 작성</Link>
           <Link className="btn btn-primary" href="/schedule">일정표 만들기</Link>
         </div>
@@ -196,6 +202,12 @@ async function TherapistDashboard({ user, centerId, year: y, month: m, todayDay,
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <a className="btn btn-ghost" href={`/api/attendance?year=${y}&month=${m}`}>
             📊 이번 달 출석부
+          </a>
+          <a className="btn btn-ghost" href={`/api/schedule/hwpx-bulk?year=${y}&month=${m}`}>
+            📦 일정표 한꺼번에
+          </a>
+          <a className="btn btn-ghost" href={`/api/record/hwpx-bulk?year=${y}&month=${m}`}>
+            📦 기록지 한꺼번에
           </a>
           <Link className="btn btn-ghost" href="/record">기록지 작성</Link>
           <Link className="btn btn-primary" href="/schedule">일정표 만들기</Link>
