@@ -742,7 +742,7 @@ function RecordSheet({
           📋 전월 기록 가져오기
         </button>
         <button className="btn" onClick={saveRecord} disabled={saving || !childServiceId}>
-          {saving ? "저장 중..." : (loadedRecordId ? "덮어쓰기 저장" : "DB에 저장")}
+          {saving ? "저장 중..." : "현재 내용 저장"}
         </button>
         <button className="btn btn-primary" onClick={downloadHwpx} disabled={downloading}>
           {downloading ? "생성 중..." : "한글파일(.hwpx) 다운로드"}

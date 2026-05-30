@@ -247,9 +247,6 @@ export default async function TimetablePage({
                 </tbody>
               </table>
             </div>
-            <div className="tip" style={{ marginTop: 14, fontSize: 11.5 }}>
-              💡 빗금 처리된 칸은 치료사가 차단한 시간이에요. 회기는 보라색 카드로 표시되며 카드 안 숫자는 그 요일에 해당 회기가 진행되는 횟수입니다.
-            </div>
           </div>
         </div>
       )}
