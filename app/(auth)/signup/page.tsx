@@ -9,25 +9,26 @@ import BrandMark from "../BrandMark";
 
 export const dynamic = "force-dynamic";
 
-// 새 센터 + 첫 원장 동시 생성
-async function signupCenter(formData: FormData) {
+// 1인 사물함 가입 — 본인 명의로 가입하면 본인 전용 공간이 자동 생성됨.
+// 내부 구조상 Center 가 만들어지지만 UI 에선 노출 안 함.
+async function signupSolo(formData: FormData) {
   "use server";
-  const centerName = String(formData.get("centerName") ?? "").trim();
   const name = String(formData.get("name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
 
-  if (!centerName || !name || !email || password.length < 6) {
-    redirect("/signup?err=" + encodeURIComponent("센터명·이름·이메일·비밀번호(6자 이상)를 모두 입력해주세요"));
+  if (!name || !email || password.length < 6) {
+    redirect("/signup?err=" + encodeURIComponent("이름·이메일·비밀번호(6자 이상)를 모두 입력해주세요"));
   }
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
     redirect("/signup?err=" + encodeURIComponent("이미 사용 중인 이메일이에요"));
   }
 
+  // 내부 Center 자동 생성 (이름 = 사용자 이름 그대로). UI 에는 안 보이지만 데이터 격리에 사용.
   const approvalCode = await generateApprovalCode();
   const center = await prisma.center.create({
-    data: { name: centerName, approvalCode },
+    data: { name, approvalCode },
   });
   const user = await prisma.user.create({
     data: {
@@ -40,166 +41,50 @@ async function signupCenter(formData: FormData) {
     },
   });
   await createSession(user.id);
-  redirect("/dashboard?welcome=" + encodeURIComponent(approvalCode));
-}
-
-// 치료사 자가 가입 — 원장님께 받은 6자리 승인코드 사용. 가입 후 승인 대기.
-async function signupTherapist(formData: FormData) {
-  "use server";
-  const code = String(formData.get("code") ?? "").trim().toUpperCase();
-  const name = String(formData.get("name") ?? "").trim();
-  const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  const password = String(formData.get("password") ?? "");
-
-  if (!code || !name || !email || password.length < 6) {
-    redirect("/signup?mode=therapist&err=" + encodeURIComponent("승인코드·이름·이메일·비밀번호 모두 필요"));
-  }
-  const center = await prisma.center.findUnique({ where: { approvalCode: code } });
-  if (!center) {
-    redirect("/signup?mode=therapist&err=" + encodeURIComponent("승인코드가 맞지 않아요. 원장님께 확인하세요."));
-  }
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) {
-    redirect("/signup?mode=therapist&err=" + encodeURIComponent("이미 사용 중인 이메일이에요"));
-  }
-
-  // 같은 센터·같은 이름 치료사 레코드가 있고 계정이 비어있으면 자동 연결
-  let therapist = await prisma.therapist.findFirst({
-    where: { centerId: center!.id, name, user: null },
-  });
-  if (!therapist) {
-    therapist = await prisma.therapist.create({
-      data: { name, centerId: center!.id },
-    });
-  }
-
-  await prisma.user.create({
-    data: {
-      email,
-      name,
-      passwordHash: await hashPassword(password),
-      role: "THERAPIST",
-      centerId: center!.id,
-      therapistId: therapist!.id,
-      active: false, // 원장 승인 대기
-    },
-  });
-  redirect("/signup?pending=1");
+  redirect("/dashboard");
 }
 
 export default async function SignupPage({
   searchParams,
 }: {
-  searchParams: Promise<{ mode?: string; err?: string; pending?: string }>;
+  searchParams: Promise<{ err?: string }>;
 }) {
   const sp = await searchParams;
   if (await getCurrentUser()) redirect("/dashboard");
-
-  // 가입 신청 완료 화면
-  if (sp.pending === "1") {
-    return (
-      <div className="card">
-        <div style={{ padding: "28px 26px 8px", textAlign: "center" }}>
-          <div style={{ display: "flex", justifyContent: "center" }}><BrandMark size={56} /></div>
-          <h2 style={{ marginTop: 12, fontSize: 18 }}>가입 신청 완료</h2>
-        </div>
-        <div className="card-body" style={{ textAlign: "center" }}>
-          <div className="flash ok" style={{ marginBottom: 16 }}>
-            원장님 승인 후 로그인할 수 있어요.
-          </div>
-          <Link className="btn btn-primary" href="/login" style={{ width: "100%", justifyContent: "center" }}>
-            로그인 화면으로
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  const mode = sp.mode === "therapist" ? "therapist" : "center";
 
   return (
     <div className="card">
       <div style={{ padding: "28px 26px 8px", textAlign: "center" }}>
         <div style={{ display: "flex", justifyContent: "center" }}><BrandMark size={56} /></div>
-        <h2 style={{ marginTop: 12, fontSize: 18 }}>가입</h2>
+        <h2 style={{ marginTop: 12, fontSize: 18 }}>바로일지 시작하기</h2>
         <div className="sub-mute" style={{ marginTop: 4 }}>
-          {mode === "center" ? "센터를 새로 만드세요" : "원장님에게 받은 승인코드를 입력해주세요"}
+          본인 명의로 가입하면 본인만 보는 사물함이 만들어져요.
         </div>
-      </div>
-
-      <div style={{ padding: "0 22px", display: "flex", gap: 6, marginTop: 12 }}>
-        <Link
-          href="/signup?mode=center"
-          className={"chip" + (mode === "center" ? " on" : "")}
-          style={{ textDecoration: "none", whiteSpace: "nowrap" }}
-        >🏢 센터 새로 만들기</Link>
-        <Link
-          href="/signup?mode=therapist"
-          className={"chip" + (mode === "therapist" ? " on" : "")}
-          style={{ textDecoration: "none", whiteSpace: "nowrap" }}
-        >👤 치료사 가입</Link>
       </div>
 
       <div className="card-body">
         {sp.err && <div className="flash warn" style={{ marginBottom: 12 }}>{sp.err}</div>}
 
-        {mode === "center" ? (
-          <form action={signupCenter}>
-            <div className="field" style={{ marginBottom: 12 }}>
-              <label>센터 이름<span className="req">*</span></label>
-              <input className="input" name="centerName" required />
-            </div>
-            <div className="field" style={{ marginBottom: 12 }}>
-              <label>원장님 이름<span className="req">*</span></label>
-              <input className="input" name="name" required />
-            </div>
-            <div className="field" style={{ marginBottom: 12 }}>
-              <label>이메일<span className="req">*</span></label>
-              <input className="input" name="email" type="email" required />
-            </div>
-            <div className="field" style={{ marginBottom: 14 }}>
-              <label>비밀번호 <span className="sub-mute">(6자 이상)</span></label>
-              <input className="input" name="password" type="password" required minLength={6} />
-            </div>
-            <button className="btn btn-primary" type="submit" style={{ width: "100%", justifyContent: "center" }}>
-              센터 만들기
-            </button>
-            <div className="tip" style={{ marginTop: 14 }}>
-              가입 직후 화면에 표시되는 <b>6자리 승인코드</b>를 치료사들에게 알려주세요.
-            </div>
-          </form>
-        ) : (
-          <form action={signupTherapist}>
-            <div className="field" style={{ marginBottom: 12 }}>
-              <label>센터 승인코드<span className="req">*</span></label>
-              <input
-                className="input"
-                name="code"
-                required
-                style={{ fontFamily: "monospace", letterSpacing: "0.1em", textTransform: "uppercase" }}
-                placeholder="원장님께 받은 6자리"
-              />
-            </div>
-            <div className="field" style={{ marginBottom: 12 }}>
-              <label>이름<span className="req">*</span></label>
-              <input className="input" name="name" required />
-            </div>
-            <div className="field" style={{ marginBottom: 12 }}>
-              <label>이메일<span className="req">*</span></label>
-              <input className="input" name="email" type="email" required />
-            </div>
-            <div className="field" style={{ marginBottom: 14 }}>
-              <label>비밀번호 <span className="sub-mute">(6자 이상)</span></label>
-              <input className="input" name="password" type="password" required minLength={6} />
-            </div>
-            <button className="btn btn-primary" type="submit" style={{ width: "100%", justifyContent: "center" }}>
-              가입 신청
-            </button>
-            <div className="tip" style={{ marginTop: 14 }}>
-              가입 후 원장님 승인을 기다려주세요.
-            </div>
-          </form>
-        )}
+        <form action={signupSolo}>
+          <div className="field" style={{ marginBottom: 12 }}>
+            <label>이름<span className="req">*</span></label>
+            <input className="input" name="name" required placeholder="치료사 본인 이름" />
+          </div>
+          <div className="field" style={{ marginBottom: 12 }}>
+            <label>이메일<span className="req">*</span></label>
+            <input className="input" name="email" type="email" required />
+          </div>
+          <div className="field" style={{ marginBottom: 14 }}>
+            <label>비밀번호 <span className="sub-mute">(6자 이상)</span></label>
+            <input className="input" name="password" type="password" required minLength={6} />
+          </div>
+          <button className="btn btn-primary" type="submit" style={{ width: "100%", justifyContent: "center" }}>
+            가입하고 바로 시작
+          </button>
+          <div className="tip" style={{ marginTop: 14 }}>
+            💡 가입 즉시 본인만 보는 사물함이 열려요. 다른 사람은 절대 못 봅니다.
+          </div>
+        </form>
 
         <div style={{ marginTop: 14, textAlign: "center", fontSize: 12.5 }}>
           <Link href="/login" style={{ color: "var(--text-mute)" }}>← 로그인으로</Link>

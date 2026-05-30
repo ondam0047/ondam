@@ -16,7 +16,7 @@ export async function updateCenter(formData: FormData) {
   const serviceTypesRaw = String(formData.get("serviceTypes") ?? "").trim();
   const slotsRaw = String(formData.get("slots") ?? "").trim();
   if (!name) {
-    redirect("/center?err=" + encodeURIComponent("센터명은 비울 수 없어요"));
+    redirect("/center?err=" + encodeURIComponent("이름은 비울 수 없어요"));
   }
   const services = serviceTypesRaw
     .split(/[,\n]/)
@@ -49,9 +49,8 @@ export async function updateCenter(formData: FormData) {
     },
   });
   revalidatePath("/center");
-  revalidatePath("/therapists");
   revalidatePath("/dashboard");
-  redirect("/center?ok=" + encodeURIComponent("센터 정보를 저장했어요"));
+  redirect("/center?ok=" + encodeURIComponent("내 정보를 저장했어요"));
 }
 
 export async function regenerateCode() {

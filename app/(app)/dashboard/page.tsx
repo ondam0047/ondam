@@ -37,7 +37,8 @@ export default async function DashboardPage() {
     });
   }
 
-  // 역할별 데이터 분기
+  // 1인 사물함 모드 — 모든 사용자가 본인 데이터만 보는 단일 대시보드
+  // (역할에 관계없이 동일. 행정만 옛 센터 전체 뷰 사용)
   if (user.role === "ADMIN") {
     return <AdminDashboard
       user={user}
@@ -49,22 +50,11 @@ export default async function DashboardPage() {
       weekDates={weekDates}
     />;
   }
-  if (user.role === "OWNER") {
-    // 원장 = 본인이 치료사이기도 하므로 본인 일감 + 센터 전체 상황 둘 다
-    const myTherapistId = await getEffectiveTherapistId(user);
-    return <OwnerDashboard
-      user={user}
-      centerId={centerId}
-      myTherapistId={myTherapistId}
-      year={y}
-      month={m}
-      todayDay={todayDay}
-      todayDow={todayDow}
-      weekDates={weekDates}
-    />;
-  }
+  // OWNER 도 자동으로 본인의 Therapist 레코드와 연결돼 있어 본인 데이터만 보임
+  // (effective therapistId 로 필터링)
+  const myTherapistId = await getEffectiveTherapistId(user);
   return <TherapistDashboard
-    user={user}
+    user={{ ...user, therapistId: myTherapistId ?? user.therapistId }}
     centerId={centerId}
     year={y}
     month={m}
@@ -723,32 +713,31 @@ function ServiceDistributionCard({
 
 // ─── 온보딩 체크리스트 ──────────────────────────────────────────────────
 async function loadOnboardingState(centerId: number) {
-  const [center, therapistCount, childCount, scheduleCount, invitationCount] = await Promise.all([
+  const [center, childCount, scheduleCount] = await Promise.all([
     prisma.center.findUnique({ where: { id: centerId } }),
-    prisma.therapist.count({ where: { centerId, active: true } }),
     prisma.child.count({ where: { centerId, active: true, waiting: false } }),
     prisma.schedule.count({ where: { childService: { child: { centerId } } } }),
-    prisma.invitation.count({ where: { centerId, usedAt: { not: null } } }),
   ]);
-  const namedCenter = !!center && center.name !== "내 센터" && center.name.trim().length > 0;
-  // 치료사 1명 이상 = 등록 OR 초대 사용됨
-  const hasTeam = therapistCount > 0 || invitationCount > 0;
+  // 1인 사물함 모드: 시간대/서비스 종류가 한 번이라도 수정됐는지 체크
+  // (기본값 그대로면 namedCenter=false)
+  const namedCenter = !!center && center.name !== "내 센터"
+    && center.name.trim().length > 0
+    && center.address !== null;
   const hasChildren = childCount > 0;
   const hasSchedule = scheduleCount > 0;
-  const done = [namedCenter, hasTeam, hasChildren, hasSchedule].filter(Boolean).length;
+  const done = [namedCenter, hasChildren, hasSchedule].filter(Boolean).length;
   return {
-    namedCenter, hasTeam, hasChildren, hasSchedule,
-    done, total: 4,
-    allDone: done >= 4,
+    namedCenter, hasChildren, hasSchedule,
+    done, total: 3,
+    allDone: done >= 3,
   };
 }
 
 function OnboardingCard({ state }: { state: Awaited<ReturnType<typeof loadOnboardingState>> }) {
   const items: { ok: boolean; label: string; href: string; cta: string }[] = [
-    { ok: state.namedCenter, label: "센터 이름 설정",        href: "/center",       cta: "센터 설정으로" },
-    { ok: state.hasTeam,     label: "치료사·행정 추가",       href: "/therapists",   cta: "초대 보내기" },
-    { ok: state.hasChildren, label: "첫 아동 등록",           href: "/children/new", cta: "아동 등록" },
-    { ok: state.hasSchedule, label: "첫 일정표 작성",         href: "/schedule",     cta: "일정표 만들기" },
+    { ok: state.namedCenter, label: "내 정보 · 시간대 설정",   href: "/center",       cta: "설정하러" },
+    { ok: state.hasChildren, label: "첫 아동 등록",            href: "/children/new", cta: "아동 등록" },
+    { ok: state.hasSchedule, label: "첫 일정표 작성",          href: "/schedule",     cta: "일정표 만들기" },
   ];
   return (
     <div className="card" style={{

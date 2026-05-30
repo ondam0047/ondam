@@ -118,8 +118,6 @@ export default async function GuidePage() {
   ].filter((s) => s.for.includes(myRole));
 
   const PDF_LINKS = [
-    { href: "/guides/바로일지_원장용_설명서.pdf",   label: "원장용 PDF",   role: "OWNER" as RoleKey },
-    { href: "/guides/바로일지_행정용_설명서.pdf",   label: "행정용 PDF",   role: "ADMIN" as RoleKey },
     { href: "/guides/바로일지_치료사용_설명서.pdf", label: "치료사용 PDF", role: "THERAPIST" as RoleKey },
   ];
 

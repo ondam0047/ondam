@@ -12,16 +12,16 @@ const STORAGE_KEY = "baroilji_welcome_seen_v1";
 
 const TIPS: Record<Role, { emoji: string; title: string; body: React.ReactNode }[]> = {
   OWNER: [
-    { emoji: "🏢", title: "센터 설정",
-      body: <>왼쪽 메뉴 <b>[센터 설정]</b> 에서 센터명·치료 영역·시간대를 가장 먼저 설정하세요.</> },
-    { emoji: "✉️", title: "치료사 초대",
-      body: <><b>[치료사 관리]</b> → '초대 링크 만들기' 로 1회용 URL 을 발급해 카톡으로 보내세요.</> },
-    { emoji: "👶", title: "아동 등록",
-      body: <><b>[아동 관리]</b> 에서 아동을 등록하면 매월 일정표·기록지에서 자동 호출돼요.</> },
-    { emoji: "📅", title: "일정표 만들기",
-      body: <>본인 담당 아동이 있다면 <b>[일정표]</b> 에서 한 달치 회기를 빠르게 만들 수 있어요.</> },
+    { emoji: "🔒", title: "내 사물함",
+      body: <>본인 자료는 본인만 봅니다. 다른 사람에게 절대 노출되지 않아요.</> },
+    { emoji: "⚙️", title: "내 설정",
+      body: <>왼쪽 <b>[내 설정]</b> 에서 본인 정보·치료 영역·시간대를 먼저 맞춰주세요.</> },
+    { emoji: "👶", title: "내 아동",
+      body: <><b>[내 아동]</b> 에서 본인 담당 아동을 등록하면 매월 일정표·기록지에서 자동 호출돼요.</> },
+    { emoji: "📅", title: "일정표 · 기록지",
+      body: <>매월 한 번씩 [일정표] · [기록지] 작성 → 한글파일(.hwpx) 다운로드 → 인쇄·제출.</> },
     { emoji: "📖", title: "도움말",
-      body: <>왼쪽 맨 아래 <b>[도움말]</b> 에서 역할별 사용 설명서 + PDF 다운로드.</> },
+      body: <>왼쪽 맨 아래 <b>[도움말]</b> 에서 자세한 사용 설명서 + PDF 다운로드.</> },
   ],
   ADMIN: [
     { emoji: "👶", title: "아동 관리",
@@ -66,7 +66,7 @@ export default function WelcomeTooltip({ role }: { role: Role }) {
   if (!open) return null;
 
   const tips = TIPS[role] ?? TIPS.THERAPIST;
-  const roleLabel = role === "OWNER" ? "원장님" : role === "ADMIN" ? "행정 선생님" : "치료사 선생님";
+  const roleLabel = role === "ADMIN" ? "행정 선생님" : "선생님";
 
   return (
     <div

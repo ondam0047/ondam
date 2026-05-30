@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { createSession, verifyPassword, getCurrentUser, isFirstSignup } from "@/lib/auth";
+import { createSession, verifyPassword, getCurrentUser } from "@/lib/auth";
 import BrandMark from "../BrandMark";
 
 export const dynamic = "force-dynamic";
@@ -35,7 +35,6 @@ export default async function LoginPage({
   const sp = await searchParams;
   // 이미 로그인이면 대시보드로
   if (await getCurrentUser()) redirect("/dashboard");
-  const firstSignup = await isFirstSignup();
 
   return (
     <div className="card">
@@ -56,24 +55,13 @@ export default async function LoginPage({
       </div>
       <div className="card-body">
         {sp.err && <div className="flash warn" style={{ marginBottom: 12 }}>{sp.err}</div>}
-        {firstSignup ? (
-          <div className="tip" style={{ marginBottom: 14, wordBreak: "keep-all", lineHeight: 1.65 }}>
-            💡 처음 사용하시나요?{" "}
-            <Link href="/signup" style={{ color: "var(--primary)", fontWeight: 700, whiteSpace: "nowrap" }}>
-              첫 계정 만들기
-            </Link>
-            로 시작하세요.{" "}
-            <span style={{ whiteSpace: "nowrap" }}>(자동으로 원장 계정이 됩니다)</span>
-          </div>
-        ) : (
-          <div className="tip" style={{ marginBottom: 14, wordBreak: "keep-all", lineHeight: 1.65 }}>
-            치료사이신가요?{" "}
-            <Link href="/signup" style={{ color: "var(--primary)", fontWeight: 700, whiteSpace: "nowrap" }}>
-              치료사 가입 신청
-            </Link>
-            후 원장님 승인을 받으세요.
-          </div>
-        )}
+        <div className="tip" style={{ marginBottom: 14, wordBreak: "keep-all", lineHeight: 1.65 }}>
+          💡 처음 사용하시나요?{" "}
+          <Link href="/signup" style={{ color: "var(--primary)", fontWeight: 700, whiteSpace: "nowrap" }}>
+            바로 시작하기
+          </Link>
+          {" "}— 본인만 보는 사물함이 만들어져요.
+        </div>
         <form action={login}>
           <div className="field" style={{ marginBottom: 12 }}>
             <label>이메일</label>
