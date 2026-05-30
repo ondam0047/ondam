@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
-import { PRIMARY_SERVICE_OPTIONS, THERAPIST_TYPES } from "@/lib/constants";
+import { THERAPIST_TYPES } from "@/lib/constants";
 import { updateCenter } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -82,17 +82,6 @@ export default async function CenterPage({
               <div className="field">
                 <label>대표 전화 (선택)</label>
                 <input className="input" name="phone" defaultValue={center.phone ?? ""} />
-              </div>
-              <div className="field" style={{ gridColumn: "1 / -1" }}>
-                <label>주력 치료 영역</label>
-                <select className="select" name="serviceTypes" defaultValue={(center.serviceTypes.split(",")[0] ?? "").trim() || PRIMARY_SERVICE_OPTIONS[0]}>
-                  {PRIMARY_SERVICE_OPTIONS.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-                <div className="sub-mute" style={{ fontSize: 11, marginTop: 4 }}>
-                  일정표·기록지의 '서비스 종류' 기본값. 회기마다 다른 종류로 바꿀 수 있어요.
-                </div>
               </div>
               <div className="field">
                 <label>회당 기본 단가 (원)</label>

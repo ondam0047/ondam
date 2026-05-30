@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireRole, generateApprovalCode } from "@/lib/auth";
-import { THERAPIST_TYPES } from "@/lib/constants";
+import { THERAPIST_TYPES, THERAPIST_TO_SERVICE, DEFAULT_SERVICE_TYPES } from "@/lib/constants";
 
 export async function updateCenter(formData: FormData) {
   const me = await requireRole(["OWNER", "ADMIN"]);
@@ -16,7 +16,6 @@ export async function updateCenter(formData: FormData) {
   const centerName = String(formData.get("centerName") ?? "").trim();
   const address = String(formData.get("address") ?? "").trim();
   const phone = String(formData.get("phone") ?? "").trim();
-  const serviceType = String(formData.get("serviceTypes") ?? "").trim();
   const slotsRaw = String(formData.get("slots") ?? "").trim();
   const defaultUnit = Number(formData.get("defaultUnit") ?? 60000) || 60000;
   if (!userName) {
@@ -25,9 +24,9 @@ export async function updateCenter(formData: FormData) {
   if (!therapistType || !THERAPIST_TYPES.includes(therapistType as typeof THERAPIST_TYPES[number])) {
     redirect("/center?err=" + encodeURIComponent("치료사 종류를 다시 선택해주세요"));
   }
-  if (!serviceType) {
-    redirect("/center?err=" + encodeURIComponent("주력 치료 영역을 선택해주세요"));
-  }
+  // 치료사 종류로부터 자동 파생 — 새 아동·엑셀 가져오기 폼의 서비스 종류 옵션에 사용.
+  const primaryService = THERAPIST_TO_SERVICE[therapistType] ?? therapistType;
+  const serviceTypes = [primaryService, ...DEFAULT_SERVICE_TYPES.filter((s) => s !== primaryService)].join(",");
   const slots = slotsRaw
     .split(/[,\n]/)
     .map((s) => s.trim())
@@ -47,7 +46,7 @@ export async function updateCenter(formData: FormData) {
         name: centerName,
         address: address || null,
         phone: phone || null,
-        serviceTypes: serviceType,
+        serviceTypes,
         slots: slots.join(","),
         defaultUnit,
       },
@@ -56,7 +55,6 @@ export async function updateCenter(formData: FormData) {
       where: { id: me.id },
       data: { name: userName, therapistType },
     });
-    // 본인 Therapist 레코드 이름도 동기화 (일정표·기록지 자동 채움에 반영)
     if (me.therapistId) {
       await tx.therapist.update({
         where: { id: me.therapistId },
@@ -68,6 +66,7 @@ export async function updateCenter(formData: FormData) {
   revalidatePath("/dashboard");
   revalidatePath("/schedule");
   revalidatePath("/record");
+  revalidatePath("/children");
   redirect("/center?ok=" + encodeURIComponent("내 정보를 저장했어요"));
 }
 

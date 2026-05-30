@@ -98,8 +98,8 @@ export default function ScheduleClient({
   const [mgmt, setMgmt] = useState("");
   const [pvOrg, setPvOrg] = useState(defaultOrg);
   const [pvTel, setPvTel] = useState("775-0047");
-  const [pvCharge, setPvCharge] = useState("");
-  const [pvType, setPvType] = useState("");
+  const [pvCharge, setPvCharge] = useState(defaultFilterTherapist || therapists[0]?.name || "");
+  const [pvType, setPvType] = useState(serviceTypes[0] ?? "");
   const [costUnit, setCostUnit] = useState(centerDefaultUnit.toLocaleString("ko-KR"));
   const [costSelf, setCostSelf] = useState("0");
   const [writeDate, setWriteDate] = useState("");
