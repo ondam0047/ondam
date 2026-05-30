@@ -149,6 +149,8 @@ model ChildService {
   defaultDays   String?
   defaultUnit   Int       @default(65000)
   defaultTarget Int       @default(5)
+  // 월 본인부담금 (원). 부모님이 매월 내는 금액. 일정표 자동 채움용.
+  monthlyCopay  Int?
 
   active        Boolean   @default(true)
   createdAt     DateTime  @default(now())

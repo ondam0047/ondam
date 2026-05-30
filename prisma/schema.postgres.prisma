@@ -141,6 +141,7 @@ model ChildService {
   defaultDays   String?
   defaultUnit   Int       @default(65000)
   defaultTarget Int       @default(5)
+  monthlyCopay  Int?
 
   active        Boolean   @default(true)
   createdAt     DateTime  @default(now())
