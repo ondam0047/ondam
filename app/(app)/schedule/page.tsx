@@ -41,6 +41,7 @@ export default async function SchedulePage() {
     defaultDays: s.defaultDays,
     defaultUnit: s.defaultUnit,
     defaultTarget: s.defaultTarget,
+    monthlyCopay: s.monthlyCopay,
     therapistName: s.therapist?.name ?? null,
     hasMultipleServices: (childIdCount.get(s.childId) ?? 0) > 1,
   }));

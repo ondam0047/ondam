@@ -22,6 +22,7 @@ type ChildOption = {
   defaultDays: string | null;
   defaultUnit: number;
   defaultTarget: number;
+  monthlyCopay: number | null;
   therapistName: string | null;
   hasMultipleServices: boolean; // 같은 아동에 서비스가 둘 이상이면 라벨에 종류 표시
 };
@@ -173,6 +174,7 @@ export default function ScheduleClient({
     }
     if (c.defaultUnit) setCostUnit(c.defaultUnit.toLocaleString("ko-KR"));
     if (c.defaultTarget) setTarget(c.defaultTarget);
+    if (c.monthlyCopay != null) setCostSelf(c.monthlyCopay.toLocaleString("ko-KR"));
   }
 
   // 아동 서비스 변경 시 저장된 일정표 목록 fetch

@@ -180,7 +180,7 @@ async function OwnerDashboard({
       <MyStats data={myData} />
 
       <div className="dash-row-2">
-        <WeekScheduleCard weekDates={weekDates} weekSessions={myData.weekSessions} subtitle="내 회기" />
+        <WeekScheduleCard weekDates={weekDates} weekSessions={myData.weekSessions} />
         <TodaySessionsCard todaySessionList={myData.todaySessionList} />
       </div>
 
@@ -287,7 +287,7 @@ async function TherapistDashboard({ user, centerId, year: y, month: m, todayDay,
       <MyStats data={data} />
 
       <div className="dash-row-2">
-        <WeekScheduleCard weekDates={weekDates} weekSessions={data.weekSessions} subtitle="내 회기" />
+        <WeekScheduleCard weekDates={weekDates} weekSessions={data.weekSessions} />
         <TodaySessionsCard todaySessionList={data.todaySessionList} />
       </div>
 
@@ -486,7 +486,7 @@ function MyStats({ data }: { data: Awaited<ReturnType<typeof loadMyStats>> }) {
         <div className="delta">{data.todaySessionList.length > 0 ? `첫 회기 ${data.todaySessionList[0].time.split("~")[0]}` : "예정 없음"}</div>
       </div>
       <div className="stat">
-        <div className="label">이번 달 내 회기</div>
+        <div className="label">이번 달 회기</div>
         <div className="value">{data.totalSessionsThisMonth}<span style={{ fontSize: 13, color: "var(--text-mute)", fontWeight: 500, marginLeft: 4 }}>회</span></div>
         <div className="delta">목표 {data.targetTotal}회 중 {data.progressPct}%</div>
       </div>
@@ -643,21 +643,20 @@ function UnwrittenCard({
 }
 
 function WeekScheduleCard({
-  weekDates, weekSessions, subtitle,
+  weekDates, weekSessions,
 }: {
   weekDates: { d: Date; weekday: string; isToday: boolean }[];
   weekSessions: { day: string; date: string; isToday: boolean; items: { time: string; name: string; svc: string }[] }[];
-  subtitle?: string;
 }) {
   return (
     <div className="card">
       <div className="card-header">
-        <h2>이번 주 회기{subtitle ? ` · ${subtitle}` : ""}</h2>
+        <h2>이번 주 회기</h2>
         <span className="hint">
           {weekDates[0].d.getMonth() + 1}.{weekDates[0].d.getDate()} ({weekDates[0].weekday}) — {weekDates[5].d.getMonth() + 1}.{weekDates[5].d.getDate()} ({weekDates[5].weekday})
         </span>
         <span style={{ flex: 1 }} />
-        <Link className="btn btn-ghost btn-sm" href="/schedule">전체 일정 →</Link>
+        <Link className="btn btn-ghost btn-sm" href="/timetable">전체 일정 →</Link>
       </div>
       <div style={{ padding: "14px 18px 18px" }}>
         <div className="dash-week">

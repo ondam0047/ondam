@@ -13,6 +13,7 @@ type ServiceInput = {
   defaultDays: string | null;
   defaultUnit: number;
   defaultTarget: number;
+  monthlyCopay: number | null;
 };
 
 function parseChildHeader(formData: FormData) {
@@ -41,6 +42,7 @@ function parseServices(formData: FormData): ServiceInput[] {
     if (!serviceType) continue;
     const idRaw = String(formData.get(`svc[${i}][id]`) ?? "");
     const therapistIdRaw = String(formData.get(`svc[${i}][therapistId]`) ?? "");
+    const copayRaw = String(formData.get(`svc[${i}][monthlyCopay]`) ?? "").trim();
     out.push({
       id: idRaw ? Number(idRaw) : null,
       serviceType,
@@ -49,6 +51,7 @@ function parseServices(formData: FormData): ServiceInput[] {
       defaultDays: String(formData.get(`svc[${i}][defaultDays]`) ?? "") || null,
       defaultUnit: Number(formData.get(`svc[${i}][defaultUnit]`) ?? 65000) || 65000,
       defaultTarget: Number(formData.get(`svc[${i}][defaultTarget]`) ?? 5) || 5,
+      monthlyCopay: copayRaw ? (Number(copayRaw) || 0) : null,
     });
   }
   return out;
@@ -84,6 +87,7 @@ export async function createChild(formData: FormData) {
           defaultDays: s.defaultDays,
           defaultUnit: s.defaultUnit,
           defaultTarget: s.defaultTarget,
+          monthlyCopay: s.monthlyCopay,
         })),
       },
     },
@@ -149,6 +153,7 @@ export async function updateChild(id: number, formData: FormData) {
         defaultDays: s.defaultDays,
         defaultUnit: s.defaultUnit,
         defaultTarget: s.defaultTarget,
+        monthlyCopay: s.monthlyCopay,
       };
       if (s.id) {
         // 기존 서비스 수정 권한 확인

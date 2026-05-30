@@ -9,7 +9,7 @@ export default async function TimetablePage({
 }: {
   searchParams: Promise<{ year?: string; month?: string }>;
 }) {
-  const user = await requireRole(["OWNER", "ADMIN"]);
+  const user = await requireRole(["OWNER", "ADMIN", "THERAPIST"]);
   const sp = await searchParams;
   const centerId = user.centerId ?? -1;
 

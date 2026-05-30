@@ -15,6 +15,7 @@ export type ServiceInput = {
   defaultDays: string | null;
   defaultUnit: number;
   defaultTarget: number;
+  monthlyCopay: number | null; // 월 본인부담금. null/0 이면 일정표에서 수동 입력
   active?: boolean;
 };
 
@@ -64,6 +65,7 @@ export default function ChildForm({
       defaultDays: null,
       defaultUnit: defaultUnit,
       defaultTarget: 5,
+      monthlyCopay: null,
     }],
   };
 
@@ -74,6 +76,7 @@ export default function ChildForm({
     defaultDays: null,
     defaultUnit: defaultUnit,
     defaultTarget: 5,
+      monthlyCopay: null,
   }]);
 
   function updateSvc(idx: number, patch: Partial<ServiceInput>) {
@@ -87,6 +90,7 @@ export default function ChildForm({
       defaultDays: null,
       defaultUnit: defaultUnit,
       defaultTarget: 5,
+      monthlyCopay: null,
     }]);
   }
   function removeSvc(idx: number) {
@@ -224,6 +228,21 @@ export default function ChildForm({
                   value={s.defaultUnit}
                   onChange={(e) => updateSvc(i, { defaultUnit: Number(e.target.value) || 0 })}
                 />
+              </div>
+              <div className="field">
+                <label>월 본인부담금 (원) <span className="sub-mute">(선택)</span></label>
+                <input
+                  className="input"
+                  name={`svc[${i}][monthlyCopay]`}
+                  type="number"
+                  min={0}
+                  step={1000}
+                  value={s.monthlyCopay ?? ""}
+                  onChange={(e) => updateSvc(i, { monthlyCopay: e.target.value ? Number(e.target.value) : null })}
+                />
+                <div className="sub-mute" style={{ fontSize: 11, marginTop: 4 }}>
+                  부모님이 매월 내는 금액. 일정표 만들 때 자동 채워져요.
+                </div>
               </div>
               <div className="field" style={{ gridColumn: "span 2" }}>
                 <label>기본 시간대</label>

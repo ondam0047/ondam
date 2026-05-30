@@ -79,6 +79,7 @@ export default async function EditChildPage(props: PageProps<"/children/[id]/edi
                 defaultDays: s.defaultDays,
                 defaultUnit: s.defaultUnit,
                 defaultTarget: s.defaultTarget,
+                monthlyCopay: s.monthlyCopay,
               })),
             }}
             therapists={therapists}
