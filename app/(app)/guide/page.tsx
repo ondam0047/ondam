@@ -96,13 +96,7 @@ export default async function GuidePage() {
   ];
 
   return (
-    <div style={{
-      display: "grid",
-      gridTemplateColumns: "minmax(0, 1fr) 220px",
-      gap: 32,
-      maxWidth: 1100,
-      margin: "0 auto",
-    }}>
+    <div className="guide-wrap">
       <div>
         {/* 머리말 */}
         <div style={{
@@ -406,11 +400,8 @@ export default async function GuidePage() {
         </Section>
       </div>
 
-      {/* 우측 TOC */}
-      <aside style={{
-        position: "sticky",
-        top: 24,
-        alignSelf: "start",
+      {/* 우측 TOC — 모바일에선 자동으로 상단으로 접힘 */}
+      <aside className="guide-toc" style={{
         background: "var(--surface)",
         border: "1px solid var(--border)",
         borderRadius: "var(--r-md)",

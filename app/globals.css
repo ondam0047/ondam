@@ -1198,3 +1198,29 @@ label.fl { display: block; font-size: 12px; color: var(--text-soft); margin-bott
   .section-head h2 { font-size: 16.5px; }
   .btn { font-size: 12.5px; padding: 7px 10px; }
 }
+
+/* 도움말 — 데스크탑: 본문 + 오른쪽 목차, 모바일: 1단으로 접고 목차는 상단 압축 */
+.guide-wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 32px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+.guide-toc { position: sticky; top: 24px; align-self: start; }
+@media (max-width: 820px) {
+  .guide-wrap { grid-template-columns: 1fr; gap: 16px; }
+  .guide-toc {
+    position: static;
+    margin-bottom: 18px;
+    padding: 12px 14px !important;
+  }
+  .guide-toc ol {
+    display: flex !important;
+    flex-wrap: wrap;
+    gap: 8px 14px !important;
+  }
+  .guide-toc ol li a { padding-left: 0 !important; font-size: 12.5px; }
+  .guide-wrap section h2 { font-size: 18px !important; }
+  .guide-wrap h1 { font-size: 22px !important; }
+}
