@@ -129,18 +129,46 @@ async function OwnerDashboard({
             {" · "}센터 전체 {centerData.totalSessionsThisMonth}건
           </p>
         </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <a className="btn btn-ghost" href={`/api/attendance?year=${y}&month=${m}`}>
-            📊 이번 달 출석부
-          </a>
-          <a className="btn btn-ghost" href={`/api/schedule/hwpx-bulk?year=${y}&month=${m}`}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <a
+            className="btn"
+            href={`/api/schedule/hwpx-bulk?year=${y}&month=${m}`}
+            style={{
+              background: "linear-gradient(135deg, #9FD6C0, #1F7A52)",
+              color: "#fff", border: "1px solid #1F7A52",
+              fontWeight: 700, padding: "12px 18px", fontSize: 14,
+              boxShadow: "0 2px 6px rgba(31,122,82,0.25)",
+            }}
+          >
             📦 일정표 한꺼번에
           </a>
-          <a className="btn btn-ghost" href={`/api/record/hwpx-bulk?year=${y}&month=${m}`}>
+          <a
+            className="btn"
+            href={`/api/record/hwpx-bulk?year=${y}&month=${m}`}
+            style={{
+              background: "linear-gradient(135deg, #F5C57E, #A66400)",
+              color: "#fff", border: "1px solid #A66400",
+              fontWeight: 700, padding: "12px 18px", fontSize: 14,
+              boxShadow: "0 2px 6px rgba(166,100,0,0.25)",
+            }}
+          >
             📦 기록지 한꺼번에
           </a>
-          <Link className="btn btn-ghost" href="/record">기록지 작성</Link>
-          <Link className="btn btn-primary" href="/schedule">일정표 만들기</Link>
+          <Link
+            className="btn"
+            href="/record"
+            style={{
+              background: "linear-gradient(135deg, #FBC4B0, #C8554E)",
+              color: "#fff", border: "1px solid #C8554E",
+              fontWeight: 700, padding: "12px 18px", fontSize: 14,
+              boxShadow: "0 2px 6px rgba(200,85,78,0.25)",
+            }}
+          >
+            ✏️ 기록지 작성
+          </Link>
+          <Link className="btn btn-primary" href="/schedule" style={{ padding: "12px 18px", fontWeight: 700 }}>
+            📅 일정표 만들기
+          </Link>
         </div>
       </div>
 
@@ -199,18 +227,46 @@ async function TherapistDashboard({ user, centerId, year: y, month: m, todayDay,
             {data.todaySessions > 0 ? `오늘 회기 ${data.todaySessions}건 예정` : "오늘 회기 없음"}
           </p>
         </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <a className="btn btn-ghost" href={`/api/attendance?year=${y}&month=${m}`}>
-            📊 이번 달 출석부
-          </a>
-          <a className="btn btn-ghost" href={`/api/schedule/hwpx-bulk?year=${y}&month=${m}`}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <a
+            className="btn"
+            href={`/api/schedule/hwpx-bulk?year=${y}&month=${m}`}
+            style={{
+              background: "linear-gradient(135deg, #9FD6C0, #1F7A52)",
+              color: "#fff", border: "1px solid #1F7A52",
+              fontWeight: 700, padding: "12px 18px", fontSize: 14,
+              boxShadow: "0 2px 6px rgba(31,122,82,0.25)",
+            }}
+          >
             📦 일정표 한꺼번에
           </a>
-          <a className="btn btn-ghost" href={`/api/record/hwpx-bulk?year=${y}&month=${m}`}>
+          <a
+            className="btn"
+            href={`/api/record/hwpx-bulk?year=${y}&month=${m}`}
+            style={{
+              background: "linear-gradient(135deg, #F5C57E, #A66400)",
+              color: "#fff", border: "1px solid #A66400",
+              fontWeight: 700, padding: "12px 18px", fontSize: 14,
+              boxShadow: "0 2px 6px rgba(166,100,0,0.25)",
+            }}
+          >
             📦 기록지 한꺼번에
           </a>
-          <Link className="btn btn-ghost" href="/record">기록지 작성</Link>
-          <Link className="btn btn-primary" href="/schedule">일정표 만들기</Link>
+          <Link
+            className="btn"
+            href="/record"
+            style={{
+              background: "linear-gradient(135deg, #FBC4B0, #C8554E)",
+              color: "#fff", border: "1px solid #C8554E",
+              fontWeight: 700, padding: "12px 18px", fontSize: 14,
+              boxShadow: "0 2px 6px rgba(200,85,78,0.25)",
+            }}
+          >
+            ✏️ 기록지 작성
+          </Link>
+          <Link className="btn btn-primary" href="/schedule" style={{ padding: "12px 18px", fontWeight: 700 }}>
+            📅 일정표 만들기
+          </Link>
         </div>
       </div>
 

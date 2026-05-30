@@ -74,6 +74,20 @@ export default async function CenterPage({
                   기본값이에요. 일정표·기록지에서 회기마다 다른 종류로 바꿀 수 있습니다.
                 </div>
               </div>
+              <div className="field" style={{ gridColumn: "1 / -1" }}>
+                <label>회기 시간대 <span className="sub-mute">(콤마 또는 줄바꿈으로 구분, HH:MM~HH:MM)</span></label>
+                <textarea
+                  className="textarea"
+                  name="slots"
+                  defaultValue={center.slots}
+                  rows={4}
+                  placeholder="예: 09:00~09:50, 10:00~10:50, ..."
+                  style={{ fontFamily: "monospace", fontSize: 13 }}
+                />
+                <div className="sub-mute" style={{ fontSize: 11, marginTop: 4 }}>
+                  본인이 운영하는 회기 시간들. 일정표·세션 편집에서 드롭다운 옵션으로 사용됩니다.
+                </div>
+              </div>
             </div>
             <div className="divider" />
             <button className="btn btn-primary" type="submit">저장</button>

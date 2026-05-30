@@ -14,11 +14,24 @@ export async function updateCenter(formData: FormData) {
   const address = String(formData.get("address") ?? "").trim();
   const phone = String(formData.get("phone") ?? "").trim();
   const serviceType = String(formData.get("serviceTypes") ?? "").trim();
+  const slotsRaw = String(formData.get("slots") ?? "").trim();
   if (!name) {
     redirect("/center?err=" + encodeURIComponent("이름은 비울 수 없어요"));
   }
   if (!serviceType) {
     redirect("/center?err=" + encodeURIComponent("주력 치료 영역을 선택해주세요"));
+  }
+  const slots = slotsRaw
+    .split(/[,\n]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (slots.length === 0) {
+    redirect("/center?err=" + encodeURIComponent("회기 시간대를 1개 이상 입력해주세요"));
+  }
+  for (const s of slots) {
+    if (!/^\d{1,2}:\d{2}~\d{1,2}:\d{2}$/.test(s)) {
+      redirect("/center?err=" + encodeURIComponent(`시간대 형식이 잘못됐어요: '${s}' (예: 09:00~09:50)`));
+    }
   }
   await prisma.center.update({
     where: { id: me.centerId! },
@@ -27,6 +40,7 @@ export async function updateCenter(formData: FormData) {
       address: address || null,
       phone: phone || null,
       serviceTypes: serviceType,
+      slots: slots.join(","),
     },
   });
   revalidatePath("/center");

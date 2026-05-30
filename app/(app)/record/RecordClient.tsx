@@ -374,6 +374,8 @@ function RecordSheet({
   const [extras, setExtras] = useState(rows.map(() => "10"));
   const [amounts, setAmounts] = useState(rows.map(() => "65,000"));
   const [results, setResults] = useState(rows.map(() => ""));
+  // 제공일자(일정표) ≠ 승인일자(엑셀) 일 때 입력하는 사유. 저장 시 resultExtra 로 들어감.
+  const [mismatchReasons, setMismatchReasons] = useState(rows.map(() => ""));
   const [opinion, setOpinion] = useState("");
   const [downloading, setDownloading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -404,6 +406,11 @@ function RecordSheet({
         setExtras((prev) => prev.map((v, i) => sm.get(i + 1)?.extra ?? v));
         setAmounts((prev) => prev.map((v, i) => sm.get(i + 1)?.amount ?? v));
         setResults((prev) => prev.map((v, i) => sm.get(i + 1)?.result ?? v));
+        setMismatchReasons((prev) => prev.map((v, i) => {
+          const sess = sm.get(i + 1);
+          // 일부 RecordSession 에 resultExtra 가 있을 수도 있음
+          return (sess as { resultExtra?: string | null } | undefined)?.resultExtra ?? v;
+        }));
         setSavedMsg(`✓ ${rec.year}년 ${rec.month}월 저장된 기록을 불러왔어요.`);
       } catch {}
     })();
@@ -467,6 +474,7 @@ function RecordSheet({
             payDay: pp ? String(pp.d) : "",
             apprNumber: s.appr,
             result: results[i],
+            resultExtra: mismatchReasons[i] || undefined,
           };
         }),
       };
@@ -505,6 +513,7 @@ function RecordSheet({
           payDay: pp ? String(pp.d) : "",
           apprNumber: s.appr,
           result: results[i],
+          resultExtra: mismatchReasons[i] || undefined,
         };
       });
       const payload = {
@@ -708,6 +717,19 @@ function RecordSheet({
                 placeholder=""
                 onChange={(e) => setResults((p) => { const n = [...p]; n[i] = e.target.value; return n; })}
               />
+              {!match && (
+                <div style={{ marginTop: 8 }}>
+                  <label style={{ display: "block", fontSize: 12.5, fontWeight: 600, color: "var(--danger)", marginBottom: 4 }}>
+                    📝 불일치 사유 <span className="sub-mute" style={{ fontWeight: 400 }}>(예: '아동 독감으로 보강수업', '치료사 사정')</span>
+                  </label>
+                  <input
+                    className="input"
+                    value={mismatchReasons[i]}
+                    placeholder="예: - 4일 수업이나 아동 독감으로 10일에 보강수업함"
+                    onChange={(e) => setMismatchReasons((p) => { const n = [...p]; n[i] = e.target.value; return n; })}
+                  />
+                </div>
+              )}
             </div>
           );
         })}

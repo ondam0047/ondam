@@ -151,14 +151,6 @@ export default async function TimetablePage({
               <input type="hidden" name="year" value={year} />
             </div>
             <button className="btn btn-primary" type="submit">보기</button>
-            {selected && (
-              <a
-                className="btn btn-ghost"
-                href={`/api/attendance?therapistId=${selected.id}&year=${year}&month=${month}`}
-              >
-                📊 출석부 엑셀 다운로드
-              </a>
-            )}
           </form>
         </div>
       </div>
