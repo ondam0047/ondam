@@ -149,8 +149,14 @@ function substituteRecordXml(xml: string, p: RecordPayload): string {
     const extra = rawExtra
       ? (rawExtra.startsWith("- ") ? rawExtra : `- ${rawExtra}`)
       : "";
-    const olds = [tr.day, tr.apprDay, tr.apprNum, tr.resultMain, ...(tr.resultExtra ? [tr.resultExtra] : [])];
-    const news = [ns.useDay || "", ns.payDay || "", ns.apprNumber || "", ns.result || "", extra];
+    // 템플릿 슬롯에 resultExtra 가 있는 회기는 별도 줄로 치환,
+    // 없는 회기(예: 2·5번째)는 사유를 잃지 않도록 결과 본문 뒤에 인라인 부착.
+    const hasExtraSlot = !!tr.resultExtra;
+    const sessionResult = !hasExtraSlot && extra
+      ? `${ns.result || ""} ${extra}`.trim()
+      : (ns.result || "");
+    const olds = [tr.day, tr.apprDay, tr.apprNum, tr.resultMain, ...(hasExtraSlot ? [tr.resultExtra!] : [])];
+    const news = [ns.useDay || "", ns.payDay || "", ns.apprNumber || "", sessionResult, extra];
     for (let j = 0; j < olds.length; j++) {
       const r = replaceWithLinesegReset(out, olds[j], news[j], recordCursor);
       out = r.out;

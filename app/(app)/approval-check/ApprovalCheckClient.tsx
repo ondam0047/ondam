@@ -232,7 +232,7 @@ export default function ApprovalCheckClient() {
                     <th style={{ whiteSpace: "nowrap" }}>이용일자</th>
                     <th style={{ whiteSpace: "nowrap" }}>결제일자</th>
                     <th style={{ whiteSpace: "nowrap" }}>결제시간</th>
-                    <th>직전과 간격</th>
+                    <th style={{ whiteSpace: "nowrap" }}>겹침 검사</th>
                     <th style={{ whiteSpace: "nowrap" }}>구분</th>
                     <th style={{ whiteSpace: "nowrap" }}>승인번호</th>
                   </tr>
@@ -240,11 +240,6 @@ export default function ApprovalCheckClient() {
                 <tbody>
                   {rows.map((r, i) => {
                     const v = violations.get(i);
-                    const prev = i > 0 ? rows[i - 1] : null;
-                    const sameDay = prev && prev.payDate === r.payDate;
-                    const a = prev ? timeToMin(prev.payTime) : null;
-                    const b = timeToMin(r.payTime);
-                    const gap = (sameDay && a != null && b != null) ? (b - a) : null;
                     const retro = r.payKind.includes("소급");
                     return (
                       <tr key={i} style={{
@@ -258,16 +253,14 @@ export default function ApprovalCheckClient() {
                         <td style={{ whiteSpace: "nowrap" }}>{r.payDate}</td>
                         <td style={{ fontFamily: "monospace", fontWeight: 700, whiteSpace: "nowrap" }}>{r.payTime || "-"}</td>
                         <td>
-                          {gap == null ? "-" : (
+                          {v ? (
                             <>
-                              <span style={{ fontFamily: "monospace" }}>{gap}분</span>
-                              {v && (
-                                <span style={{ marginLeft: 6, fontSize: 11 }}>
-                                  (최소 {v.expectedMin}분 필요 — {v.expectedMin - v.gap}분 빠름)
-                                </span>
-                              )}
+                              <span style={{ fontFamily: "monospace", fontWeight: 700 }}>{v.gap}분</span>
+                              <span style={{ marginLeft: 6, fontSize: 11 }}>
+                                (이전 회기와 겹침 — {v.expectedMin - v.gap}분 빠름)
+                              </span>
                             </>
-                          )}
+                          ) : ""}
                         </td>
                         <td style={{ whiteSpace: "nowrap" }}>
                           {retro ? (
