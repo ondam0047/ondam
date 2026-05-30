@@ -32,26 +32,21 @@ function timeToMin(hhmm: string): number | null {
 }
 
 const SESSION_MIN = 50;   // 1 회기 기본 길이
-const TOL = 10;           // 허용 오차 (±10분)
-const BREAK_THRESHOLD = 120; // 이 이상 떨어지면 점심·중간 휴식으로 간주, 검사 제외
+const TOL = 10;           // 허용 오차 (앞쪽 ±10분)
 
-type Violation =
-  | { kind: "too_close"; gap: number; expectedMin: number }
-  | { kind: "too_far";   gap: number; expectedMax: number };
+type Violation = { kind: "too_close"; gap: number; expectedMin: number };
 
+// 같은 날 직전 결제와의 간격이 회기 길이보다 짧으면 (= 이전 회기와 겹침) 위반.
+// 간격이 멀어진 건 휴식·블록 전환이므로 검사 제외.
 function checkRowAgainstPrev(prev: Row, curr: Row): Violation | null {
   if (!prev.payDate || !curr.payDate || prev.payDate !== curr.payDate) return null;
   const a = timeToMin(prev.payTime);
   const b = timeToMin(curr.payTime);
   if (a == null || b == null) return null;
   const gap = b - a;
-  if (gap <= 0) return null;                       // 동시·역순은 별개 (정렬 후라 거의 안 발생)
-  if (gap >= BREAK_THRESHOLD) return null;          // 휴식 시간으로 간주
+  if (gap <= 0) return null;
   if (gap < SESSION_MIN - TOL) {
     return { kind: "too_close", gap, expectedMin: SESSION_MIN - TOL };
-  }
-  if (gap > SESSION_MIN + TOL) {
-    return { kind: "too_far", gap, expectedMax: SESSION_MIN + TOL };
   }
   return null;
 }
@@ -223,8 +218,8 @@ export default function ApprovalCheckClient() {
           </div>
           <div className="card-body">
             <div className="tip" style={{ marginBottom: 12, fontSize: 12.5, lineHeight: 1.6 }}>
-              💡 빨간색 행 = 직전 결제와의 시간 간격이 정상 범위(40~60분)를 벗어남.
-              점심·중간 휴식(≥120분)은 검사 대상에서 제외했어요.
+              💡 빨간색 행 = 직전 결제와 간격이 40분(50분 ± 10분 허용) 미만 — 이전 회기와 겹침.
+              간격이 멀어진 건 휴식·블록 전환으로 보고 검사하지 않아요.
               소급결제 건은 별도 사유서가 필요합니다.
             </div>
 
@@ -272,9 +267,7 @@ export default function ApprovalCheckClient() {
                               <span style={{ fontFamily: "monospace" }}>{gap}분</span>
                               {v && (
                                 <span style={{ marginLeft: 6, fontSize: 11 }}>
-                                  {v.kind === "too_close"
-                                    ? `(최소 ${v.expectedMin}분 필요 — ${v.expectedMin - v.gap}분 빠름)`
-                                    : `(최대 ${v.expectedMax}분 까지 — ${v.gap - v.expectedMax}분 늦음)`}
+                                  (최소 {v.expectedMin}분 필요 — {v.expectedMin - v.gap}분 빠름)
                                 </span>
                               )}
                             </>
@@ -296,7 +289,7 @@ export default function ApprovalCheckClient() {
             {violationCount > 0 && (
               <div className="flash warn" style={{ marginTop: 14 }}>
                 <b>{violationCount}건</b> 의 결제 간격 위반이 있어요. 위 빨간 행을 확인해 보완하세요.
-                (정상 회기 길이 50분 ± 허용오차 10분 기준)
+                (직전 결제 후 40분 미만 = 이전 회기와 겹침)
               </div>
             )}
             {retroCount > 0 && (
