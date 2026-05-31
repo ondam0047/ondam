@@ -89,6 +89,7 @@ export default async function GuidePage() {
     { id: "children",  label: "내 아동 등록" },
     { id: "schedule",  label: "일정표 작성" },
     { id: "record",    label: "기록지 작성" },
+    { id: "handwrite", label: "수기로 작성하는 분" },
     { id: "approval",  label: "승인내역 점검" },
     { id: "timetable", label: "내 시간표" },
     { id: "bulk",      label: "한꺼번에 다운로드" },
@@ -285,8 +286,43 @@ export default async function GuidePage() {
           </Step>
         </Section>
 
-        {/* 6. 승인내역 점검 */}
-        <Section id="approval" num="6" title="승인내역 점검">
+        {/* 6. 수기로 작성하는 분 */}
+        <Section id="handwrite" num="6" title="수기로 작성하는 분">
+          <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
+            지자체·센터 운영 방침상 <b>결과 기록과 부모 서명을 회기마다 종이에 직접</b> 받아야 하는 경우가 많아요.
+            이럴 때도 우리 도구가 위쪽 표(이름·날짜·시간·바우처·승인번호 등)는 자동으로 채워서 인쇄해주니까,
+            <b> 그 종이 한 장에 5회기 결과와 5개 부모 서명을 누적</b>해서 채우시면 됩니다.
+          </p>
+
+          <Step n={1} title="월초 — 일정표 만들기">
+            평소처럼 일정표를 만들고 저장하세요. 이게 종이에 들어갈 회기 날짜·시간의 기준이 됩니다.
+          </Step>
+          <Step n={2} title="월초 — 기록지에서 한글파일 다운로드">
+            <b>[기록지] → 아동·연·월 선택 → [작성 시작]</b>. 결과 칸은 빈 상태로 두고 바로
+            <b> [한글파일(.hwpx) 다운로드]</b>. 위쪽 표는 자동으로 채워져 인쇄돼요.
+            한 아동이 12명이라면 <b>[기록지 한꺼번에]</b> 버튼으로 12장을 ZIP 으로 한 번에 받을 수도 있어요.
+          </Step>
+          <Step n={3} title="회기마다 — 종이에 손글씨 + 서명">
+            인쇄한 종이를 학생별 파일에 끼워두고, 회기 끝날 때마다 그날 칸에 결과를 쓰고 부모 서명을 받으세요.
+            5회기가 끝나면 5칸이 다 채워집니다.
+          </Step>
+          <Step n={4} title="월말 — 엑셀 받은 후 (선택)">
+            전자바우처 엑셀이 도착하면 <b>[기록지]</b> 에 업로드해서 승인번호·결제일을 확인.
+            필요하면 그 정보를 종이에 손으로 추가하거나, 디지털 보관용으로 결과 텍스트도 입력해 다시 한 번 저장할 수 있어요.
+          </Step>
+
+          <Callout kind="tip">
+            <b>결과 칸을 입력 안 해도 저장·다운로드가 됩니다.</b> 디지털 기록이 필요 없으면 한글파일만 받고 종이로만 관리하시면 돼요.
+            나중에 같은 아동·월로 다시 들어와도 위 표는 그대로 자동 재생성됩니다.
+          </Callout>
+          <Callout kind="info">
+            <b>승인내역 점검</b> 메뉴는 수기로 운영하는 분들도 똑같이 유용해요.
+            엑셀만 올리면 결제 시간 겹침을 자동 검출하니까 종이 작성 여부와 무관하게 지자체 점검 전에 한 번씩 돌려보세요.
+          </Callout>
+        </Section>
+
+        {/* 7. 승인내역 점검 */}
+        <Section id="approval" num="7" title="승인내역 점검">
           <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
             지자체 점검 전에 본인 결제 내역을 미리 자가 점검합니다.
             가장 흔한 문제 — <b>같은 날 결제 시간이 너무 가까워서 이전 회기와 겹치는 경우</b>를 자동으로 잡아줘요.
@@ -311,7 +347,7 @@ export default async function GuidePage() {
         </Section>
 
         {/* 7. 내 시간표 */}
-        <Section id="timetable" num="7" title="내 시간표">
+        <Section id="timetable" num="8" title="내 시간표">
           <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
             저장된 일정표를 <b>월간 캘린더</b>로 한 눈에 봅니다. 모든 회기가 날짜별·시간순으로 표시되고,
             공휴일·오늘 날짜는 색으로 구분돼요.
@@ -323,7 +359,7 @@ export default async function GuidePage() {
         </Section>
 
         {/* 8. 한꺼번에 다운로드 */}
-        <Section id="bulk" num="8" title="한꺼번에 다운로드">
+        <Section id="bulk" num="9" title="한꺼번에 다운로드">
           <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
             대시보드 상단의 그라디언트 버튼들로 월말 마감 작업이 빨라져요.
           </p>
@@ -341,7 +377,7 @@ export default async function GuidePage() {
         </Section>
 
         {/* 9. 작업 상태 유지 */}
-        <Section id="persist" num="9" title="작업 상태 유지">
+        <Section id="persist" num="10" title="작업 상태 유지">
           <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
             일정표·기록지를 왔다갔다 하며 작업할 때 <b>보고 있던 화면이 그대로 유지</b>됩니다.
             의도하지 않게 처음으로 돌아가지 않아요.
@@ -356,7 +392,7 @@ export default async function GuidePage() {
         </Section>
 
         {/* 10. FAQ */}
-        <Section id="faq" num="10" title="자주 묻는 질문">
+        <Section id="faq" num="11" title="자주 묻는 질문">
           <div style={{ display: "grid", gap: 14 }}>
             <details style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", padding: "12px 16px" }}>
               <summary style={{ cursor: "pointer", fontWeight: 700 }}>Q. 가입 후 입력한 내용을 어디서 바꿔요?</summary>
