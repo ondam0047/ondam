@@ -36,26 +36,7 @@ export type RecordPayload = {
   opinion?: string;
 };
 
-// 수기 기록지 모드 — 결과·총평을 비워서 인쇄하면 사용자가 손으로 채움.
-// 보조 3칸은 토글로 출력 여부 결정 (지자체·선생님마다 다름).
-export type ManualPrintOptions = {
-  manualMode: boolean;
-  printUseDay: boolean;
-  printPayDay: boolean;
-  printApprNo: boolean;
-};
-
-
 export const RECORD_TEMPLATE_PATH = path.join(process.cwd(), "samples", "기록지_template.hwpx");
-// 수기 기록지 — 제공일자·승인일자·승인번호 5행만 있는 미니 표. 결과는 손으로 작성.
-export const RECORD_MANUAL_TEMPLATE_PATH = path.join(process.cwd(), "samples", "기록지_수기_template.hwpx");
-
-// 수기 템플릿의 더미값 (5회기 × 제공일자/승인일자/승인번호). 순서대로 치환.
-const MANUAL_T = {
-  useDays: ["6", "7", "13", "14", "21"] as const,
-  payDays: ["6", "7", "13", "20", "21"] as const,
-  apprNums: ["500892009584", "500892460975", "500894721782", "500897353270", "500897807736"] as const,
-};
 
 const T = {
   titleMonth: " (2",

@@ -119,36 +119,6 @@ export default async function CenterPage({
             </div>
 
             <div className="divider" />
-
-            <div className="label-block">수기 기록지 출력 <span className="small">— 인쇄 후 손으로 채우는 분들</span></div>
-            <label className="modal-check" style={{ marginBottom: 8 }}>
-              <input type="checkbox" name="manualMode" defaultChecked={center.manualMode} />
-              <b>수기 기록지 모드 사용</b>
-            </label>
-            <div className="sub-mute" style={{ fontSize: 12, lineHeight: 1.7, marginBottom: 10 }}>
-              켜면 한글파일(.hwpx) 출력 시 <b>상태 및 결과 기록 / 사유</b>가 빈칸으로 인쇄돼요.
-              나머지 텍스트(이름·생년월일·시간·바우처·총평 등)는 그대로 출력됩니다.
-              아래 3개 칸은 따로 골라서 끌 수 있어요.
-            </div>
-            <div style={{ display: "flex", gap: 18, flexWrap: "wrap", padding: "8px 12px", background: "var(--surface-2)", borderRadius: "var(--r-sm)" }}>
-              <label className="modal-check">
-                <input type="checkbox" name="printUseDay" defaultChecked={center.printUseDay} />
-                제공일자 출력
-              </label>
-              <label className="modal-check">
-                <input type="checkbox" name="printPayDay" defaultChecked={center.printPayDay} />
-                승인일자 출력
-              </label>
-              <label className="modal-check">
-                <input type="checkbox" name="printApprNo" defaultChecked={center.printApprNo} />
-                승인번호 출력
-              </label>
-            </div>
-            <div className="sub-mute" style={{ fontSize: 11, marginTop: 6 }}>
-              체크 해제한 칸은 인쇄에서 빈칸으로 나가요. 수기 기록지 모드가 꺼져 있으면 이 설정은 무시됩니다.
-            </div>
-
-            <div className="divider" />
             <button className="btn btn-primary" type="submit">저장</button>
           </form>
         </div>
