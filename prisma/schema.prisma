@@ -23,12 +23,6 @@ model Center {
   slots         String   @default("09:00~09:50,09:50~10:40,10:40~11:30,11:30~12:20,13:30~14:20,14:20~15:10,15:10~16:00,16:00~16:50,16:50~17:40,17:40~18:30,18:30~19:20")
   // 회당 기본 단가 (원). 아동 새로 등록할 때 자동 채움.
   defaultUnit   Int      @default(60000)
-  // 수기 기록지 모드 — true 면 한글파일 출력 시 결과·총평을 비워서 인쇄 (지자체별 수기 작성용).
-  manualMode    Boolean  @default(false)
-  // 수기 모드에서 함께 출력할 칸 토글 (체크 = 출력, 해제 = 비워둠).
-  printUseDay   Boolean  @default(true)
-  printPayDay   Boolean  @default(true)
-  printApprNo   Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

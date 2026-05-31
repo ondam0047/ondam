@@ -20,7 +20,6 @@ export default async function CenterPage({
       select: {
         name: true, address: true, phone: true, serviceTypes: true,
         slots: true, defaultUnit: true,
-        manualMode: true, printUseDay: true, printPayDay: true, printApprNo: true,
       },
     }),
     prisma.user.findUnique({ where: { id: me.id }, select: { name: true, therapistType: true } }),

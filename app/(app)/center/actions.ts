@@ -18,10 +18,6 @@ export async function updateCenter(formData: FormData) {
   const phone = String(formData.get("phone") ?? "").trim();
   const slotsRaw = String(formData.get("slots") ?? "").trim();
   const defaultUnit = Number(formData.get("defaultUnit") ?? 60000) || 60000;
-  const manualMode  = formData.get("manualMode")  === "on";
-  const printUseDay = formData.get("printUseDay") === "on";
-  const printPayDay = formData.get("printPayDay") === "on";
-  const printApprNo = formData.get("printApprNo") === "on";
   if (!userName) {
     redirect("/center?err=" + encodeURIComponent("내 이름은 비울 수 없어요"));
   }
@@ -53,10 +49,6 @@ export async function updateCenter(formData: FormData) {
         serviceTypes,
         slots: slots.join(","),
         defaultUnit,
-        manualMode,
-        printUseDay,
-        printPayDay,
-        printApprNo,
       },
     });
     await tx.user.update({
