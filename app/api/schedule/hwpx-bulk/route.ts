@@ -10,8 +10,9 @@ import {
 } from "@/lib/schedule-hwpx";
 import { bundleAsZip } from "@/lib/record-hwpx";
 
-// 한 사용자의 (연·월) 저장된 모든 일정표를 한 번에 .hwpx 생성 → ZIP 으로.
-//   GET /api/schedule/hwpx-bulk?year=2026&month=2
+// 한 사용자의 (연·월) 저장된 일정표를 한 번에 .hwpx 생성 → ZIP 으로.
+//   GET /api/schedule/hwpx-bulk?year=2026&month=2[&ids=1,2,3]
+//   ids 가 있으면 그 childServiceId 들만, 없으면 그 달 전체.
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
@@ -20,6 +21,10 @@ export async function GET(req: NextRequest) {
   if (!Number.isInteger(year) || !Number.isInteger(month)) {
     return Response.json({ error: "year/month required" }, { status: 400 });
   }
+  const idsRaw = req.nextUrl.searchParams.get("ids");
+  const ids = idsRaw
+    ? idsRaw.split(",").map((s) => Number(s.trim())).filter((n) => Number.isInteger(n))
+    : null;
 
   const myTherapistId = await getEffectiveTherapistId(user);
   if (!myTherapistId) {
@@ -30,6 +35,7 @@ export async function GET(req: NextRequest) {
     where: {
       year,
       month,
+      ...(ids && ids.length > 0 ? { childServiceId: { in: ids } } : {}),
       childService: {
         therapistId: myTherapistId,
         child: { centerId: user.centerId ?? -1 },
@@ -43,7 +49,7 @@ export async function GET(req: NextRequest) {
   });
 
   if (schedules.length === 0) {
-    return Response.json({ error: `${year}년 ${month}월 저장된 일정표가 없어요.` }, { status: 404 });
+    return Response.json({ error: `${year}년 ${month}월 선택한 일정표가 없어요.` }, { status: 404 });
   }
 
   let templateBuf: Buffer;

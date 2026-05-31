@@ -58,11 +58,13 @@ const CLOCK_ICON = "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M12 6v6l4 2";
 const HELP_ICON = "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3 M12 17h.01";
 
 const CHECK_ICON = "M9 12l2 2 4-4 M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z";
+const DOWNLOAD_ICON = "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3";
 const OWNER_ITEMS = [
   { href: "/dashboard",       label: "대시보드",       icon: IC.dash,     tour: "dash"   },
   { href: "/schedule",        label: "일정표",         icon: IC.calendar, tour: "sched"  },
   { href: "/record",          label: "기록지",         icon: IC.doc,      tour: "rec"    },
   { href: "/approval-check",  label: "승인내역 점검",  icon: CHECK_ICON,  tour: "appr"   },
+  { href: "/export",          label: "한꺼번에 다운로드", icon: DOWNLOAD_ICON, tour: "exp" },
   { href: "/timetable",       label: "내 시간표",      icon: GRID_ICON,   tour: "time"   },
   { href: "/children",        label: "내 아동",        icon: IC.user,     tour: "child"  },
   { href: "/center",          label: "내 설정",        icon: COG_ICON,    tour: "set"    },
@@ -82,6 +84,7 @@ const THERAPIST_ITEMS = [
   { href: "/schedule",        label: "일정표",         icon: IC.calendar, tour: "sched" },
   { href: "/record",          label: "기록지",         icon: IC.doc,      tour: "rec"   },
   { href: "/approval-check",  label: "승인내역 점검",  icon: CHECK_ICON,  tour: "appr"  },
+  { href: "/export",          label: "한꺼번에 다운로드", icon: DOWNLOAD_ICON, tour: "exp" },
   { href: "/availability",    label: "내 차단 시간",   icon: CLOCK_ICON,  tour: ""      },
   { href: "/children",        label: "내 아동",        icon: IC.user,     tour: "child" },
   { href: "/guide",           label: "도움말",         icon: HELP_ICON,   tour: "help"  },

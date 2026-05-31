@@ -20,6 +20,10 @@ export async function GET(req: NextRequest) {
   if (!Number.isInteger(year) || !Number.isInteger(month)) {
     return Response.json({ error: "year/month required" }, { status: 400 });
   }
+  const idsRaw = req.nextUrl.searchParams.get("ids");
+  const ids = idsRaw
+    ? idsRaw.split(",").map((s) => Number(s.trim())).filter((n) => Number.isInteger(n))
+    : null;
 
   const myTherapistId = await getEffectiveTherapistId(user);
   if (!myTherapistId) {
@@ -30,6 +34,7 @@ export async function GET(req: NextRequest) {
     where: {
       year,
       month,
+      ...(ids && ids.length > 0 ? { childServiceId: { in: ids } } : {}),
       childService: {
         therapistId: myTherapistId,
         child: { centerId: user.centerId ?? -1 },
@@ -43,7 +48,7 @@ export async function GET(req: NextRequest) {
   });
 
   if (records.length === 0) {
-    return Response.json({ error: `${year}년 ${month}월 저장된 기록지가 없어요.` }, { status: 404 });
+    return Response.json({ error: `${year}년 ${month}월 선택한 기록지가 없어요.` }, { status: 404 });
   }
 
   let templateBuf: Buffer;
