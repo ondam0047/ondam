@@ -11,7 +11,9 @@
     "db:migrate:postgres": "PRISMA_SCHEMA=postgres prisma migrate deploy",
     "db:migrate:postgres:dev": "PRISMA_SCHEMA=postgres prisma migrate dev",
     "db:export:sqlite": "node --experimental-strip-types scripts/export-sqlite.ts",
-    "db:import:postgres": "PRISMA_SCHEMA=postgres node --experimental-strip-types scripts/import-postgres.ts"
+    "db:import:postgres": "PRISMA_SCHEMA=postgres node --experimental-strip-types scripts/import-postgres.ts",
+    "seed:demo": "node --experimental-strip-types scripts/seed-demo.ts",
+    "seed:demo-excel": "node --experimental-strip-types scripts/gen-demo-excel.ts"
   },
   "dependencies": {
     "@prisma/adapter-better-sqlite3": "^7.8.0",
