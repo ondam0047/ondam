@@ -197,34 +197,8 @@ function substituteRecordXml(xml: string, p: RecordPayload): string {
   return out;
 }
 
-// 수기 템플릿 치환 — 각 회기의 제공일자·승인일자·승인번호만. 결과 칸은 비워둠.
-// printUseDay/printPayDay/printApprNo 토글로 각 칸 출력 여부 결정.
-function substituteManualRecordXml(xml: string, p: RecordPayload, o: ManualPrintOptions): string {
-  let out = xml;
-  let cursor = 0;
-  const sessions = p.sessions.slice(0, MAX_SESSIONS);
-  for (let i = 0; i < MANUAL_T.useDays.length; i++) {
-    const ns = sessions[i];
-    const useNew = ns ? (o.printUseDay ? (ns.useDay || "") : "") : "";
-    const payNew = ns ? (o.printPayDay ? (ns.payDay || "") : "") : "";
-    const apprNew = ns ? (o.printApprNo ? (ns.apprNumber || "") : "") : "";
-    const olds = [MANUAL_T.useDays[i], MANUAL_T.payDays[i], MANUAL_T.apprNums[i]];
-    const news = [useNew, payNew, apprNew];
-    for (let j = 0; j < olds.length; j++) {
-      const r = replaceWithLinesegReset(out, olds[j], news[j], cursor);
-      out = r.out;
-      cursor = r.nextCursor;
-    }
-  }
-  return out;
-}
-
 export async function readRecordTemplate(): Promise<Buffer> {
   return readFile(RECORD_TEMPLATE_PATH);
-}
-
-export async function readManualRecordTemplate(): Promise<Buffer> {
-  return readFile(RECORD_MANUAL_TEMPLATE_PATH);
 }
 
 // 한 장(5회기 이하) HWPX 생성
@@ -232,25 +206,6 @@ export function generateOneRecordSheet(templateBuf: Buffer, p: RecordPayload): B
   const oldXml = readSection0(templateBuf);
   const newXml = substituteRecordXml(oldXml, p);
   return patchSection0(templateBuf, newXml);
-}
-
-// 수기 기록지 한 장 생성 (미니 템플릿 사용).
-export function generateOneManualSheet(templateBuf: Buffer, p: RecordPayload, o: ManualPrintOptions): Buffer {
-  const oldXml = readSection0(templateBuf);
-  const newXml = substituteManualRecordXml(oldXml, p, o);
-  return patchSection0(templateBuf, newXml);
-}
-
-// 수기 모드: 미니 템플릿으로 5회기씩 분할 생성.
-export function buildManualRecordSheets(templateBuf: Buffer, p: RecordPayload, o: ManualPrintOptions): Buffer[] {
-  const chunks: RecordSessionDetail[][] = [];
-  for (let i = 0; i < p.sessions.length; i += MAX_SESSIONS) {
-    chunks.push(p.sessions.slice(i, i + MAX_SESSIONS));
-  }
-  if (chunks.length === 0) chunks.push([]);
-  return chunks.map((chunkSessions) =>
-    generateOneManualSheet(templateBuf, { ...p, sessions: chunkSessions }, o)
-  );
 }
 
 // 회기 수에 따라 1장 또는 N장으로 분할. 항상 Buffer[] 반환.
