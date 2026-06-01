@@ -133,10 +133,20 @@ function buildRows(opts: { violationCount?: number; retroCount?: number } = {}):
     }
   }
 
-  // 소급결제 시나리오 — 마지막 N건의 결제구분을 '소급결제' 로.
+  // 소급결제 시나리오 — N개의 서로 다른 아동의 회기를 각각 1건씩 소급결제로 표시.
+  // (분산되어야 영상 시연·UX 테스트에 더 자연스러움)
   if (opts.retroCount && opts.retroCount > 0) {
-    const start = Math.max(0, rows.length - opts.retroCount);
-    for (let i = start; i < rows.length; i++) rows[i].결제구분 = "소급결제";
+    const used = new Set<string>();
+    let placed = 0;
+    // 뒤에서부터 훑되, 아동별 1건씩만 표시
+    for (let i = rows.length - 1; i >= 0 && placed < opts.retroCount; i--) {
+      const child = rows[i].대상자;
+      if (!used.has(child)) {
+        rows[i].결제구분 = "소급결제";
+        used.add(child);
+        placed += 1;
+      }
+    }
   }
 
   return rows;
@@ -187,7 +197,7 @@ function main() {
   writeWorkbook(buildRows({ violationCount: 2 }), "서비스제공내역_위반.xlsx");
 
   apprCounter = 7000;
-  writeWorkbook(buildRows({ retroCount: 1 }), "서비스제공내역_소급.xlsx");
+  writeWorkbook(buildRows({ retroCount: 3 }), "서비스제공내역_소급.xlsx");
 
   console.log("\n✅ 완료. samples/demo/ 폴더에 3개 파일 생성됨.");
   console.log("   영상 촬영 시 이 엑셀을 기록지·승인내역 점검 페이지에 드래그.");

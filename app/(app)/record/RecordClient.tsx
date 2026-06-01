@@ -100,6 +100,7 @@ export default function RecordClient({
   const [therapist, setTherapist] = useState(defaultTherapist);
   const [uploadInfo, setUploadInfo] = useState("");
   const [retroChildren, setRetroChildren] = useState<string[]>([]);
+  const [retroByChild, setRetroByChild] = useState<Record<string, number>>({});
   const [retroCount, setRetroCount] = useState(0);
   const [error, setError] = useState("");
 
@@ -274,6 +275,7 @@ export default function RecordClient({
         const g: Grouped = {};
         let retroCount = 0;
         const retroChildSet = new Set<string>();
+        const retroByChild: Record<string, number> = {};
         for (let i = hi + 1; i < rows.length; i++) {
           const row = rows[i] as string[] | undefined;
           if (!row || !row[ci.name]) continue;
@@ -283,6 +285,7 @@ export default function RecordClient({
           if (payKind.includes("소급")) {
             retroCount += 1;
             retroChildSet.add(nm);
+            retroByChild[nm] = (retroByChild[nm] ?? 0) + 1;
           }
           (g[nm] = g[nm] || []).push({
             name: nm,
@@ -313,6 +316,7 @@ export default function RecordClient({
         setTherapist(ther);
         setUploadInfo(`✓ 불러오기 완료 · 치료사 ${ther || "-"} · 아동 ${names.length}명 · 총 ${total}건`);
         setRetroChildren([...retroChildSet]);
+        setRetroByChild(retroByChild);
         setRetroCount(retroCount);
         setGrouped(g);
         setCurChild(names[0] ?? null);
@@ -424,33 +428,42 @@ export default function RecordClient({
             <div className="tip" style={{ marginTop: 12 }}>
               <div>{uploadInfo}</div>
               {retroCount > 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const target = retroChildren[0];
-                    if (!target) return;
-                    setCurChild(target);
-                    // 탭이 바뀌고 RecordSheet 가 렌더링된 뒤 소급 회기 카드로 스크롤
-                    setTimeout(() => {
-                      const el = document.querySelector('[data-retro="true"]');
-                      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-                    }, 250);
-                  }}
-                  style={{
-                    display: "block",
-                    marginTop: 8,
-                    padding: "8px 12px",
-                    background: "var(--danger)",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: "var(--r-sm)",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    fontSize: 13,
-                  }}
-                >
-                  ⚠ 소급결제 {retroCount}건 있음 — 사유서 작성 확인 (클릭해서 바로 가기 →)
-                </button>
+                <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+                  <div style={{ fontSize: 12.5, color: "var(--danger)", fontWeight: 700 }}>
+                    ⚠ 소급결제 {retroCount}건 — 사유서 작성 확인
+                  </div>
+                  {retroChildren.map((childName) => {
+                    const count = retroByChild[childName] ?? 0;
+                    return (
+                      <button
+                        key={childName}
+                        type="button"
+                        onClick={() => {
+                          setCurChild(childName);
+                          // 탭이 바뀌고 RecordSheet 가 렌더링된 뒤 첫 번째 소급 회기 카드로 스크롤
+                          setTimeout(() => {
+                            const el = document.querySelector('[data-retro="true"]');
+                            if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+                          }, 250);
+                        }}
+                        style={{
+                          display: "block",
+                          padding: "8px 12px",
+                          background: "var(--danger)",
+                          color: "#fff",
+                          border: "none",
+                          borderRadius: "var(--r-sm)",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          fontSize: 13,
+                          textAlign: "left",
+                        }}
+                      >
+                        → {childName} 소급결제 {count}건 — 클릭해서 바로 가기
+                      </button>
+                    );
+                  })}
+                </div>
               )}
             </div>
           )}
