@@ -4,7 +4,7 @@
 
 ---
 
-## 🚀 운영 배포 대기 (가장 먼저)
+## 운영 배포 대기 (가장 먼저)
 
 소급결제 UI 개선 (`feat/record` 기반, 운영 브랜치 `claude/clever-ritchie-GiZtt` 에 푸시 완료)을 운영(baroilji.com)에 반영.
 
@@ -23,7 +23,7 @@ pm2 restart baroilji
 
 ---
 
-## 🆕 신규 기능 — 초기화 버튼
+## 신규 기능 — 초기화 버튼
 
 상태 누적되는 페이지에 "처음부터 다시" 버튼 추가. localStorage 의 baroilji_*_draft 키 삭제 + React state 초기화.
 
@@ -31,12 +31,12 @@ pm2 restart baroilji
 1. **일정표** (`/schedule`)
    - 위치: 미리보기 카드 헤더 우측 (생성됐을 때만 노출) 또는 상단 작은 버튼
    - 동작: `baroilji_schedule_draft` 삭제 + 모든 form state 초기화
-   - 라벨: "🔄 처음부터 다시"
+   - 라벨: "처음부터 다시"
 
 2. **기록지** (`/record`)
    - 위치: 엑셀 드롭존 위 작은 버튼 (grouped 있을 때만)
    - 동작: `baroilji_record_draft` 삭제 + grouped/curChild/retroChildren 비움
-   - 라벨: "🔄 초기화"
+   - 라벨: "초기화"
 
 3. **승인내역 점검** (`/approval-check`)
    - 위치: 결과 카드 헤더 우측
@@ -50,7 +50,7 @@ pm2 restart baroilji
 
 ---
 
-## 🐛 버그 수정 — 내 아동 엑셀 가져오기 옛 UI 노출
+## 버그 수정 — 내 아동 엑셀 가져오기 옛 UI 노출
 
 증상: `/children` 에서 [엑셀로 가져오기] 클릭 시 "옛날에 있던 엑셀 파일 넣는 창" 이 갑자기 뜸.
 
@@ -63,7 +63,7 @@ pm2 restart baroilji
 
 ---
 
-## 📋 베타 운영 진행 중
+## 베타 운영 진행 중
 
 - 베타 사용자에게 영상 8편 + 한국장애인개발원 2021 보고서 인용 공유 예정
 - 베타 종료 1주 전 사용자 설문 (서류 시간 단축 비율 등) — 정식 출시 마케팅 자료용
@@ -71,7 +71,7 @@ pm2 restart baroilji
 
 ---
 
-## 🎬 영상 후속 작업
+## 영상 후속 작업
 
 - CapCut 으로 8편 편집 (자막·BGM·TypeCast 더빙)
 - 썸네일 8개 제작 (Bing 이미지 만들기 + Canva)
