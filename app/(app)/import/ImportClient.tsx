@@ -264,9 +264,8 @@ export default function ImportClient({ serviceTypes }: { serviceTypes: string[] 
         <div className="card-body">
           <div className="tip" style={{ marginBottom: 14 }}>
             <span>
-              컬럼: <b>성명 · 생년월일 · 관리번호 · 서비스 · 담당 · 시간 · 요일 · 단가 · 본인부담금 · 목표 회기</b>{" "}
-              (관리번호·단가·본인부담금·목표·메모는 선택). 채워두면 일정표·기록지에서 아동을 고를 때 자동으로 채워집니다.
-              한 아동이 여러 서비스를 받으면 줄을 여러 개 적으면 같은 사람으로 묶입니다.<br />
+              컬럼: <b>성명 · 생년월일 · 담당 · 시간 · 요일 · 단가 · 본인부담금 · 목표 회기</b>{" "}
+              (담당·단가·본인부담금·목표·메모는 선택). 채워두면 일정표·기록지에서 아동을 고를 때 자동으로 채워집니다.<br />
               <b>전자바우처 '서비스제공내역' 엑셀</b>도 그대로 올리면 자동으로 명단을 추출합니다.<br />
               양식이 없으면 아래 <b>[기본 양식 다운로드]</b> 를 받아 채워주세요.
             </span>
@@ -327,7 +326,7 @@ export default function ImportClient({ serviceTypes }: { serviceTypes: string[] 
             <table className="table">
               <thead>
                 <tr>
-                  <th>성명</th><th>생년월일</th><th>관리번호</th><th>서비스</th>
+                  <th>성명</th><th>생년월일</th>
                   <th>담당</th><th>시간</th><th>요일</th><th>단가</th><th>본인부담금</th><th>목표</th>
                 </tr>
               </thead>
@@ -336,8 +335,6 @@ export default function ImportClient({ serviceTypes }: { serviceTypes: string[] 
                   <tr key={i}>
                     <td><b>{c.name}</b></td>
                     <td className="num-cell">{c.birthDate ?? "-"}</td>
-                    <td className="num-cell">{c.mgmtNumber ?? "-"}</td>
-                    <td><span className="badge badge-primary">{c.serviceType}</span></td>
                     <td>{c.therapistName ?? "-"}</td>
                     <td className="num-cell">{c.defaultSlot ?? "-"}</td>
                     <td>{c.defaultDays ? c.defaultDays.split(",").map((n) => WEEK[Number(n)]).join(" ") : "-"}</td>
