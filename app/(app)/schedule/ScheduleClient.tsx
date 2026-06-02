@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  WEEK, holiday, pad,
+  WEEK, holiday, pad, parseDaySlots,
 } from "@/lib/constants";
 
 type Session = { time: string; makeup: boolean };
@@ -20,6 +20,7 @@ type ChildOption = {
   mgmtNumber: string | null;
   defaultSlot: string | null;
   defaultDays: string | null;
+  daySlots: string | null;       // 요일별 시간대 오버라이드 ("1=09:00~09:50,...")
   defaultUnit: number;
   defaultTarget: number;
   monthlyCopay: number | null;
@@ -294,7 +295,8 @@ export default function ScheduleClient({
     if (c.serviceType) setServiceType(c.serviceType);
     setMgmt(c.mgmtNumber ?? "");
     if (c.defaultSlot) setDefaultSlot(c.defaultSlot);
-    setSlotByDow({}); // 아동 바뀌면 요일별 오버라이드 초기화 (아동 기본 시간대 1개를 모든 요일에 적용)
+    // 아동에 저장된 요일별 시간대 오버라이드를 그대로 불러옴 (없으면 기본 시간대)
+    setSlotByDow(parseDaySlots(c.daySlots));
     if (c.defaultDays) {
       const ds = c.defaultDays.split(",").filter(Boolean).map(Number);
       if (ds.length) setPattern(ds);
@@ -744,7 +746,19 @@ export default function ScheduleClient({
           <div className="form-grid">
             <div className="field">
               <label>대상자 성명<span className="req">*</span></label>
-              <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
+              <input
+                className="input"
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  // 불러온 아동 이름을 직접 고치면 '직접 입력' 으로 전환
+                  if (selectedChildId !== "") {
+                    setSelectedChildId("");
+                    setLoadedScheduleId(null);
+                    setSavedList([]);
+                  }
+                }}
+              />
             </div>
             <div className="field">
               <label>치료사(제공자)<span className="req">*</span></label>

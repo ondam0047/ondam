@@ -39,6 +39,7 @@ export default async function SchedulePage() {
     mgmtNumber: s.child.mgmtNumber,
     defaultSlot: s.defaultSlot,
     defaultDays: s.defaultDays,
+    daySlots: s.daySlots,
     defaultUnit: s.defaultUnit,
     defaultTarget: s.defaultTarget,
     monthlyCopay: s.monthlyCopay,

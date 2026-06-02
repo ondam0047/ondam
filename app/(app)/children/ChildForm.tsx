@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-// slots 는 prop 으로 받음 (센터마다 다름)
-import DaySelector from "./DaySelector";
+import { WEEK, parseDaySlots, serializeDaySlots } from "@/lib/constants";
 
 type TherapistOpt = { id: number; name: string; active: boolean };
 
@@ -13,6 +12,7 @@ export type ServiceInput = {
   therapistId: number | null;
   defaultSlot: string | null;
   defaultDays: string | null;
+  daySlots: string | null; // 요일별 시간대 오버라이드 ("1=09:00~09:50,...")
   defaultUnit: number;
   defaultTarget: number;
   monthlyCopay: number | null; // 월 본인부담금. null/0 이면 일정표에서 수동 입력
@@ -30,16 +30,29 @@ type ChildInput = {
   services: ServiceInput[];
 };
 
+function makeBlankService(serviceType: string, defaultUnit: number): ServiceInput {
+  return {
+    serviceType,
+    therapistId: null,
+    defaultSlot: null,
+    defaultDays: null,
+    daySlots: null,
+    defaultUnit,
+    defaultTarget: 5,
+    monthlyCopay: null,
+  };
+}
+
 export default function ChildForm({
   child,
   therapists,
   serviceTypes,
   slots,
   defaultUnit = 60000,
+  therapistName,
   action,
   submitLabel,
   showActive = false,
-  hideTherapistSelect = false,
   canSetWaiting = false,
 }: {
   child?: ChildInput;
@@ -47,54 +60,69 @@ export default function ChildForm({
   serviceTypes: string[];
   slots: string[];
   defaultUnit?: number;
+  // 담당 치료사 고정 표시용 — 1인 모드에서 로그인 사용자(=치료사) 이름.
+  therapistName?: string;
   action: (formData: FormData) => void | Promise<void>;
   submitLabel: string;
   showActive?: boolean;
-  hideTherapistSelect?: boolean;
   canSetWaiting?: boolean;
 }) {
+  // 서비스 종류는 내 설정(치료사 종류)에 따라 고정.
+  const lockedServiceType = serviceTypes[0] ?? "언어재활";
+
+  const initialServices = child?.services.length
+    ? child.services
+    : [makeBlankService(lockedServiceType, defaultUnit)];
+
   const c: ChildInput = child ?? {
     name: "",
     birthDate: null,
     mgmtNumber: null,
     memo: null,
-    services: [{
-      serviceType: serviceTypes[0] ?? "언어재활",
-      therapistId: null,
-      defaultSlot: null,
-      defaultDays: null,
-      defaultUnit: defaultUnit,
-      defaultTarget: 5,
-      monthlyCopay: null,
-    }],
+    services: initialServices,
   };
 
-  const [services, setServices] = useState<ServiceInput[]>(c.services.length ? c.services : [{
-    serviceType: serviceTypes[0] ?? "언어재활",
-    therapistId: null,
-    defaultSlot: null,
-    defaultDays: null,
-    defaultUnit: defaultUnit,
-    defaultTarget: 5,
-      monthlyCopay: null,
-  }]);
+  const [services, setServices] = useState<ServiceInput[]>(initialServices);
 
   function updateSvc(idx: number, patch: Partial<ServiceInput>) {
-    setServices((arr) => arr.map((s, i) => i === idx ? { ...s, ...patch } : s));
-  }
-  function addSvc() {
-    setServices((arr) => [...arr, {
-      serviceType: serviceTypes[arr.length % serviceTypes.length] ?? "언어재활",
-      therapistId: null,
-      defaultSlot: null,
-      defaultDays: null,
-      defaultUnit: defaultUnit,
-      defaultTarget: 5,
-      monthlyCopay: null,
-    }]);
+    setServices((arr) => arr.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
   }
   function removeSvc(idx: number) {
-    setServices((arr) => arr.length > 1 ? arr.filter((_, i) => i !== idx) : arr);
+    setServices((arr) => (arr.length > 1 ? arr.filter((_, i) => i !== idx) : arr));
+  }
+
+  function svcDays(s: ServiceInput): number[] {
+    return (s.defaultDays ?? "").split(",").filter(Boolean).map(Number).sort((a, b) => a - b);
+  }
+  function toggleDay(idx: number, dow: number) {
+    setServices((arr) =>
+      arr.map((s, i) => {
+        if (i !== idx) return s;
+        const set = new Set(svcDays(s));
+        if (set.has(dow)) set.delete(dow);
+        else set.add(dow);
+        const days = [...set].sort((a, b) => a - b);
+        // 빠진 요일의 시간대 오버라이드는 제거
+        const map = parseDaySlots(s.daySlots);
+        const pruned: Record<number, string> = {};
+        for (const d of days) if (map[d]) pruned[d] = map[d];
+        return {
+          ...s,
+          defaultDays: days.join(",") || null,
+          daySlots: serializeDaySlots(pruned, days, s.defaultSlot),
+        };
+      }),
+    );
+  }
+  function setDaySlot(idx: number, dow: number, slot: string) {
+    setServices((arr) =>
+      arr.map((s, i) => {
+        if (i !== idx) return s;
+        const map = parseDaySlots(s.daySlots);
+        map[dow] = slot;
+        return { ...s, daySlots: serializeDaySlots(map, svcDays(s), s.defaultSlot) };
+      }),
+    );
   }
 
   return (
@@ -147,13 +175,15 @@ export default function ChildForm({
       <div className="divider" />
 
       {/* 서비스 목록 */}
-      <div className="label-block">
-        받는 치료
-        <span className="small"> — 한 아동이 여러 서비스를 받으면 각각 추가하세요</span>
-      </div>
+      <div className="label-block">받는 치료</div>
 
       {services.map((s, i) => {
-        const selectedDays = new Set((s.defaultDays ?? "").split(",").filter(Boolean).map(Number));
+        const days = svcDays(s);
+        const overrides = parseDaySlots(s.daySlots);
+        const tName =
+          (s.therapistId != null ? therapists.find((t) => t.id === s.therapistId)?.name : null) ??
+          therapistName ??
+          "본인";
         return (
           <div key={i} style={{
             background: "var(--surface-2)",
@@ -162,52 +192,43 @@ export default function ChildForm({
             padding: 14,
             marginBottom: 10,
           }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-mute)" }}>서비스 {i + 1}</span>
-              {services.length > 1 && (
+            {services.length > 1 && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-mute)" }}>서비스 {i + 1}</span>
                 <button
                   type="button"
                   className="btn btn-ghost btn-sm"
                   style={{ color: "var(--danger)" }}
                   onClick={() => removeSvc(i)}
                 >제거</button>
-              )}
-            </div>
+              </div>
+            )}
             <input type="hidden" name={`svc[${i}][id]`} value={s.id ?? ""} />
+            <input type="hidden" name={`svc[${i}][serviceType]`} value={s.serviceType} />
+            {/* 담당 치료사는 본인으로 고정 — 서버에서 자동 배정 */}
+            <input type="hidden" name={`svc[${i}][therapistId]`} value="" />
+            <input type="hidden" name={`svc[${i}][defaultDays]`} value={s.defaultDays ?? ""} />
+            <input type="hidden" name={`svc[${i}][daySlots]`} value={s.daySlots ?? ""} />
+
             <div className="form-grid">
               <div className="field">
-                <label>서비스 종류<span className="req">*</span></label>
-                <select
-                  className="select"
-                  name={`svc[${i}][serviceType]`}
+                <label>서비스 종류 <span className="sub-mute">(내 설정의 치료사 종류로 고정)</span></label>
+                <input
+                  className="input"
                   value={s.serviceType}
-                  onChange={(e) => updateSvc(i, { serviceType: e.target.value })}
-                  required
-                >
-                  {serviceTypes.map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
+                  readOnly
+                  style={{ background: "var(--surface)", cursor: "not-allowed" }}
+                />
               </div>
-              {!hideTherapistSelect && (
-                <div className="field">
-                  <label>담당 치료사</label>
-                  <select
-                    className="select"
-                    name={`svc[${i}][therapistId]`}
-                    value={s.therapistId?.toString() ?? ""}
-                    onChange={(e) => updateSvc(i, { therapistId: e.target.value ? Number(e.target.value) : null })}
-                  >
-                    <option value="">— 미지정 —</option>
-                    {therapists.map((t) => (
-                      <option key={t.id} value={t.id} disabled={!t.active}>
-                        {t.name}{t.active ? "" : " (비활성)"}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              {hideTherapistSelect && (
-                <input type="hidden" name={`svc[${i}][therapistId]`} value="" />
-              )}
+              <div className="field">
+                <label>담당 치료사 <span className="sub-mute">(본인으로 고정)</span></label>
+                <input
+                  className="input"
+                  value={tName}
+                  readOnly
+                  style={{ background: "var(--surface)", cursor: "not-allowed" }}
+                />
+              </div>
               <div className="field">
                 <label>월 목표 회기</label>
                 <select
@@ -244,7 +265,7 @@ export default function ChildForm({
                   부모님이 매월 내는 금액. 일정표 만들 때 자동 채워져요.
                 </div>
               </div>
-              <div className="field" style={{ gridColumn: "span 2" }}>
+              <div className="field">
                 <label>기본 시간대</label>
                 <select
                   className="select"
@@ -257,20 +278,49 @@ export default function ChildForm({
                 </select>
               </div>
             </div>
+
             <div className="field" style={{ marginTop: 12 }}>
               <label>기본 반복 요일 (탭하여 선택)</label>
-              <DaySelector
-                initial={[...selectedDays].sort()}
-                name={`svc[${i}][defaultDays]`}
-              />
+              <div className="daypick">
+                {WEEK.map((w, dow) => {
+                  const on = days.includes(dow);
+                  return (
+                    <div
+                      key={w}
+                      className={"daychip" + (on ? " on" : "") + (dow === 0 ? " sun" : "")}
+                      onClick={() => toggleDay(i, dow)}
+                    >{w}</div>
+                  );
+                })}
+              </div>
             </div>
+
+            {days.length > 0 && (
+              <div className="field" style={{ marginTop: 12 }}>
+                <label>
+                  요일별 시간 <span className="sub-mute">(요일마다 다르면 변경 — 비워두면 기본 시간대 적용)</span>
+                </label>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                  {days.map((dow) => (
+                    <div key={dow} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontWeight: 700, minWidth: 24, textAlign: "center" }}>{WEEK[dow]}</span>
+                      <select
+                        className="select"
+                        style={{ width: "auto", minWidth: 130 }}
+                        value={overrides[dow] || s.defaultSlot || ""}
+                        onChange={(e) => setDaySlot(i, dow, e.target.value)}
+                      >
+                        <option value="">— 미지정 —</option>
+                        {slots.map((slot) => <option key={slot} value={slot}>{slot}</option>)}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         );
       })}
-
-      <button type="button" className="btn btn-ghost" onClick={addSvc} style={{ marginBottom: 14 }}>
-        + 서비스 추가 (다른 치료사 / 다른 종류)
-      </button>
 
       <input type="hidden" name="serviceCount" value={services.length} />
 

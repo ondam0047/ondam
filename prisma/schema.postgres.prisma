@@ -139,6 +139,7 @@ model ChildService {
   serviceType   String
   defaultSlot   String?
   defaultDays   String?
+  daySlots      String?
   defaultUnit   Int       @default(65000)
   defaultTarget Int       @default(5)
   monthlyCopay  Int?

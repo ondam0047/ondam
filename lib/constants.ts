@@ -62,6 +62,33 @@ export function parseSlots(str: string | null | undefined): string[] {
   return str.split(",").map((s) => s.trim()).filter(Boolean);
 }
 
+// 요일별 시간대 오버라이드 직렬화/역직렬화.
+// 형식: "1=09:00~09:50,3=10:00~10:50" (요일=시간대). 기본 시간대와 같은 요일은 저장 안 함.
+export function parseDaySlots(str: string | null | undefined): Record<number, string> {
+  const out: Record<number, string> = {};
+  if (!str) return out;
+  for (const part of str.split(",")) {
+    const eq = part.indexOf("=");
+    if (eq < 0) continue;
+    const dow = Number(part.slice(0, eq));
+    const slot = part.slice(eq + 1).trim();
+    if (Number.isInteger(dow) && slot) out[dow] = slot;
+  }
+  return out;
+}
+
+export function serializeDaySlots(
+  map: Record<number, string>,
+  days: number[],
+  defaultSlot: string | null,
+): string | null {
+  const entries = [...days]
+    .filter((d) => map[d] && map[d] !== defaultSlot)
+    .sort((a, b) => a - b)
+    .map((d) => `${d}=${map[d]}`);
+  return entries.length ? entries.join(",") : null;
+}
+
 // 한국 공휴일 (수동 관리). 추후 data.go.kr API 동기화 예정.
 // 그레고리력은 음력 매년 다르므로 매년 추가해야 함.
 export const HOLIDAYS: Record<string, string> = {

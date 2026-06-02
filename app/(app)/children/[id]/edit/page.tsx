@@ -77,6 +77,7 @@ export default async function EditChildPage(props: PageProps<"/children/[id]/edi
                 therapistId: s.therapistId,
                 defaultSlot: s.defaultSlot,
                 defaultDays: s.defaultDays,
+                daySlots: s.daySlots,
                 defaultUnit: s.defaultUnit,
                 defaultTarget: s.defaultTarget,
                 monthlyCopay: s.monthlyCopay,
@@ -86,10 +87,10 @@ export default async function EditChildPage(props: PageProps<"/children/[id]/edi
             serviceTypes={serviceTypes}
             slots={slots}
             defaultUnit={defaultUnit}
+            therapistName={user.name}
             action={update}
             submitLabel="저장"
             showActive
-            hideTherapistSelect={!isAdmin(user)}
             canSetWaiting={isAdmin(user)}
           />
         </div>

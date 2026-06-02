@@ -147,6 +147,8 @@ model ChildService {
   serviceType   String    // "언어재활" 등 — Center.serviceTypes 중 하나
   defaultSlot   String?
   defaultDays   String?
+  // 요일별 시간대 오버라이드. "1=09:00~09:50,3=10:00~10:50" 형식. 비면 모든 요일이 defaultSlot.
+  daySlots      String?
   defaultUnit   Int       @default(65000)
   defaultTarget Int       @default(5)
   // 월 본인부담금 (원). 부모님이 매월 내는 금액. 일정표 자동 채움용.

@@ -48,9 +48,9 @@ export default async function NewChildPage() {
             serviceTypes={serviceTypes}
             slots={slots}
             defaultUnit={defaultUnit}
+            therapistName={user.name}
             action={createChild}
             submitLabel="등록"
-            hideTherapistSelect={!isAdmin(user)}
             canSetWaiting={isAdmin(user)}
           />
         </div>
