@@ -486,7 +486,7 @@ export default function ScheduleClient({
   }
 
   function resetAll() {
-    if (!window.confirm("정말 처음부터 다시 시작할까요? 입력한 내용이 사라져요.")) return;
+    if (!window.confirm("정말 초기화할까요? 입력한 내용이 사라져요.")) return;
     try {
       localStorage.removeItem(LS_DRAFT);
       localStorage.removeItem(LS_SCROLL);
@@ -626,6 +626,9 @@ export default function ScheduleClient({
           <span className="step">1</span>
           <h2>아동 정보 & 패턴 설정</h2>
           <span className="hint">아동을 미리 등록해두면 매월 한 번에 불러올 수 있어요</span>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={resetAll} style={{ marginLeft: "auto" }}>
+            초기화
+          </button>
         </div>
         <div className="card-body">
           {childrenOpts.length > 0 && (() => {
@@ -880,9 +883,6 @@ export default function ScheduleClient({
                 ? `목표 ${target}회 · ${totalCount}회 ✓`
                 : `목표 ${target}회 · ${totalCount}회 (${totalCount < target ? "부족" : "초과"} ${Math.abs(target - totalCount)})`}
             </span>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={resetAll} style={{ marginLeft: 8 }}>
-              처음부터 다시
-            </button>
           </div>
           <div className="card-body">
 

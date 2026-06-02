@@ -360,6 +360,9 @@ export default function RecordClient({
           <span className="step">1</span>
           <h2>엑셀 없이 직접 시작</h2>
           <span className="hint">미리 작성 · 일정표 회기를 자동 시드</span>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={resetRecord} style={{ marginLeft: "auto" }}>
+            초기화
+          </button>
         </div>
         <div className="card-body">
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}>
@@ -410,13 +413,6 @@ export default function RecordClient({
           <span className="hint">.xls / .xlsx 모두 지원</span>
         </div>
         <div className="card-body">
-          {names.length > 0 && (
-            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={resetRecord}>
-                초기화
-              </button>
-            </div>
-          )}
           <div
             className={"drop" + (dragOver ? " over" : "")}
             onClick={() => fileRef.current?.click()}
