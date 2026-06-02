@@ -87,8 +87,9 @@ export default function ScheduleClient({
   const [serviceType, setServiceType] = useState<string>(serviceTypes[0] ?? "언어재활");
   const [ym, setYm] = useState(defaultYm);
   const [target, setTarget] = useState(5);
-  const [defaultSlot, setDefaultSlot] = useState(""); // 미선택
-  const [pattern, setPattern] = useState<number[]>([]); // 미선택
+  const [defaultSlot, setDefaultSlot] = useState(""); // 미선택 — 요일별 기본 시간대
+  const [pattern, setPattern] = useState<number[]>([]); // 미선택 — 반복 요일
+  const [slotByDow, setSlotByDow] = useState<Record<number, string>>({}); // 요일별 시간대 오버라이드 (없으면 defaultSlot)
   const [childBirth, setChildBirth] = useState<string>("");
 
   // generated
@@ -179,6 +180,13 @@ export default function ScheduleClient({
         if (typeof d.target === "number") setTarget(d.target);
         if (typeof d.defaultSlot === "string") setDefaultSlot(d.defaultSlot);
         if (Array.isArray(d.pattern)) setPattern(d.pattern.filter((n: unknown) => typeof n === "number"));
+        if (d.slotByDow && typeof d.slotByDow === "object") {
+          const clean: Record<number, string> = {};
+          for (const [k, v] of Object.entries(d.slotByDow as Record<string, unknown>)) {
+            if (typeof v === "string" && v) clean[Number(k)] = v;
+          }
+          setSlotByDow(clean);
+        }
         if (typeof d.childBirth === "string") setChildBirth(d.childBirth);
         if (typeof d.mgmt === "string") setMgmt(d.mgmt);
         // pvOrg(제공기관명), pvCharge(담당), pvType(서비스 종류) 도 설정에서 옴 — 복원 안 함.
@@ -214,7 +222,7 @@ export default function ScheduleClient({
       const draft = {
         csId: typeof selectedChildId === "number" ? selectedChildId : null,
         ym,
-        name, therapist, serviceType, target, defaultSlot, pattern, childBirth,
+        name, therapist, serviceType, target, defaultSlot, pattern, slotByDow, childBirth,
         mgmt, pvOrg, pvTel, pvCharge, pvType, costUnit, costSelf, writeDate,
         sessions, genY, genM,
         loadedScheduleId,
@@ -227,7 +235,7 @@ export default function ScheduleClient({
     } catch {}
   }, [
     hydrated, selectedChildId, ym,
-    name, therapist, serviceType, target, defaultSlot, pattern, childBirth,
+    name, therapist, serviceType, target, defaultSlot, pattern, slotByDow, childBirth,
     mgmt, pvOrg, pvTel, pvCharge, pvType, costUnit, costSelf, writeDate,
     sessions, genY, genM, loadedScheduleId,
   ]);
@@ -286,6 +294,7 @@ export default function ScheduleClient({
     if (c.serviceType) setServiceType(c.serviceType);
     setMgmt(c.mgmtNumber ?? "");
     if (c.defaultSlot) setDefaultSlot(c.defaultSlot);
+    setSlotByDow({}); // 아동 바뀌면 요일별 오버라이드 초기화 (아동 기본 시간대 1개를 모든 요일에 적용)
     if (c.defaultDays) {
       const ds = c.defaultDays.split(",").filter(Boolean).map(Number);
       if (ds.length) setPattern(ds);
@@ -460,7 +469,7 @@ export default function ScheduleClient({
     for (let d = 1; d <= dim; d++) {
       const wd = new Date(y, m - 1, d).getDay();
       if (pattern.includes(wd) && !holiday(y, m, d)) {
-        next[d] = { time: defaultSlot, makeup: false };
+        next[d] = { time: slotByDow[wd] || defaultSlot, makeup: false };
       }
     }
     setSessions(next);
@@ -472,6 +481,33 @@ export default function ScheduleClient({
     requestAnimationFrame(() => {
       document.getElementById("schedCard")?.scrollIntoView({ behavior: "smooth" });
     });
+  }
+
+  function resetAll() {
+    if (!window.confirm("정말 처음부터 다시 시작할까요? 입력한 내용이 사라져요.")) return;
+    try {
+      localStorage.removeItem(LS_DRAFT);
+      localStorage.removeItem(LS_SCROLL);
+    } catch {}
+    setSessions(null);
+    setSelectedChildId("");
+    setName("");
+    setServiceType(serviceTypes[0] ?? "언어재활");
+    setYm(defaultYm);
+    setTarget(5);
+    setDefaultSlot("");
+    setPattern([]);
+    setSlotByDow({});
+    setChildBirth("");
+    setGenY(0);
+    setGenM(0);
+    setMgmt("");
+    setCostUnit(centerDefaultUnit.toLocaleString("ko-KR"));
+    setCostSelf("0");
+    setWriteDate("");
+    setSavedMsg("");
+    setLoadedScheduleId(null);
+    window.scrollTo(0, 0);
   }
 
   function openEditor(d: number) {
@@ -752,7 +788,7 @@ export default function ScheduleClient({
 
           <div className="field-row cols-3" style={{ alignItems: "end" }}>
             <div className="field">
-              <label>치료 시간대<span className="req">*</span></label>
+              <label>기본 시간대<span className="req">*</span></label>
               <select className="select" value={defaultSlot} onChange={(e) => setDefaultSlot(e.target.value)}>
                 <option value="">(선택)</option>
                 {slots.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -774,6 +810,31 @@ export default function ScheduleClient({
               </div>
             </div>
           </div>
+
+          {pattern.length > 0 && defaultSlot && (
+            <div className="field" style={{ marginTop: 14 }}>
+              <label>
+                요일별 시간 <span className="sub-mute">(요일마다 다르면 변경 — 비워두면 기본 시간대 적용)</span>
+              </label>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                {[...pattern].sort().map((dow) => (
+                  <div key={dow} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontWeight: 700, minWidth: 24, textAlign: "center" }}>{WEEK[dow]}</span>
+                    <select
+                      className="select"
+                      style={{ width: "auto", minWidth: 130 }}
+                      value={slotByDow[dow] || defaultSlot}
+                      onChange={(e) =>
+                        setSlotByDow((prev) => ({ ...prev, [dow]: e.target.value }))
+                      }
+                    >
+                      {slots.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div style={{ marginTop: 20, display: "flex", gap: 10, alignItems: "center" }}>
             <button
@@ -805,6 +866,9 @@ export default function ScheduleClient({
                 ? `목표 ${target}회 · ${totalCount}회 ✓`
                 : `목표 ${target}회 · ${totalCount}회 (${totalCount < target ? "부족" : "초과"} ${Math.abs(target - totalCount)})`}
             </span>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={resetAll} style={{ marginLeft: 8 }}>
+              🔄 처음부터 다시
+            </button>
           </div>
           <div className="card-body">
 

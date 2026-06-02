@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import * as XLSX from "xlsx";
 import { WEEK } from "@/lib/constants";
@@ -75,6 +75,8 @@ export default function ImportClient({ serviceTypes }: { serviceTypes: string[] 
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
+  const [dragOver, setDragOver] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   function handleFile(file: File) {
     setError("");
@@ -269,9 +271,29 @@ export default function ImportClient({ serviceTypes }: { serviceTypes: string[] 
             </div>
           )}
 
+          <div
+            className={"drop" + (dragOver ? " over" : "")}
+            onClick={() => fileRef.current?.click()}
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragEnter={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={(e) => { e.preventDefault(); setDragOver(false); }}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+              const f = e.dataTransfer.files[0];
+              if (f) handleFile(f);
+            }}
+          >
+            <div className="big">엑셀 파일을 여기에 끌어다 놓거나 클릭</div>
+            <div className="sm2">
+              센터에서 쓰던 명단 · 전자바우처 <b>서비스제공내역.xls</b> 모두 가능
+            </div>
+          </div>
           <input
+            ref={fileRef}
             type="file"
             accept=".xls,.xlsx"
+            style={{ display: "none" }}
             onChange={(e) => {
               const f = e.target.files?.[0];
               if (f) handleFile(f);

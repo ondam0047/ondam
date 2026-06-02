@@ -59,6 +59,14 @@ export default function ApprovalCheckClient() {
   const [fileName, setFileName] = useState("");
   const [error, setError] = useState("");
 
+  function resetCheck() {
+    setRows([]);
+    setTherapist("");
+    setFileName("");
+    setError("");
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
   function readExcel(file: File) {
     setError("");
     setFileName(file.name);
@@ -215,6 +223,9 @@ export default function ApprovalCheckClient() {
             {retroCount > 0 && (
               <span className="badge badge-warn" style={{ marginLeft: 6 }}>소급 {retroCount}건</span>
             )}
+            <button type="button" className="btn btn-ghost btn-sm" onClick={resetCheck} style={{ marginLeft: 8 }}>
+              다른 파일로 다시
+            </button>
           </div>
           <div className="card-body">
             <div className="tip" style={{ marginBottom: 12, fontSize: 12.5, lineHeight: 1.6 }}>

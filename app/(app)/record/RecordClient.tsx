@@ -330,6 +330,21 @@ export default function RecordClient({
 
   const names = Object.keys(grouped);
 
+  function resetRecord() {
+    if (!window.confirm("정말 초기화할까요? 불러온 내용이 사라져요.")) return;
+    try {
+      localStorage.removeItem(LS_DRAFT);
+      localStorage.removeItem(LS_SCROLL);
+    } catch {}
+    setGrouped({});
+    setCurChild(null);
+    setRetroChildren([]);
+    setRetroByChild({});
+    setRetroCount(0);
+    setUploadInfo("");
+    setError("");
+  }
+
   return (
     <>
       <div className="section-head">
@@ -395,6 +410,13 @@ export default function RecordClient({
           <span className="hint">.xls / .xlsx 모두 지원</span>
         </div>
         <div className="card-body">
+          {names.length > 0 && (
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={resetRecord}>
+                🔄 초기화
+              </button>
+            </div>
+          )}
           <div
             className={"drop" + (dragOver ? " over" : "")}
             onClick={() => fileRef.current?.click()}
