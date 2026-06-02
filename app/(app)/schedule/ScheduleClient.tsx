@@ -883,6 +883,15 @@ export default function ScheduleClient({
                 ? `목표 ${target}회 · ${totalCount}회 ✓`
                 : `목표 ${target}회 · ${totalCount}회 (${totalCount < target ? "부족" : "초과"} ${Math.abs(target - totalCount)})`}
             </span>
+            {typeof selectedChildId === "number" && (
+              <Link
+                href={`/record?cs=${selectedChildId}&ym=${genY}-${genM}`}
+                className="btn btn-ghost btn-sm"
+                style={{ marginLeft: 8 }}
+              >
+                이 회기로 기록지 작성 →
+              </Link>
+            )}
           </div>
           <div className="card-body">
 

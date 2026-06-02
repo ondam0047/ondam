@@ -38,8 +38,6 @@ const TIPS: Record<Role, { emoji: string; title: string; body: React.ReactNode }
       body: <>왼쪽 맨 아래 <b>[도움말]</b> 에서 행정용 매뉴얼 PDF 다운로드.</> },
   ],
   THERAPIST: [
-    { emoji: "", title: "내 차단 시간",
-      body: <><b>[내 차단 시간]</b> 에 받기 어려운 요일·시간을 미리 등록해두세요.</> },
     { emoji: "", title: "내 아동",
       body: <><b>[내 아동]</b> 에서 본인 담당 아동을 직접 등록·수정할 수 있어요.</> },
     { emoji: "", title: "일정표",

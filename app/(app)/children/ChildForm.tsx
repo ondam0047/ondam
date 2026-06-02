@@ -263,6 +263,7 @@ export default function ChildForm({
                 />
                 <div className="sub-mute" style={{ fontSize: 11, marginTop: 4 }}>
                   부모님이 매월 내는 금액. 일정표 만들 때 자동 채워져요.
+                  <br />금액이 바뀌면 <b>그 뒤로 새로 만드는 달부터</b> 새 금액이 적용돼요. 이미 만든 지난 달들은 그대로 유지됩니다.
                 </div>
               </div>
               <div className="field">

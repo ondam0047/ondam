@@ -120,7 +120,7 @@ async function TherapistDashboard({ user, centerId, year: y, month: m, todayDay,
 
       <div className="dash-row-2">
         <WeekScheduleCard weekDates={weekDates} weekSessions={data.weekSessions} />
-        <TodaySessionsCard todaySessionList={data.todaySessionList} />
+        <TodaySessionsCard todaySessionList={data.todaySessionList} ym={`${y}-${m}`} />
       </div>
 
       <div className="dash-row-equal">
@@ -132,6 +132,7 @@ async function TherapistDashboard({ user, centerId, year: y, month: m, todayDay,
         <UnwrittenCard
           unwrittenCount={data.unwrittenCount}
           unwrittenChildNames={data.unwrittenChildNames}
+          ym={`${y}-${m}`}
         />
       </div>
     </>
@@ -181,15 +182,18 @@ async function loadMyStats(
   const unwrittenChildNames = unwrittenCsIds
     .map((id) => csById.get(id))
     .filter((s): s is NonNullable<typeof s> => !!s)
-    .map((s) => (childIdCount.get(s.childId) ?? 1) > 1 ? `${s.child.name} · ${s.serviceType}` : s.child.name);
+    .map((s) => ({
+      csId: s.id,
+      label: (childIdCount.get(s.childId) ?? 1) > 1 ? `${s.child.name} · ${s.serviceType}` : s.child.name,
+    }));
 
   let todaySessions = 0;
-  const todaySessionList: { time: string; name: string }[] = [];
+  const todaySessionList: { time: string; name: string; csId: number }[] = [];
   for (const sch of mySchedules) {
     const sess = sch.sessions.find((s) => s.day === todayDay);
     if (sess) {
       todaySessions++;
-      todaySessionList.push({ time: sess.time, name: sch.childService.child.name });
+      todaySessionList.push({ time: sess.time, name: sch.childService.child.name, csId: sch.childServiceId });
     }
   }
   todaySessionList.sort((a, b) => a.time.localeCompare(b.time));
@@ -263,7 +267,7 @@ function MyStats({ data }: { data: Awaited<ReturnType<typeof loadMyStats>> }) {
   );
 }
 
-function TodaySessionsCard({ todaySessionList }: { todaySessionList: { time: string; name: string }[] }) {
+function TodaySessionsCard({ todaySessionList, ym }: { todaySessionList: { time: string; name: string; csId: number }[]; ym: string }) {
   return (
     <div className="card">
       <div className="card-header">
@@ -276,7 +280,7 @@ function TodaySessionsCard({ todaySessionList }: { todaySessionList: { time: str
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {todaySessionList.map((s, i) => (
-              <div key={i} style={{
+              <Link key={i} href={`/record?cs=${s.csId}&ym=${ym}`} title="기록지 작성" style={{
                 display: "flex",
                 alignItems: "center",
                 gap: 12,
@@ -284,12 +288,14 @@ function TodaySessionsCard({ todaySessionList }: { todaySessionList: { time: str
                 background: "var(--surface-2)",
                 borderRadius: "var(--r-sm)",
                 borderLeft: "3px solid var(--primary)",
+                textDecoration: "none",
+                color: "inherit",
               }}>
                 <div style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: "var(--primary)", minWidth: 100 }}>
                   {s.time}
                 </div>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>{s.name}</div>
-              </div>
+              </Link>
             ))}
           </div>
         )}
@@ -323,8 +329,8 @@ function MyProgressCard({
 }
 
 function UnwrittenCard({
-  unwrittenCount, unwrittenChildNames,
-}: { unwrittenCount: number; unwrittenChildNames: string[] }) {
+  unwrittenCount, unwrittenChildNames, ym,
+}: { unwrittenCount: number; unwrittenChildNames: { csId: number; label: string }[]; ym: string }) {
   return (
     <div className="card">
       <div className="card-header">
@@ -337,17 +343,19 @@ function UnwrittenCard({
         ) : (
           <>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {unwrittenChildNames.map((name) => (
-                <div key={name} style={{
+              {unwrittenChildNames.map((it) => (
+                <Link key={it.csId} href={`/record?cs=${it.csId}&ym=${ym}`} title="이 아동 기록지 작성" style={{
+                  display: "block",
                   padding: "8px 12px",
                   background: "#FBEAE7",
                   borderRadius: "var(--r-sm)",
                   fontSize: 13,
                   fontWeight: 500,
                   color: "var(--danger)",
+                  textDecoration: "none",
                 }}>
-                  {name}
-                </div>
+                  {it.label} →
+                </Link>
               ))}
             </div>
             <Link className="btn btn-primary btn-sm" href="/record" style={{ marginTop: 12, width: "100%", justifyContent: "center" }}>

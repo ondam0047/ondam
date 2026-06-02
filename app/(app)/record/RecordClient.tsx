@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import * as XLSX from "xlsx";
 import { minusMin } from "@/lib/constants";
 
@@ -147,6 +148,24 @@ export default function RecordClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 일정표/대시보드에서 ?cs=&ym= 로 넘어오면 해당 아동·월로 자동 작성 시작
+  const searchParams = useSearchParams();
+  const [autoStarted, setAutoStarted] = useState(false);
+  useEffect(() => {
+    if (!hydrated || autoStarted) return;
+    const csParam = searchParams.get("cs");
+    const ymParam = searchParams.get("ym");
+    if (!csParam || !ymParam) return;
+    const csId = Number(csParam);
+    if (myServices.some((s) => s.id === csId) && monthOptions.some((o) => o.value === ymParam)) {
+      setManualCSId(csId);
+      setManualYm(ymParam);
+      setAutoStarted(true);
+      void startManual(csId, ymParam);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated]);
+
   useEffect(() => {
     if (!hydrated) return;
     try {
@@ -195,16 +214,18 @@ export default function RecordClient({
     };
   }, [hydrated]);
 
-  async function startManual() {
-    if (!manualCSId || !manualYm) return;
+  async function startManual(csIdArg?: number, ymArg?: string) {
+    const csId = csIdArg ?? (typeof manualCSId === "number" ? manualCSId : 0);
+    const ym = ymArg ?? manualYm;
+    if (!csId || !ym) return;
     setManualLoading(true);
     try {
-      const cs = myServices.find((s) => s.id === manualCSId);
+      const cs = myServices.find((s) => s.id === csId);
       if (!cs) return;
-      const [y, m] = manualYm.split("-").map(Number);
+      const [y, m] = ym.split("-").map(Number);
 
       // 1) 이 달 일정표가 있으면 회기를 시드로
-      const r = await fetch(`/api/schedule/load?childServiceId=${manualCSId}&year=${y}&month=${m}`);
+      const r = await fetch(`/api/schedule/load?childServiceId=${csId}&year=${y}&month=${m}`);
       let scheduleData: { sessions: { day: number; time: string }[] } | null = null;
       if (r.ok) scheduleData = await r.json();
 
@@ -392,7 +413,7 @@ export default function RecordClient({
             <button
               type="button"
               className="btn btn-primary"
-              onClick={startManual}
+              onClick={() => startManual()}
               disabled={!manualCSId || manualLoading}
             >
               {manualLoading ? "불러오는 중..." : "작성 시작"}

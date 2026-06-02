@@ -22,3 +22,16 @@ export async function ensureLegacyDataLinked(centerId: number): Promise<void> {
     data: { centerId },
   });
 }
+
+// 1인 사물함 정합성 보정: 내 센터의 모든 ChildService 를 본인(치료사)에게 배정.
+// 미지정(null)이거나 옛 데이터/가져오기로 다른 치료사에 잡힌 서비스를 본인으로 통일.
+// (보통 0건 매칭이라 비용 적음. 멱등)
+export async function ensureMyServicesAssigned(centerId: number, therapistId: number): Promise<void> {
+  await prisma.childService.updateMany({
+    where: {
+      child: { centerId },
+      OR: [{ therapistId: null }, { therapistId: { not: therapistId } }],
+    },
+    data: { therapistId },
+  });
+}

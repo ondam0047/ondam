@@ -11,8 +11,7 @@ const META: Record<string, { title: string; crumb: string }> = {
   "/import":     { title: "엑셀 가져오기", crumb: "쓰던 엑셀 → 내 아동으로 일괄 등록" },
   "/center":     { title: "내 설정",     crumb: "내 정보·치료 영역·시간대 관리" },
   "/timetable":  { title: "내 시간표",   crumb: "요일·시간 회기 현황 + 출석부 엑셀" },
-  "/availability": { title: "내 차단 시간", crumb: "받기 어려운 시간을 막아 일정표 작성에 반영" },
-  "/guide":      { title: "도움말",     crumb: "역할별 사용 설명서" },
+  "/guide":      { title: "도움말",     crumb: "사용 설명서" },
 };
 
 export default function Topbar() {
