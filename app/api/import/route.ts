@@ -12,6 +12,7 @@ type ChildServiceRow = {
   defaultDays?: string;
   defaultUnit?: number;
   defaultTarget?: number;
+  monthlyCopay?: number;
   memo?: string;
 };
 
@@ -113,6 +114,7 @@ export async function POST(req: NextRequest) {
         defaultDays: r.defaultDays?.trim() || null,
         defaultUnit: r.defaultUnit ?? 65000,
         defaultTarget: r.defaultTarget ?? 5,
+        monthlyCopay: r.monthlyCopay ?? null,
       },
     });
     createdService++;

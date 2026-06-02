@@ -15,6 +15,7 @@ type ChildServiceRow = {
   defaultDays?: string;
   defaultUnit?: number;
   defaultTarget?: number;
+  monthlyCopay?: number;
   memo?: string;
 };
 
@@ -152,6 +153,7 @@ export default function ImportClient({ serviceTypes }: { serviceTypes: string[] 
             defaultDays: findColIndex(header, ["요일", "수업일"]),
             defaultUnit: findColIndex(header, ["단가"]),
             defaultTarget: findColIndex(header, ["목표", "회기수", "주기"]),
+            monthlyCopay: findColIndex(header, ["본인부담", "자부담", "부담금"]),
             memo: findColIndex(header, ["메모", "비고"]),
           };
           if (ci.name < 0) {
@@ -170,6 +172,11 @@ export default function ImportClient({ serviceTypes }: { serviceTypes: string[] 
             const target = ci.defaultTarget >= 0
               ? Number(String(row[ci.defaultTarget]).replace(/[^\d]/g, "")) || undefined
               : undefined;
+            // 본인부담금은 0 도 유효한 값이므로 빈칸만 undefined 처리
+            const copayRaw = ci.monthlyCopay >= 0
+              ? String(row[ci.monthlyCopay]).replace(/[^\d]/g, "")
+              : "";
+            const copay = copayRaw !== "" ? Number(copayRaw) : undefined;
             data.push({
               name,
               birthDate: ci.birthDate >= 0 ? String(row[ci.birthDate]).trim() || undefined : undefined,
@@ -182,6 +189,7 @@ export default function ImportClient({ serviceTypes }: { serviceTypes: string[] 
               defaultDays: ci.defaultDays >= 0 ? parseDays(String(row[ci.defaultDays])) || undefined : undefined,
               defaultUnit: unit,
               defaultTarget: target,
+              monthlyCopay: copay,
               memo: ci.memo >= 0 ? String(row[ci.memo]).trim() || undefined : undefined,
             });
           }
@@ -256,8 +264,9 @@ export default function ImportClient({ serviceTypes }: { serviceTypes: string[] 
         <div className="card-body">
           <div className="tip" style={{ marginBottom: 14 }}>
             <span>
-              컬럼: <b>성명 · 생년월일 · 서비스 · 담당 · 시간 · 요일</b>{" "}
-              (단가·목표·메모는 선택). 한 아동이 여러 서비스를 받으면 줄을 여러 개 적으면 같은 사람으로 묶입니다.<br />
+              컬럼: <b>성명 · 생년월일 · 관리번호 · 서비스 · 담당 · 시간 · 요일 · 단가 · 본인부담금 · 목표 회기</b>{" "}
+              (관리번호·단가·본인부담금·목표·메모는 선택). 채워두면 일정표·기록지에서 아동을 고를 때 자동으로 채워집니다.
+              한 아동이 여러 서비스를 받으면 줄을 여러 개 적으면 같은 사람으로 묶입니다.<br />
               <b>전자바우처 '서비스제공내역' 엑셀</b>도 그대로 올리면 자동으로 명단을 추출합니다.<br />
               양식이 없으면 아래 <b>[기본 양식 다운로드]</b> 를 받아 채워주세요.
             </span>
@@ -318,8 +327,8 @@ export default function ImportClient({ serviceTypes }: { serviceTypes: string[] 
             <table className="table">
               <thead>
                 <tr>
-                  <th>성명</th><th>생년월일</th><th>서비스</th>
-                  <th>담당</th><th>시간</th><th>요일</th><th>목표</th>
+                  <th>성명</th><th>생년월일</th><th>관리번호</th><th>서비스</th>
+                  <th>담당</th><th>시간</th><th>요일</th><th>단가</th><th>본인부담금</th><th>목표</th>
                 </tr>
               </thead>
               <tbody>
@@ -327,10 +336,13 @@ export default function ImportClient({ serviceTypes }: { serviceTypes: string[] 
                   <tr key={i}>
                     <td><b>{c.name}</b></td>
                     <td className="num-cell">{c.birthDate ?? "-"}</td>
+                    <td className="num-cell">{c.mgmtNumber ?? "-"}</td>
                     <td><span className="badge badge-primary">{c.serviceType}</span></td>
                     <td>{c.therapistName ?? "-"}</td>
                     <td className="num-cell">{c.defaultSlot ?? "-"}</td>
                     <td>{c.defaultDays ? c.defaultDays.split(",").map((n) => WEEK[Number(n)]).join(" ") : "-"}</td>
+                    <td className="num-cell">{c.defaultUnit != null ? c.defaultUnit.toLocaleString("ko-KR") : "-"}</td>
+                    <td className="num-cell">{c.monthlyCopay != null ? c.monthlyCopay.toLocaleString("ko-KR") : "-"}</td>
                     <td className="num-cell">{c.defaultTarget ?? "-"}회</td>
                   </tr>
                 ))}
