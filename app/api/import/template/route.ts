@@ -1,5 +1,4 @@
 import * as XLSX from "xlsx";
-import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 
 // 아동 일괄 등록용 기본 양식(.xlsx) 다운로드.
@@ -7,11 +6,7 @@ import { requireRole } from "@/lib/auth";
 // 컬럼은 일정표·기록지에서 아동을 불러올 때 자동으로 채워지는 값들과 1:1.
 
 export async function GET() {
-  const user = await requireRole(["OWNER", "ADMIN"]);
-  const center = await prisma.center.findUnique({
-    where: { id: user.centerId ?? -1 },
-    select: { name: true },
-  });
+  await requireRole(["OWNER", "ADMIN"]);
 
   // 헤더 + 예시 2건. (예시 행은 그대로 두면 같이 등록되니 업로드 전에 지워주세요.)
   const ws_data: (string | number)[][] = [
@@ -30,9 +25,7 @@ export async function GET() {
   XLSX.utils.book_append_sheet(wb, ws, "아동등록");
 
   const buf: Buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
-  const filename = encodeURIComponent(
-    `${center?.name ?? "바로일지"}_아동등록_양식.xlsx`
-  );
+  const filename = encodeURIComponent("아동 등록 양식.xlsx");
 
   return new Response(new Uint8Array(buf), {
     headers: {
