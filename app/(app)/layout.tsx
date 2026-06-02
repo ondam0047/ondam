@@ -45,10 +45,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     if (!user) redirect("/login");
   }
 
+  const betaEmail = process.env.BETA_ADMIN_EMAIL?.toLowerCase();
+  const isBetaAdmin = !!betaEmail && user.email.toLowerCase() === betaEmail;
+
   return (
     <div className="app">
       <SessionGuard userId={user.id} />
-      <Sidebar user={user} />
+      <Sidebar user={user} isBetaAdmin={isBetaAdmin} />
       <div className="main">
         <Topbar />
         <main className="content">{children}</main>

@@ -120,14 +120,14 @@ const ROLE_LABEL: Record<string, string> = {
 
 const BETA_GEAR_ICON = "M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z";
 
-export default function Sidebar({ user }: { user: SessionUser }) {
+export default function Sidebar({ user, isBetaAdmin = false }: { user: SessionUser; isBetaAdmin?: boolean }) {
   const pathname = usePathname();
   const roleGroups = user.role === "OWNER"
     ? OWNER_GROUPS
     : user.role === "ADMIN" ? ADMIN_GROUPS : THERAPIST_GROUPS;
   // 베타 운영자에게만 운영 메뉴 추가 — 도움말(마지막 그룹) 바로 위에 끼워넣음
   const groups: NavItem[][] = [...roleGroups];
-  if (user.email.toLowerCase() === "yj2000102@gmail.com") {
+  if (isBetaAdmin) {
     groups.splice(groups.length - 1, 0, [
       { href: "/admin/beta", label: "베타 운영", icon: BETA_GEAR_ICON },
     ]);

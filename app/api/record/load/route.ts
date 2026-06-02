@@ -10,6 +10,9 @@ export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get("id");
   if (id) {
     const recordId = Number(id);
+    if (!Number.isInteger(recordId)) {
+      return Response.json({ error: "invalid id" }, { status: 400 });
+    }
     const rec = await prisma.record.findUnique({
       where: { id: recordId },
       include: {

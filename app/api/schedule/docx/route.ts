@@ -5,6 +5,7 @@ import {
   HeightRule, ShadingType, HeadingLevel,
 } from "docx";
 import { WEEK, holiday } from "@/lib/constants";
+import { getCurrentUser } from "@/lib/auth";
 
 type SessionInput = { day: number; weekday: string; time: string; makeup: boolean };
 
@@ -128,6 +129,8 @@ function calendarTable(year: number, month: number, sessions: SessionInput[]) {
 }
 
 export async function POST(req: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
   const p = (await req.json()) as Payload;
 
   const metaTable = new Table({

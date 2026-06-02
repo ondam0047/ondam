@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:prod": "PRISMA_SCHEMA=postgres prisma generate && next build",
     "start": "next start",
     "postinstall": "prisma generate",
     "db:gen:postgres": "PRISMA_SCHEMA=postgres prisma generate",

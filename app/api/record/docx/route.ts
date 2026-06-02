@@ -4,6 +4,7 @@ import {
   Table, TableRow, TableCell, WidthType, AlignmentType, BorderStyle,
   ShadingType, HeadingLevel,
 } from "docx";
+import { getCurrentUser } from "@/lib/auth";
 
 type SessionDetail = {
   use: string;
@@ -64,6 +65,8 @@ function multiCell(paragraphs: Paragraph[], opts: { span?: number; fill?: string
 }
 
 export async function POST(req: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
   const p = (await req.json()) as Payload;
 
   // meta table

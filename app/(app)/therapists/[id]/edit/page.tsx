@@ -1,16 +1,19 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { updateTherapist } from "../../actions";
+import { requireRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function EditTherapistPage(props: PageProps<"/therapists/[id]/edit">) {
+  const user = await requireRole(["OWNER", "ADMIN"]);
   const { id } = await props.params;
   const tid = Number(id);
   if (!Number.isInteger(tid)) notFound();
   const t = await prisma.therapist.findUnique({ where: { id: tid } });
   if (!t) notFound();
+  if (t.centerId !== user.centerId) redirect("/therapists");
 
   const update = updateTherapist.bind(null, t.id);
 
