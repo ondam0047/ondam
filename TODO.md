@@ -4,44 +4,40 @@
 
 ---
 
-## 운영 배포 대기 (가장 먼저)
+## ✅ 운영 배포 완료 (2026-06-02)
 
-소급결제 UI 개선 (`feat/record` 기반, 운영 브랜치 `claude/clever-ritchie-GiZtt` 에 푸시 완료)을 운영(baroilji.com)에 반영.
+소급결제 + UI 개선(초기화 버튼·엑셀 드롭존·요일별 시간·시간대 입력) 전부 운영(baroilji.com) 반영 완료.
+서버 `baroilji-prod`(NCP, /opt/baroilji)는 **TLBiq 브랜치**로 전환됨 (소급결제 커밋 포함된 상위 버전).
 
-관련 커밋:
-- `2bcde3e` feat(record): 소급결제 알림 클릭 → 해당 회기로 자동 이동
-- `e148f81` feat(record): 소급결제 알림 — 아동별로 분리 표시 + 데모 소급 3건으로
+### ⚠️ 운영 배포 메모 — 다음에 꼭 지킬 것
 
-순서대로 따로 배포 (1 → 확인 → 2).
+운영은 **PostgreSQL**(`@prisma/adapter-pg`), 로컬은 SQLite. 함정 2개:
 
-**1단계 — 소급결제 (GiZtt)**
+1. **`npm install` 하면 postinstall(`prisma generate`)이 SQLite 클라이언트로 되돌림** → 빌드가
+   `Driver Adapter @prisma/adapter-pg is not compatible with provider sqlite` 로 실패.
+   → `npm install` 했으면 **반드시 바로 뒤에 `npm run db:gen:postgres`** 실행.
+2. 빌드가 중간 실패하면 `.next` 가 비어 앱이 `Could not find a production build` 로 **크래시 루프**(사이트 다운).
+   → 빌드는 **라우트 표가 출력되고 에러 없이 끝나는 것**까지 확인 후 `pm2 restart`.
+
+### 표준 배포 절차 (PostgreSQL 운영)
+
 ```bash
 cd /opt/baroilji
-git pull origin claude/clever-ritchie-GiZtt
-npm install
-npm run build
+git fetch origin
+git checkout <브랜치>            # 예: claude/retroactive-payment-video-launch-TLBiq
+git pull origin <브랜치>
+npm install                      # 새 의존성 있을 때만. 했으면 ↓ 필수
+npm run db:gen:postgres          # ← postgres 클라이언트 재생성 (안 하면 빌드 실패)
+npm run build                    # 라우트 표 나오고 에러 없이 끝나는지 확인
 pm2 restart baroilji
 ```
+- 의존성 변경이 없으면 `npm install` 생략 → `db:gen:postgres` 도 불필요 (이번 2단계가 그랬음).
+- 확인: `curl -I http://localhost:3000` 가 200/307, `pm2 list` 의 `↺`(restart) 가 안 오르면 정상.
+- 운영 turbopack 빌드는 정상 동작(네이티브 바인딩 있음). 혹시 실패 시 `npx next build --webpack`.
 
-**2단계 — UI 개선 묶음 (TLBiq: 초기화 버튼·엑셀 드롭존·요일별 시간·시간대 입력)**
-1단계 정상 확인 후:
-```bash
-cd /opt/baroilji
-git pull origin claude/retroactive-payment-video-launch-TLBiq
-npm install
-npm run build
-pm2 restart baroilji
-```
-- DB 마이그레이션 불필요 (스키마 변경 없음).
-- 운영에서 turbopack 빌드 에러 나면 `npm run build` 대신 `npx next build --webpack`.
+### 배포된 변경 요약
 
----
-
-## 최근 완료 — 운영 반영 필요 (브랜치 `claude/retroactive-payment-video-launch-TLBiq`)
-
-`next build --webpack` 통과(exit 0). 운영 배포 시 이 브랜치 내용도 함께 반영.
-
-- **초기화 버튼**: 일정표("처음부터 다시")·기록지("초기화")·승인내역 점검("다른 파일로 다시"). confirm 1회 + `baroilji_*_draft` 삭제 + state 초기화. (SessionGuard.tsx 패턴 참고)
+- **초기화 버튼**: 일정표("처음부터 다시")·기록지("초기화")·승인내역 점검("다른 파일로 다시"). confirm 1회 + `baroilji_*_draft` 삭제 + state 초기화.
 - **엑셀 가져오기 옛 UI 수정**: `/import` 의 밋밋한 `<input type=file>` → 기록지와 동일한 드롭존(드래그&드롭/클릭)으로 교체.
 - **일정표 요일별 다른 시간 (A안)**: 반복 요일 선택 시 요일별 시간 드롭다운 노출. `slotByDow` 오버라이드, 비우면 기본 시간대 적용. DB 변경 없음.
 - **센터 설정 시간대 입력 UI**: textarea 직접 타이핑 → 시작·종료 시각 피커 + 칩 추가/삭제(`SlotsEditor.tsx`). 저장 형식(콤마 문자열) 동일, 백엔드 무변경.
