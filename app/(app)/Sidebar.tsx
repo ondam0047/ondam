@@ -105,7 +105,7 @@ export default function Sidebar({ user }: { user: SessionUser }) {
     : user.role === "ADMIN" ? ADMIN_ITEMS : THERAPIST_ITEMS;
   // 베타 운영자에게만 운영 메뉴 추가
   const items = user.email.toLowerCase() === "yj2000102@gmail.com"
-    ? [...baseItems, { href: "/admin/beta", label: "🛠️ 베타 운영", icon: BETA_GEAR_ICON }]
+    ? [...baseItems, { href: "/admin/beta", label: "베타 운영", icon: BETA_GEAR_ICON }]
     : baseItems;
   const initial = user.name.charAt(0) || "?";
 

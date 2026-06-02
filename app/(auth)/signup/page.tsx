@@ -106,7 +106,7 @@ export default async function SignupPage({
 
         {betaLocked && (
           <div className="tip" style={{ marginBottom: 14 }}>
-            🔒 <b>베타 테스트 중</b>입니다. 운영자가 알려드린 <b>초대코드</b>가 필요해요.
+            <b>베타 테스트 중</b>입니다. 운영자가 알려드린 <b>초대코드</b>가 필요해요.
           </div>
         )}
 
@@ -161,7 +161,7 @@ export default async function SignupPage({
             가입하고 바로 시작
           </button>
           <div className="tip" style={{ marginTop: 14 }}>
-            💡 가입 즉시 본인만 보는 사물함이 열립니다. 다른 사람은 절대 못 봐요.
+            가입 즉시 본인만 보는 사물함이 열립니다. 다른 사람은 절대 못 봐요.
           </div>
         </form>
 

@@ -156,7 +156,7 @@ export default async function ChildrenPage({
         {children.length === 0 ? (
           <div className="card-body" style={{ padding: "32px 24px" }}>
             <div style={{ textAlign: "center", maxWidth: 520, margin: "0 auto" }}>
-              <div style={{ fontSize: 38, marginBottom: 10 }}>👶</div>
+              <div style={{ fontSize: 38, marginBottom: 10 }}></div>
               <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>
                 아직 등록된 아동이 없어요
               </div>
@@ -176,10 +176,10 @@ export default async function ChildrenPage({
                     fontSize: 14,
                   }}
                 >
-                  📥 엑셀로 가져오기
+                  엑셀로 가져오기
                 </Link>
                 <Link className="btn btn-primary" href="/children/new" style={{ padding: "12px 20px", fontWeight: 700 }}>
-                  ✏️ 한 명씩 등록
+                  한 명씩 등록
                 </Link>
               </div>
             </div>

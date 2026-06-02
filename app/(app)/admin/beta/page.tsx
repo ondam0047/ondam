@@ -34,7 +34,7 @@ export default async function BetaAdminPage() {
     <>
       <div className="section-head">
         <div>
-          <h2>🛠️ 베타 운영 관리</h2>
+          <h2>베타 운영 관리</h2>
           <p>{BETA_ADMIN_EMAIL} 만 접근 가능. 일반 사용자에겐 안 보임.</p>
         </div>
       </div>
@@ -111,7 +111,7 @@ export default async function BetaAdminPage() {
                     <td className="sub-mute" style={{ fontSize: 12 }}>
                       {new Date(u.createdAt).toLocaleDateString("ko-KR")}
                     </td>
-                    <td>{u.active ? "✓ 활성" : "❌ 비활성"}</td>
+                    <td>{u.active ? "✓ 활성" : "비활성"}</td>
                     <td style={{ textAlign: "right" }}>
                       {isMe ? (
                         <span className="sub-mute" style={{ fontSize: 11 }}>(나)</span>

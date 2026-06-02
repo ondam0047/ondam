@@ -392,11 +392,11 @@ export default function RecordClient({
               onClick={startManual}
               disabled={!manualCSId || manualLoading}
             >
-              {manualLoading ? "불러오는 중..." : "📝 작성 시작"}
+              {manualLoading ? "불러오는 중..." : "작성 시작"}
             </button>
           </div>
           <div className="sub-mute" style={{ marginTop: 10, fontSize: 12.5, lineHeight: 1.6 }}>
-            💡 일정표를 미리 만들어두면 회기 날짜·시간이 자동으로 채워집니다.
+            일정표를 미리 만들어두면 회기 날짜·시간이 자동으로 채워집니다.
             저장하면 나중에 같은 아동·월로 들어와 이어 작성할 수 있어요.
             엑셀이 나중에 도착하면 아래에서 업로드해 승인번호·결제일 등을 보강할 수 있습니다.
           </div>
@@ -413,7 +413,7 @@ export default function RecordClient({
           {names.length > 0 && (
             <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
               <button type="button" className="btn btn-ghost btn-sm" onClick={resetRecord}>
-                🔄 초기화
+                초기화
               </button>
             </div>
           )}
@@ -956,7 +956,7 @@ function RecordSheet({
               {hasBoth && !match && (
                 <div style={{ marginTop: 8 }}>
                   <label style={{ display: "block", fontSize: 12.5, fontWeight: 600, color: "var(--danger)", marginBottom: 4 }}>
-                    📝 불일치 사유
+                    불일치 사유
                   </label>
                   <input
                     className="input"
@@ -996,7 +996,7 @@ function RecordSheet({
           disabled={!childServiceId}
           title="이전 달 기록의 결과·총평을 복사 (수정 후 저장)"
         >
-          📋 전월 기록 가져오기
+          전월 기록 가져오기
         </button>
         <button className="btn" onClick={saveRecord} disabled={saving || !childServiceId}>
           {saving ? "저장 중..." : "현재 내용 저장"}

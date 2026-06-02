@@ -14,47 +14,47 @@ function tourKey(userId: number) {
 const COMMON_STEPS = [
   {
     selector: '[data-tour="dash"]',
-    title: "📊 대시보드",
+    title: "대시보드",
     description: "오늘 회기·이번 달 진행률·미작성 기록지 등 본인 작업 현황을 한 눈에 봅니다.",
   },
   {
     selector: '[data-tour="sched"]',
-    title: "📅 일정표",
+    title: "일정표",
     description: "아동·요일 패턴을 골라 한 달치 회기를 자동 생성하고 한글파일(.hwpx)로 다운받아요.",
   },
   {
     selector: '[data-tour="rec"]',
-    title: "📝 기록지",
+    title: "기록지",
     description: "회기마다 결과를 입력. 전자바우처 엑셀을 올려 자동 채움도 가능해요.",
   },
   {
     selector: '[data-tour="appr"]',
-    title: "✅ 승인내역 점검",
+    title: "승인내역 점검",
     description: "지자체 점검 전 엑셀을 올려서 결제 간격 겹침을 자동 자가 점검.",
   },
   {
     selector: '[data-tour="exp"]',
-    title: "📦 한꺼번에 다운로드",
+    title: "한꺼번에 다운로드",
     description: "월·아동을 골라 저장된 일정표·기록지를 ZIP 한 파일로 받습니다.",
   },
   {
     selector: '[data-tour="time"]',
-    title: "🗓️ 내 시간표",
+    title: "내 시간표",
     description: "저장된 일정표를 월간 캘린더로 한 눈에. 대시보드 '전체 일정' 버튼도 여기로 연결돼요.",
   },
   {
     selector: '[data-tour="child"]',
-    title: "👶 내 아동",
+    title: "내 아동",
     description: "담당 아동을 등록·수정. 일정표에서 + 새 아동 으로도 즉시 등록할 수 있어요.",
   },
   {
     selector: '[data-tour="set"]',
-    title: "⚙️ 내 설정",
+    title: "내 설정",
     description: "이름·치료사 종류·소속 센터명·회기 시간대·수기 모드까지 — 가입 정보 전부 여기서 수정합니다.",
   },
   {
     selector: '[data-tour="help"]',
-    title: "📖 도움말",
+    title: "도움말",
     description: "이 투어 다시 보기, PDF 매뉴얼, 단계별 사용 안내 등.",
   },
 ];

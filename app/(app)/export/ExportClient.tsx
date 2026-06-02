@@ -95,12 +95,12 @@ export default function ExportClient({
                 type="button"
                 className={"btn " + (kind === "schedule" ? "btn-primary" : "btn-ghost")}
                 onClick={() => switchKind("schedule")}
-              >📅 일정표</button>
+              >일정표</button>
               <button
                 type="button"
                 className={"btn " + (kind === "record" ? "btn-primary" : "btn-ghost")}
                 onClick={() => switchKind("record")}
-              >📝 기록지</button>
+              >기록지</button>
             </div>
           </div>
 
@@ -169,7 +169,7 @@ export default function ExportClient({
               >
                 {downloading
                   ? "생성 중..."
-                  : `📦 선택한 ${selected.size}명 ${kind === "schedule" ? "일정표" : "기록지"} 다운로드`}
+                  : `선택한 ${selected.size}명 ${kind === "schedule" ? "일정표" : "기록지"} 다운로드`}
               </button>
               {selected.size === 0 && (
                 <span className="sub-mute" style={{ marginLeft: 10, fontSize: 12.5 }}>

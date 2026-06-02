@@ -692,7 +692,7 @@ export default function ScheduleClient({
           })()}
           {childrenOpts.length === 0 && (
             <div className="tip" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-              <span>💡 아직 등록된 아동이 없어요. 여기서 바로 등록할 수 있어요.</span>
+              <span>아직 등록된 아동이 없어요. 여기서 바로 등록할 수 있어요.</span>
               <button
                 type="button"
                 className="btn btn-primary btn-sm"
@@ -724,7 +724,7 @@ export default function ScheduleClient({
                   onClick={copyPrevMonth}
                   title="가장 최근 일정의 요일·시간 패턴을 새 월에 자동 적용"
                 >
-                  📋 전월 일정 복사
+                  전월 일정 복사
                 </button>
                 {loadedScheduleId !== null && (
                   <button
@@ -867,7 +867,7 @@ export default function ScheduleClient({
                 : `목표 ${target}회 · ${totalCount}회 (${totalCount < target ? "부족" : "초과"} ${Math.abs(target - totalCount)})`}
             </span>
             <button type="button" className="btn btn-ghost btn-sm" onClick={resetAll} style={{ marginLeft: 8 }}>
-              🔄 처음부터 다시
+              처음부터 다시
             </button>
           </div>
           <div className="card-body">
@@ -945,7 +945,7 @@ export default function ScheduleClient({
                   {saving ? "저장 중..." : (loadedScheduleId ? "이 일정표 덮어쓰기 저장" : "이 일정표 저장")}
                 </button>
               ) : (
-                <span className="sub-mute">💾 저장하려면 위에서 "저장된 아동 불러오기"로 선택해주세요.</span>
+                <span className="sub-mute">저장하려면 위에서 "저장된 아동 불러오기"로 선택해주세요.</span>
               )}
               <span style={{ flex: 1 }} />
               <button className="btn btn-primary" onClick={downloadHwpx} disabled={downloadingHwpx}>

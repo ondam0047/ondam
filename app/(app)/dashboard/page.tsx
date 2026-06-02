@@ -85,7 +85,7 @@ async function AdminDashboard({ user, centerId, year: y, month: m, todayDay, tod
     <>
       <div className="section-head">
         <div>
-          <h2>안녕하세요, {user.name} 선생님 👋</h2>
+          <h2>안녕하세요, {user.name} 선생님</h2>
           <p>{y}년 {m}월 {todayDay}일 ({WEEK[todayDow]}) · 센터 전체 회기 {data.totalSessionsThisMonth}건</p>
         </div>
       </div>
@@ -122,7 +122,7 @@ async function OwnerDashboard({
     <>
       <div className="section-head">
         <div>
-          <h2>안녕하세요, {user.name} 원장님 👋</h2>
+          <h2>안녕하세요, {user.name} 원장님</h2>
           <p>
             {y}년 {m}월 {todayDay}일 ({WEEK[todayDow]}) ·{" "}
             {myData.todaySessions > 0 ? `오늘 내 회기 ${myData.todaySessions}건` : "오늘 내 회기 없음"}
@@ -140,7 +140,7 @@ async function OwnerDashboard({
               boxShadow: "0 2px 6px rgba(31,122,82,0.25)",
             }}
           >
-            📦 한꺼번에 다운로드
+            한꺼번에 다운로드
           </Link>
           <Link
             className="btn"
@@ -152,10 +152,10 @@ async function OwnerDashboard({
               boxShadow: "0 2px 6px rgba(200,85,78,0.25)",
             }}
           >
-            ✏️ 기록지 작성
+            기록지 작성
           </Link>
           <Link className="btn btn-primary" href="/schedule" style={{ padding: "12px 18px", fontWeight: 700 }}>
-            📅 일정표 만들기
+            일정표 만들기
           </Link>
         </div>
       </div>
@@ -209,7 +209,7 @@ async function TherapistDashboard({ user, centerId, year: y, month: m, todayDay,
     <>
       <div className="section-head">
         <div>
-          <h2>안녕하세요, {user.name} 선생님 👋</h2>
+          <h2>안녕하세요, {user.name} 선생님</h2>
           <p>
             {y}년 {m}월 {todayDay}일 ({WEEK[todayDow]}) ·{" "}
             {data.todaySessions > 0 ? `오늘 회기 ${data.todaySessions}건 예정` : "오늘 회기 없음"}
@@ -226,7 +226,7 @@ async function TherapistDashboard({ user, centerId, year: y, month: m, todayDay,
               boxShadow: "0 2px 6px rgba(31,122,82,0.25)",
             }}
           >
-            📦 한꺼번에 다운로드
+            한꺼번에 다운로드
           </Link>
           <Link
             className="btn"
@@ -238,17 +238,17 @@ async function TherapistDashboard({ user, centerId, year: y, month: m, todayDay,
               boxShadow: "0 2px 6px rgba(200,85,78,0.25)",
             }}
           >
-            ✏️ 기록지 작성
+            기록지 작성
           </Link>
           <Link className="btn btn-primary" href="/schedule" style={{ padding: "12px 18px", fontWeight: 700 }}>
-            📅 일정표 만들기
+            일정표 만들기
           </Link>
         </div>
       </div>
 
       {data.myChildrenCount === 0 && (
         <div className="tip">
-          💡 아직 담당 아동이 없어요.{" "}
+          아직 담당 아동이 없어요.{" "}
           <Link href="/children/new" style={{ color: "var(--primary)", fontWeight: 700 }}>
             아동 직접 등록
           </Link>{" "}
@@ -796,7 +796,7 @@ function OnboardingCard({ state }: { state: Awaited<ReturnType<typeof loadOnboar
       borderColor: "var(--primary)",
     }}>
       <div className="card-header" style={{ borderColor: "rgba(91,143,207,0.3)" }}>
-        <h2>🚀 시작 가이드 ({state.done} / {state.total})</h2>
+        <h2>시작 가이드 ({state.done} / {state.total})</h2>
         <span className="hint">다 끝나면 이 카드는 사라져요</span>
       </div>
       <div style={{ padding: "12px 18px 18px", display: "flex", flexDirection: "column", gap: 8 }}>
@@ -810,7 +810,7 @@ function OnboardingCard({ state }: { state: Awaited<ReturnType<typeof loadOnboar
             border: "1px solid var(--border)",
             borderRadius: "var(--r-sm)",
           }}>
-            <span style={{ fontSize: 18, width: 22 }}>{it.ok ? "✅" : "⬜"}</span>
+            <span style={{ fontSize: 18, width: 22 }}>{it.ok ? "✓" : "○"}</span>
             <span style={{
               flex: 1,
               textDecoration: it.ok ? "line-through" : "none",

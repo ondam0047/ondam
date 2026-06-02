@@ -258,15 +258,15 @@ export default function ImportClient({ serviceTypes }: { serviceTypes: string[] 
             <span>
               컬럼: <b>성명 · 생년월일 · 서비스 · 담당 · 시간 · 요일</b>{" "}
               (단가·목표·메모는 선택). 한 아동이 여러 서비스를 받으면 줄을 여러 개 적으면 같은 사람으로 묶입니다.<br />
-              💡 <b>전자바우처 '서비스제공내역' 엑셀</b>도 그대로 올리면 자동으로 명단을 추출합니다.<br />
-              💡 양식이 없으면 아래 <b>[기본 양식 다운로드]</b> 를 받아 채워주세요.
+              <b>전자바우처 '서비스제공내역' 엑셀</b>도 그대로 올리면 자동으로 명단을 추출합니다.<br />
+              양식이 없으면 아래 <b>[기본 양식 다운로드]</b> 를 받아 채워주세요.
             </span>
           </div>
 
           {mode === "child" && (
             <div style={{ marginBottom: 12 }}>
               <a className="btn btn-ghost" href="/api/import/template" download>
-                📋 기본 양식 다운로드 (.xlsx)
+                기본 양식 다운로드 (.xlsx)
               </a>
             </div>
           )}

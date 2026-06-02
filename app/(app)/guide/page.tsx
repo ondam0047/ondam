@@ -59,9 +59,9 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
 
 function Callout({ kind, children }: { kind: "tip" | "warn" | "info"; children: React.ReactNode }) {
   const styles = {
-    tip:  { bg: "#FFF8E1", border: "#F0CD5A", icon: "💡" },
+    tip:  { bg: "#FFF8E1", border: "#F0CD5A", icon: "" },
     warn: { bg: "#FDECEC", border: "#E8919A", icon: "⚠️" },
-    info: { bg: "#E8F1FC", border: "#7BAEE5", icon: "ℹ️" },
+    info: { bg: "#E8F1FC", border: "#7BAEE5", icon: "" },
   }[kind];
   return (
     <div style={{
@@ -141,7 +141,7 @@ export default async function GuidePage() {
             rel="noopener noreferrer"
             className="btn btn-ghost"
           >
-            📄 PDF 매뉴얼
+            PDF 매뉴얼
           </a>
         </div>
 
@@ -235,7 +235,7 @@ export default async function GuidePage() {
             공휴일은 자동으로 제외돼요.
           </Step>
           <Step n={3} title="전월 일정 그대로 복사">
-            매월 같은 패턴이면 <b>[📋 전월 일정 복사]</b> 한 번. 새 달의 같은 요일·시간으로 자동 적용됩니다.
+            매월 같은 패턴이면 <b>[전월 일정 복사]</b> 한 번. 새 달의 같은 요일·시간으로 자동 적용됩니다.
           </Step>
           <Step n={4} title="회기 수정">
             특정 날짜의 시간이 다르거나 보강회기면 캘린더 칸을 클릭해 시간 변경·보강 표시·회기 제거.
@@ -279,7 +279,7 @@ export default async function GuidePage() {
             각 회기 카드에도 빨간 '소급결제' 뱃지가 붙어요.
           </Step>
           <Step n={6} title="전월 기록 복사">
-            <b>[📋 전월 기록 가져오기]</b> 로 지난달 결과·총평을 복사 → 수정해서 저장.
+            <b>[전월 기록 가져오기]</b> 로 지난달 결과·총평을 복사 → 수정해서 저장.
           </Step>
           <Step n={7} title="한글파일 다운로드">
             <b>[한글파일(.hwpx) 다운로드]</b>. 회기가 6회 이상이면 자동으로 여러 장 ZIP 으로 묶여 나와요.
