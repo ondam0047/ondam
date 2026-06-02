@@ -80,6 +80,26 @@ const NAV_GROUPS: NavItem[][] = [
 
 const BETA_GEAR_ICON = "M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z";
 
+// 로그아웃 시 일정표·기록지 임시 작성본 등 작업 캐시를 비움.
+// (환영 모달·투어 1회 표시 기록은 사용자별이라 유지)
+function clearWorkCache() {
+  try {
+    const toRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (
+        k &&
+        k.startsWith("baroilji_") &&
+        !k.startsWith("baroilji_welcome_seen_") &&
+        !k.startsWith("baroilji_tour_done_")
+      ) {
+        toRemove.push(k);
+      }
+    }
+    for (const k of toRemove) localStorage.removeItem(k);
+  } catch {}
+}
+
 export default function Sidebar({ user, isBetaAdmin = false }: { user: SessionUser; isBetaAdmin?: boolean }) {
   const pathname = usePathname();
   // 베타 운영자에게만 운영 메뉴 추가 — 도움말(마지막 그룹) 바로 위에 끼워넣음
@@ -125,7 +145,7 @@ export default function Sidebar({ user, isBetaAdmin = false }: { user: SessionUs
       ))}
 
       <form action="/api/auth/logout" method="post" style={{ marginTop: 12 }}>
-        <button type="submit" className="nav-item" style={{ cursor: "pointer" }}>
+        <button type="submit" className="nav-item" style={{ cursor: "pointer" }} onClick={clearWorkCache}>
           <Icon d={IC.logout} />
           <span>로그아웃</span>
         </button>
