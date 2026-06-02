@@ -12,7 +12,9 @@
 - `2bcde3e` feat(record): 소급결제 알림 클릭 → 해당 회기로 자동 이동
 - `e148f81` feat(record): 소급결제 알림 — 아동별로 분리 표시 + 데모 소급 3건으로
 
-배포 절차:
+순서대로 따로 배포 (1 → 확인 → 2).
+
+**1단계 — 소급결제 (GiZtt)**
 ```bash
 cd /opt/baroilji
 git pull origin claude/clever-ritchie-GiZtt
@@ -20,6 +22,18 @@ npm install
 npm run build
 pm2 restart baroilji
 ```
+
+**2단계 — UI 개선 묶음 (TLBiq: 초기화 버튼·엑셀 드롭존·요일별 시간·시간대 입력)**
+1단계 정상 확인 후:
+```bash
+cd /opt/baroilji
+git pull origin claude/retroactive-payment-video-launch-TLBiq
+npm install
+npm run build
+pm2 restart baroilji
+```
+- DB 마이그레이션 불필요 (스키마 변경 없음).
+- 운영에서 turbopack 빌드 에러 나면 `npm run build` 대신 `npx next build --webpack`.
 
 ---
 
