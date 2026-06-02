@@ -49,12 +49,8 @@ const IC = {
 };
 
 // 역할별로 보이는 메뉴 분리
-// OWNER 원장: 행정 + 치료사 권한 모두 (직접 일정표·기록지도 작성)
-// ADMIN 행정: 운영 관리만 (일정표·기록지는 직접 안 만듦)
-// THERAPIST 치료사: 본인 작업만
 const COG_ICON = "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.07a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.07a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z";
 const GRID_ICON = "M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z";
-const CLOCK_ICON = "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M12 6v6l4 2";
 const HELP_ICON = "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3 M12 17h.01";
 
 const CHECK_ICON = "M9 12l2 2 4-4 M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z";
@@ -63,7 +59,8 @@ const DOWNLOAD_ICON = "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M
 type NavItem = { href: string; label: string; icon: string; tour?: string };
 
 // 메뉴는 그룹 단위로 묶고, 그룹 사이는 구분선으로 한 줄 띄움.
-const OWNER_GROUPS: NavItem[][] = [
+// 1인 사물함 — 모든 사용자 동일 메뉴.
+const NAV_GROUPS: NavItem[][] = [
   [
     { href: "/dashboard",      label: "대시보드",       icon: IC.dash,       tour: "dash"  },
     { href: "/schedule",        label: "일정표",         icon: IC.calendar,   tour: "sched" },
@@ -80,53 +77,13 @@ const OWNER_GROUPS: NavItem[][] = [
     { href: "/guide",           label: "도움말",         icon: HELP_ICON,     tour: "help"  },
   ],
 ];
-const ADMIN_GROUPS: NavItem[][] = [
-  [
-    { href: "/dashboard",  label: "대시보드",      icon: IC.dash,   tour: "dash"  },
-    { href: "/timetable",  label: "치료사 시간표", icon: GRID_ICON, tour: "time"  },
-    { href: "/children",   label: "아동 관리",     icon: IC.user,   tour: "child" },
-    { href: "/therapists", label: "치료사 관리",   icon: IC.team,   tour: ""      },
-    { href: "/import",     label: "엑셀 가져오기", icon: IC.upload, tour: ""      },
-  ],
-  [
-    { href: "/center",     label: "센터 설정",     icon: COG_ICON,  tour: "set"   },
-  ],
-  [
-    { href: "/guide",      label: "도움말",        icon: HELP_ICON, tour: "help"  },
-  ],
-];
-const THERAPIST_GROUPS: NavItem[][] = [
-  [
-    { href: "/dashboard",       label: "대시보드",       icon: IC.dash,       tour: "dash"  },
-    { href: "/schedule",        label: "일정표",         icon: IC.calendar,   tour: "sched" },
-    { href: "/record",          label: "기록지",         icon: IC.doc,        tour: "rec"   },
-    { href: "/export",          label: "일괄 다운로드",  icon: DOWNLOAD_ICON, tour: "exp"   },
-    { href: "/approval-check",  label: "승인내역 점검",  icon: CHECK_ICON,    tour: "appr"  },
-  ],
-  [
-    { href: "/availability",    label: "내 차단 시간",   icon: CLOCK_ICON,    tour: ""      },
-    { href: "/children",        label: "내 아동",        icon: IC.user,       tour: "child" },
-  ],
-  [
-    { href: "/guide",           label: "도움말",         icon: HELP_ICON,     tour: "help"  },
-  ],
-];
-
-const ROLE_LABEL: Record<string, string> = {
-  OWNER: "선생님",
-  ADMIN: "행정",
-  THERAPIST: "선생님",
-};
 
 const BETA_GEAR_ICON = "M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z";
 
 export default function Sidebar({ user, isBetaAdmin = false }: { user: SessionUser; isBetaAdmin?: boolean }) {
   const pathname = usePathname();
-  const roleGroups = user.role === "OWNER"
-    ? OWNER_GROUPS
-    : user.role === "ADMIN" ? ADMIN_GROUPS : THERAPIST_GROUPS;
   // 베타 운영자에게만 운영 메뉴 추가 — 도움말(마지막 그룹) 바로 위에 끼워넣음
-  const groups: NavItem[][] = [...roleGroups];
+  const groups: NavItem[][] = [...NAV_GROUPS];
   if (isBetaAdmin) {
     groups.splice(groups.length - 1, 0, [
       { href: "/admin/beta", label: "베타 운영", icon: BETA_GEAR_ICON },
@@ -178,7 +135,7 @@ export default function Sidebar({ user, isBetaAdmin = false }: { user: SessionUs
         <div className="avatar">{initial}</div>
         <div className="who">
           <div className="name">{user.name}</div>
-          <div className="role">{ROLE_LABEL[user.role] ?? user.role}</div>
+          <div className="role">선생님</div>
         </div>
       </div>
     </aside>

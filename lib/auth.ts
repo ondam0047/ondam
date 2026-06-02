@@ -104,17 +104,11 @@ export async function requireRole(allowed: Role[]): Promise<SessionUser> {
   return user;
 }
 
-export function isAdmin(user: SessionUser): boolean {
-  return user.role === "OWNER" || user.role === "ADMIN";
-}
-
-// ADMIN(행정)은 센터의 모든 ChildService 접근 가능 — 운영 관리 목적.
-// OWNER·THERAPIST 는 본인 담당 ChildService 만.
+// 1인 사물함: 본인 담당 ChildService 만 접근 가능.
 export function canAccessService(
   user: SessionUser,
   service: { therapistId: number | null }
 ): boolean {
-  if (user.role === "ADMIN") return true;
   if (user.therapistId !== null) {
     return service.therapistId === user.therapistId;
   }

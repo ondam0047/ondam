@@ -79,6 +79,5 @@ export async function regenerateCode() {
     data: { approvalCode: newCode },
   });
   revalidatePath("/center");
-  revalidatePath("/therapists");
-  redirect("/center?ok=" + encodeURIComponent(`새 승인코드: ${newCode} — 치료사들에게 다시 알려주세요`));
+  redirect("/center?ok=" + encodeURIComponent(`새 승인코드: ${newCode}`));
 }
