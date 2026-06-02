@@ -34,7 +34,7 @@ const COMMON_STEPS = [
   },
   {
     selector: '[data-tour="exp"]',
-    title: "한꺼번에 다운로드",
+    title: "일괄 다운로드",
     description: "월·아동을 골라 저장된 일정표·기록지를 ZIP 한 파일로 받습니다.",
   },
   {

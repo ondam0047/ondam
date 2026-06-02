@@ -140,7 +140,7 @@ async function OwnerDashboard({
               boxShadow: "0 2px 6px rgba(31,122,82,0.25)",
             }}
           >
-            한꺼번에 다운로드
+            일괄 다운로드
           </Link>
           <Link
             className="btn"
@@ -226,7 +226,7 @@ async function TherapistDashboard({ user, centerId, year: y, month: m, todayDay,
               boxShadow: "0 2px 6px rgba(31,122,82,0.25)",
             }}
           >
-            한꺼번에 다운로드
+            일괄 다운로드
           </Link>
           <Link
             className="btn"

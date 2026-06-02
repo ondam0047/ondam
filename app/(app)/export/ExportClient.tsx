@@ -80,7 +80,7 @@ export default function ExportClient({
     <>
       <div className="section-head">
         <div>
-          <h2>한꺼번에 다운로드</h2>
+          <h2>일괄 다운로드</h2>
           <p>월과 아동을 골라 저장된 일정표·기록지를 한 번에 받습니다.</p>
         </div>
       </div>

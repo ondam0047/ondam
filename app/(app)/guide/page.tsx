@@ -92,7 +92,7 @@ export default async function GuidePage() {
     { id: "handwrite", label: "수기로 작성하는 분" },
     { id: "approval",  label: "승인내역 점검" },
     { id: "timetable", label: "내 시간표" },
-    { id: "bulk",      label: "한꺼번에 다운로드" },
+    { id: "bulk",      label: "일괄 다운로드" },
     { id: "persist",   label: "작업 상태 유지" },
     { id: "faq",       label: "자주 묻는 질문" },
   ];
@@ -358,10 +358,10 @@ export default async function GuidePage() {
           </Step>
         </Section>
 
-        {/* 8. 한꺼번에 다운로드 */}
-        <Section id="bulk" num="9" title="한꺼번에 다운로드">
+        {/* 8. 일괄 다운로드 */}
+        <Section id="bulk" num="9" title="일괄 다운로드">
           <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
-            <b>[한꺼번에 다운로드]</b> 메뉴(또는 대시보드 버튼)에서 월말 마감을 한 번에.
+            <b>[일괄 다운로드]</b> 메뉴(또는 대시보드 버튼)에서 월말 마감을 한 번에.
           </p>
           <Step n={1} title="일정표 / 기록지 선택">
             먼저 일정표를 받을지 기록지를 받을지 고릅니다.

@@ -65,6 +65,7 @@ type NavItem = { href: string; label: string; icon: string; tour?: string };
 // 메뉴는 그룹 단위로 묶고, 그룹 사이는 구분선으로 한 줄 띄움.
 const OWNER_GROUPS: NavItem[][] = [
   [
+    { href: "/dashboard",      label: "대시보드",       icon: IC.dash,       tour: "dash"  },
     { href: "/schedule",        label: "일정표",         icon: IC.calendar,   tour: "sched" },
     { href: "/record",          label: "기록지",         icon: IC.doc,        tour: "rec"   },
     { href: "/export",          label: "일괄 다운로드",  icon: DOWNLOAD_ICON, tour: "exp"   },
@@ -81,6 +82,7 @@ const OWNER_GROUPS: NavItem[][] = [
 ];
 const ADMIN_GROUPS: NavItem[][] = [
   [
+    { href: "/dashboard",  label: "대시보드",      icon: IC.dash,   tour: "dash"  },
     { href: "/timetable",  label: "치료사 시간표", icon: GRID_ICON, tour: "time"  },
     { href: "/children",   label: "아동 관리",     icon: IC.user,   tour: "child" },
     { href: "/therapists", label: "치료사 관리",   icon: IC.team,   tour: ""      },
@@ -95,6 +97,7 @@ const ADMIN_GROUPS: NavItem[][] = [
 ];
 const THERAPIST_GROUPS: NavItem[][] = [
   [
+    { href: "/dashboard",       label: "대시보드",       icon: IC.dash,       tour: "dash"  },
     { href: "/schedule",        label: "일정표",         icon: IC.calendar,   tour: "sched" },
     { href: "/record",          label: "기록지",         icon: IC.doc,        tour: "rec"   },
     { href: "/export",          label: "일괄 다운로드",  icon: DOWNLOAD_ICON, tour: "exp"   },
