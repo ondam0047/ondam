@@ -45,8 +45,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     if (!user) redirect("/login");
   }
 
-  const betaEmail = process.env.BETA_ADMIN_EMAIL?.toLowerCase();
-  const isBetaAdmin = !!betaEmail && user.email.toLowerCase() === betaEmail;
+  // 베타 운영자 — 환경변수 우선, 없으면 기본 운영자 이메일로 폴백 (page/actions 와 동일)
+  const betaEmail = (process.env.BETA_ADMIN_EMAIL ?? "yj2000102@gmail.com").toLowerCase();
+  const isBetaAdmin = user.email.toLowerCase() === betaEmail;
 
   return (
     <div className="app">
