@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { requireRole } from "@/lib/auth";
+import { requireRole, getEffectiveTherapistId } from "@/lib/auth";
 import { THERAPIST_TYPES } from "@/lib/constants";
 import { updateCenter } from "./actions";
 import SlotsEditor from "./SlotsEditor";
@@ -14,6 +14,7 @@ export default async function CenterPage({
   const me = await requireRole(["OWNER", "ADMIN"]);
   const sp = await searchParams;
   const centerId = me.centerId ?? -1;
+  const myTherapistId = await getEffectiveTherapistId(me);
 
   const [center, userRow, childCount] = await Promise.all([
     prisma.center.findUnique({
@@ -24,7 +25,15 @@ export default async function CenterPage({
       },
     }),
     prisma.user.findUnique({ where: { id: me.id }, select: { name: true, therapistType: true } }),
-    prisma.child.count({ where: { centerId, active: true } }),
+    // 내 아동 화면과 동일 기준: 본인 담당 · 활동 중 · 대기 제외
+    prisma.child.count({
+      where: {
+        centerId,
+        active: true,
+        waiting: false,
+        services: { some: { therapistId: myTherapistId ?? -1 } },
+      },
+    }),
   ]);
 
   if (!center || !userRow) {
