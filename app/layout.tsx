@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "바로일지 — 발달재활서비스 통합관리",
-  description: "반복되는 일지 작성, 이제 바로 끝! 일정표·기록지 자동화",
+  title: "바로일지 — 치료사의 1인 사물함",
+  description: "치료사의 1인 사물함, 바로일지. 반복되는 일지 작성, 이제 바로 끝 — 일정표·기록지 자동화",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

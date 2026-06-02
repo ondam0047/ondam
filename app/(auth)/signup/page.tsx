@@ -96,6 +96,7 @@ export default async function SignupPage({
       <div style={{ padding: "28px 26px 8px", textAlign: "center" }}>
         <div style={{ display: "flex", justifyContent: "center" }}><BrandMark size={56} /></div>
         <h2 style={{ marginTop: 12, fontSize: 18 }}>바로일지 시작하기</h2>
+        <div className="sub-mute" style={{ marginTop: 6, fontWeight: 600 }}>치료사의 1인 사물함, 바로일지</div>
         <div className="sub-mute" style={{ marginTop: 4 }}>
           본인 명의로 가입하면 본인만 보는 사물함이 열려요.
         </div>

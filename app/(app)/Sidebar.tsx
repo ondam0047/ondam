@@ -140,7 +140,7 @@ export default function Sidebar({ user }: { user: SessionUser }) {
         <BrandMark size={36} />
         <div className="brand-name">
           <span className="ko">{user.centerName ?? "바로일지"}</span>
-          <span className="en">바로일지 · 통합관리</span>
+          <span className="en">치료사의 1인 사물함</span>
         </div>
       </Link>
 

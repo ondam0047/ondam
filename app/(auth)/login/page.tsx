@@ -51,7 +51,7 @@ export default async function LoginPage({
             </div>
           </div>
         </div>
-        <div className="sub-mute" style={{ marginTop: 14 }}>반복되는 일지 작성, 이제 바로 끝</div>
+        <div className="sub-mute" style={{ marginTop: 14, fontWeight: 600 }}>치료사의 1인 사물함, 바로일지</div>
       </div>
       <div className="card-body">
         {sp.err && <div className="flash warn" style={{ marginBottom: 12 }}>{sp.err}</div>}
