@@ -35,6 +35,9 @@ async function signupSolo(formData: FormData) {
   if (!THERAPIST_TYPES.includes(therapistType as typeof THERAPIST_TYPES[number])) {
     redirect("/signup?err=" + encodeURIComponent("치료사 종류가 잘못됐어요"));
   }
+  if (formData.get("agree") !== "on") {
+    redirect("/signup?err=" + encodeURIComponent("이용약관·개인정보 처리방침에 동의해주세요"));
+  }
 
   // 베타 코드 검증
   const betaCode = getBetaCode();
@@ -158,6 +161,15 @@ export default async function SignupPage({
             <label>비밀번호 <span className="sub-mute">(6자 이상)</span></label>
             <input className="input" name="password" type="password" required minLength={6} />
           </div>
+          <label className="modal-check" style={{ marginBottom: 14, fontSize: 12.5, alignItems: "flex-start", lineHeight: 1.5 }}>
+            <input type="checkbox" name="agree" required style={{ marginTop: 2 }} />
+            <span>
+              <Link href="/terms" target="_blank" style={{ color: "var(--primary)", fontWeight: 600 }}>이용약관</Link>
+              {" 및 "}
+              <Link href="/privacy" target="_blank" style={{ color: "var(--primary)", fontWeight: 600 }}>개인정보 처리방침</Link>
+              에 동의합니다. (아동 정보는 본인이 적법하게 수집·이용할 책임이 있어요)
+            </span>
+          </label>
           <button className="btn btn-primary" type="submit" style={{ width: "100%", justifyContent: "center" }}>
             가입하고 바로 시작
           </button>
