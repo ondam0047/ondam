@@ -2,11 +2,13 @@
 // 실행: node --experimental-strip-types scripts/gen-market-docx.ts
 import {
   Document, Packer, Paragraph, TextRun, HeadingLevel,
-  Table, TableRow, TableCell, WidthType, AlignmentType, BorderStyle, ShadingType,
+  Table, TableRow, TableCell, WidthType, AlignmentType, BorderStyle, ShadingType, TableLayoutType,
 } from "docx";
 import { writeFileSync } from "node:fs";
 
 const FONT = "맑은 고딕";
+// A4 세로, 좌우 여백 1100 twip → 본문 가용 폭
+const CONTENT_W = 11906 - 1100 * 2; // = 9706 twip
 
 function h1(text: string) {
   return new Paragraph({ heading: HeadingLevel.HEADING_1, spacing: { before: 320, after: 140 },
@@ -28,24 +30,32 @@ function num(text: string) {
   return new Paragraph({ numbering: { reference: "n", level: 0 }, spacing: { after: 60, line: 290 },
     children: [new TextRun({ text, font: FONT, size: 21 })] });
 }
-function cell(text: string, opts: { head?: boolean; width?: number } = {}) {
+function cell(text: string, opts: { head?: boolean; dxa?: number } = {}) {
   return new TableCell({
-    width: opts.width ? { size: opts.width, type: WidthType.PERCENTAGE } : undefined,
+    width: opts.dxa ? { size: opts.dxa, type: WidthType.DXA } : undefined,
     shading: opts.head ? { type: ShadingType.CLEAR, fill: "1F4E91", color: "auto" } : undefined,
-    margins: { top: 60, bottom: 60, left: 90, right: 90 },
+    margins: { top: 70, bottom: 70, left: 110, right: 110 },
     children: [new Paragraph({ children: [new TextRun({
       text, font: FONT, size: 18, bold: opts.head, color: opts.head ? "FFFFFF" : undefined,
     })] })],
   });
 }
-function table(headers: string[], rows: string[][], widths?: number[]) {
+function table(headers: string[], rows: string[][], pct?: number[]) {
   const b = { style: BorderStyle.SINGLE, size: 4, color: "D0D5DD" };
+  // 백분율 → 본문 가용 폭(twip)으로 환산. 미지정 시 균등 분할.
+  const n = headers.length;
+  const weights = pct && pct.length === n ? pct : Array(n).fill(100 / n);
+  const sum = weights.reduce((a, c) => a + c, 0);
+  const colW = weights.map((w) => Math.round((w / sum) * CONTENT_W));
   return new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
+    width: { size: CONTENT_W, type: WidthType.DXA },
+    columnWidths: colW,
+    layout: TableLayoutType.FIXED,
+    alignment: AlignmentType.CENTER,
     borders: { top: b, bottom: b, left: b, right: b, insideHorizontal: b, insideVertical: b },
     rows: [
-      new TableRow({ tableHeader: true, children: headers.map((hd, i) => cell(hd, { head: true, width: widths?.[i] })) }),
-      ...rows.map((r) => new TableRow({ children: r.map((c, i) => cell(c, { width: widths?.[i] })) })),
+      new TableRow({ tableHeader: true, children: headers.map((hd, i) => cell(hd, { head: true, dxa: colW[i] })) }),
+      ...rows.map((r) => new TableRow({ children: r.map((c, i) => cell(c, { dxa: colW[i] })) })),
     ],
   });
 }
@@ -100,18 +110,41 @@ children.push(table(
   [
     ["발달재활 제공기관", "1,786개소(2024 품질평가 대상)※범위 확인", "복지부 2024 품질평가 보도자료", "B"],
     ["지원 인원(이용 아동)", "약 7.9만 명(지원 인원 기준)", "2023.1 6.9만→7.9만 확대", "B"],
-    ["제공인력(치료사)", "약 0.5만~1.8만 명(추정·불확실)", "기관 수 × 기관당 인력(2-3)", "C"],
+    ["제공인력(자격 기준)", "약 1만명대(자격 인정 풀)", "DBpia 논문(2019–22)+국시원(2-3)", "B/C"],
     ["연 거래액(이론 상한)", "약 2,650억원 이하(2026 단가)", "7.9만×28만×12≈2,654억(상한)", "C"],
     ["발달재활 정부 예산(집행)", "미확인", "복지부 예산서·사업안내 확인 필요", "D"],
   ],
   [26, 28, 34, 12],
 ));
 children.push(spacer());
-children.push(h2("2-3. 제공인력 추정(교차검증)"));
-children.push(bullet("Top-down: 1,786개 기관 × 기관당 3~10명(발달재활은 1~3인 소규모 다수) ≈ 0.5만~1.8만 명 〔C·불확실〕"));
-children.push(bullet("⚠️ 기관당 인력 가정에 결과가 크게 좌우 → 반드시 1차 출처로 대체: SSIS 제공인력 실수치, 자격자 누계(국시원)"));
-children.push(bullet("핵심 타깃(SAM)은 이 중 행정을 직접 하는 1인·프리랜서·소규모 운영자"));
-children.push(p("※ v1의 ‘제공기관 2,200~2,600’은 과거(2021) 기반. 2024 품질평가 대상 1,786으로 교체했으나, 발달재활 단독/언어발달 합산 여부 확인 필요(8장).", { italic: true, color: "667085" }));
+children.push(h2("2-3. 제공인력 — 누가 발달재활을 제공하나(근거 기반)"));
+children.push(p("발달재활 제공인력은 언어재활만이 아니다. 고시상 제공 영역: 언어·청능 / 미술심리 / 음악 / 놀이심리 / 행동발달 / 재활심리 / 심리운동 / 감각·운동발달 재활. 각 영역의 관련 전공·자격 보유자가 제공한다. 〔고시, B〕"));
+children.push(table(
+  ["영역", "대표 직역(= 바로일지 ‘치료사 종류’)", "자격 경로"],
+  [
+    ["언어·청능", "언어재활사", "국가자격(국시원)"],
+    ["미술심리", "미술심리재활사(미술치료)", "관련 전공+교과목 이수→자격 인정"],
+    ["음악", "음악재활사(음악치료)", "〃"],
+    ["놀이심리", "놀이심리재활사", "〃"],
+    ["행동발달", "행동발달재활사", "〃"],
+    ["재활심리·심리", "재활심리사·임상심리", "〃"],
+    ["감각·운동발달", "감각·운동발달재활사(작업·물리·심리운동 등)", "〃"],
+  ],
+  [20, 44, 36],
+));
+children.push(spacer());
+children.push(p("자격 인정 요건(언어재활사 외 공통): 대학 14과목(42학점) 또는 대학원 7과목(21학점) 이상 이수 → 중앙장애아동·발달장애인지원센터(broso) 자격 인정. 〔고시, B〕"));
+children.push(spacer());
+children.push(table(
+  ["규모 근거", "수치", "출처", "신뢰도"],
+  [
+    ["비-언어재활 영역 자격 인정(broso)", "2019–22 신청 13,505명(교과목 3,590+전환교육 9,915), 인정률 54%/64% → 인정 약 8,200명대", "DBpia 논문", "B"],
+    ["언어재활사 국가자격(국시원)", "2025 제14회 1급 180·2급 473명(누계 별도)", "국시원 발표", "B"],
+  ],
+  [26, 46, 16, 12],
+));
+children.push(spacer());
+children.push(p("→ 발달재활 제공인력 풀 자격 기준 약 1만명대. 현재 활동 제공인력 실수는 SSIS 발달재활 항목으로 확정(8장). 핵심 타깃(SAM)은 이 중 행정을 직접 하는 1인·프리랜서·소규모 운영자.", { bold: true }));
 
 // 3
 children.push(h1("3. 고객 세그먼트 & 페인포인트"));
@@ -151,19 +184,20 @@ children.push(bullet("T: 제도·단가·양식 변경, 개인정보 규제, 공
 
 // 6
 children.push(h1("6. 수익화 & SOM 시나리오"));
-children.push(p("가격(확정): 월 15,000원 구독(연 180,000원). 모수: 핵심 타깃 치료사 풀.", { bold: true }));
+children.push(p("가격(확정): 월 15,000원 구독(연 180,000원).", { bold: true }));
+children.push(p("모수(SAM) 근거: 발달재활 제공인력 풀 약 1만명대(2-3) 중 행정을 직접 처리하는 1인·프리랜서·소규모 비중."));
 children.push(table(
-  ["시나리오", "유효 모수", "전환율", "유료 사용자", "연 매출(ARR)"],
+  ["시나리오", "유효 모수(SAM)", "전환율", "유료 사용자", "연 매출(ARR)"],
   [
-    ["보수", "12,000명", "5%", "600명", "약 1.08억"],
-    ["기본", "18,000명", "10%", "1,800명", "약 3.24억"],
-    ["낙관", "25,000명", "18%", "4,500명", "약 8.10억"],
+    ["보수", "5,000명", "5%", "250명", "약 0.45억"],
+    ["기본", "8,000명", "10%", "800명", "약 1.44억"],
+    ["낙관", "11,000명", "18%", "1,980명", "약 3.56억"],
   ],
-  [16, 22, 16, 20, 26],
+  [16, 24, 14, 20, 26],
 ));
 children.push(spacer());
 children.push(p("가격 근거: 2026년 단가 인상으로 치료사 1인 월 매출이 커진 가운데, 월 15,000원은 회기 1회 단가(약 35,000원)의 절반 이하 — 행정 절감·점검 방어 대비 지불 부담이 낮음.", { italic: true, color: "667085" }));
-children.push(p("니치이지만 도메인 락인·전환비용이 커 LTV가 높고 이탈이 낮은 구조. 인접 바우처·센터 버전으로 모수 확대 시 상향.", { bold: true }));
+children.push(p("인접 바우처(언어발달지원·심리지원)·센터 다인 버전으로 모수 확대 시 상향. 니치이지만 도메인 락인·전환비용이 커 LTV가 높고 이탈이 낮은 구조.", { bold: true }));
 children.push(p("전략: ① 무료 베타→커뮤니티/학회 입소문 ② 점검·환수 방어 가치 증명 ③ 인접 바우처 양식 ④ 센터 다인 버전 ⑤ 정산·세무 리포트."));
 
 // 7
@@ -208,7 +242,9 @@ children.push(h1("출처"));
   "2025년 발달장애인지원 사업안내 | 보건복지부 — 제도값(B)",
   "연도별 서비스 제공기관 및 제공인력 현황 | 한국사회보장정보원(SSIS) — 제공인력 검증용(접근 제한)",
   "보건복지부_발달재활 제공기관 현황(2024.4.30) | 공공데이터포털",
-  "공공데이터 활용 발달재활 사업·제공인력 분석(2019–2022) | DBpia",
+  "발달재활서비스 제공 인력의 자격 및 인정 절차 기준(고시) | 보건복지부·법령정보센터 — 영역·자격 요건(B)",
+  "공공데이터 활용 발달재활 사업·제공인력 분석(2019–22) | DBpia — 자격 인정 13,505명(B)",
+  "2025 제14회 언어재활사 국가시험 합격자 발표 | 국시원 — 1급 180·2급 473명(B)",
   "장애아동 재활·돌봄 지원 확대 보도자료 | 보건복지부 — 지원인원 7.9만(B)",
   "e-나라지표 지표서비스 — 이용자·예산 추이(접근 제한)",
 ].forEach((t) => children.push(bullet(t)));
