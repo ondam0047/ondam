@@ -18,6 +18,7 @@ export default async function RecordPage() {
     include: { child: true },
     orderBy: [{ child: { name: "asc" } }, { id: "asc" }],
   });
+  const center = await prisma.center.findUnique({ where: { id: centerId }, select: { defaultUnit: true } });
 
   // 같은 아동에 여러 서비스가 있으면 라벨에 종류 표시
   const childCount = new Map<number, number>();
@@ -39,6 +40,7 @@ export default async function RecordPage() {
       myServices={myServices}
       defaultTherapist={user.name}
       defaultOrg={user.centerName ?? ""}
+      centerDefaultUnit={center?.defaultUnit ?? 0}
     />
   );
 }
