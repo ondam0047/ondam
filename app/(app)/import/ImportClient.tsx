@@ -267,7 +267,7 @@ export default function ImportClient({ serviceTypes }: { serviceTypes: string[] 
       {children && children.length > 0 && (
         <div className="card">
           <div className="card-header">
-            <h2>미리보기 — {children.length}건 (같은 아동의 여러 서비스 포함)</h2>
+            <h2>미리보기 — {children.length}건</h2>
             <span style={{ flex: 1 }} />
             <button className="btn btn-primary" onClick={save} disabled={saving}>
               {saving ? "저장 중..." : "이대로 저장"}
