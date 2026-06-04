@@ -29,6 +29,8 @@ export default async function RecordPage() {
     name: s.child.name,
     birthDate: s.child.birthDate,
     serviceType: s.serviceType,
+    defaultUnit: s.defaultUnit,
+    org: s.org,
     hasMultipleServices: (childCount.get(s.childId) ?? 0) > 1,
   }));
 

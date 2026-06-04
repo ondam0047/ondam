@@ -67,6 +67,8 @@ type MyServiceOption = {
   name: string;
   birthDate: string | null;
   serviceType: string;
+  defaultUnit?: number;       // 회당 단가 → 기록지 총이용금액 기본값
+  org?: string | null;        // 서비스 제공자명(제공기관명) — 아동별 저장값
   hasMultipleServices?: boolean;
 };
 
@@ -229,8 +231,10 @@ export default function RecordClient({
       let scheduleData: { sessions: { day: number; time: string }[] } | null = null;
       if (r.ok) scheduleData = await r.json();
 
-      // 2) SessionRow[] 구성
+      // 2) SessionRow[] 구성 — 아동에 저장된 제공기관명·회당 단가를 채움
       const tag = cs.hasMultipleServices ? `${cs.name} · ${cs.serviceType}` : cs.name;
+      const seedOrg = cs.org || defaultOrg;
+      const seedAmt = cs.defaultUnit ? cs.defaultUnit.toLocaleString("ko-KR") : "";
       let rows: SessionRow[] = [];
       if (scheduleData && Array.isArray(scheduleData.sessions) && scheduleData.sessions.length > 0) {
         rows = scheduleData.sessions.map((sess) => {
@@ -242,8 +246,8 @@ export default function RecordClient({
             end: end || "",
             pay: "",
             appr: "",
-            amt: "",
-            org: defaultOrg,
+            amt: seedAmt,
+            org: seedOrg,
           };
         });
       } else {
@@ -253,7 +257,7 @@ export default function RecordClient({
         rows = placeholders.map((d) => ({
           name: cs.name, birth: cs.birthDate ?? "",
           use: `${y}.${pad(m)}.${pad(d)}`,
-          end: "", pay: "", appr: "", amt: "", org: defaultOrg,
+          end: "", pay: "", appr: "", amt: seedAmt, org: seedOrg,
         }));
       }
 
@@ -578,7 +582,11 @@ function RecordSheet({
   const [times, setTimes] = useState(initial);
   const [vouchers, setVouchers] = useState(rows.map(() => "40"));
   const [extras, setExtras] = useState(rows.map(() => "10"));
-  const [amounts, setAmounts] = useState(rows.map(() => "65,000"));
+  const [amounts, setAmounts] = useState(
+    rows.map((s) => (s.amt && String(s.amt).trim()
+      ? String(s.amt)
+      : (matchedService?.defaultUnit ? matchedService.defaultUnit.toLocaleString("ko-KR") : "65,000")))
+  );
   const [results, setResults] = useState(rows.map(() => ""));
   // 제공일자(일정표) ≠ 승인일자(엑셀) 일 때 입력하는 사유. 저장 시 resultExtra 로 들어감.
   const [mismatchReasons, setMismatchReasons] = useState(rows.map(() => ""));
@@ -853,7 +861,7 @@ function RecordSheet({
         <tbody>
           <tr><td className="lbl">제공기관명</td><td colSpan={3}>{org}</td></tr>
           <tr>
-            <td className="lbl">이용자</td><td>성명 : {child}</td>
+            <td className="lbl">이용자</td><td>{child}</td>
             <td className="lbl">생년월일</td><td>{birth}</td>
           </tr>
           <tr>
