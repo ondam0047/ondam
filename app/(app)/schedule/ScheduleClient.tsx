@@ -471,10 +471,13 @@ export default function ScheduleClient({
     const [y, m] = ym.split("-").map(Number);
     const dim = new Date(y, m, 0).getDate();
     const next: SessionMap = {};
+    let count = 0;
     for (let d = 1; d <= dim; d++) {
       const wd = new Date(y, m - 1, d).getDay();
       if (pattern.includes(wd) && !holiday(y, m, d)) {
+        if (target > 0 && count >= target) break; // 목표 회기 수만큼만 생성
         next[d] = { time: slotByDow[wd] || defaultSlot, makeup: false };
+        count++;
       }
     }
     setSessions(next);

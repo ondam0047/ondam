@@ -40,6 +40,7 @@ export async function bulkGenerateSchedules(formData: FormData) {
 
     const dmap = parseDaySlots(cs.daySlots);
     const base = cs.defaultSlot ?? "";
+    const limit = cs.defaultTarget > 0 ? cs.defaultTarget : Infinity; // 목표 회기 수만큼만
     const sessions: { day: number; time: string; makeup: boolean }[] = [];
     for (let d = 1; d <= dim; d++) {
       const w = new Date(y, m - 1, d).getDay();
@@ -47,6 +48,7 @@ export async function bulkGenerateSchedules(formData: FormData) {
         const time = dmap[w] || base;
         if (!time) continue; // 시간대 없는 요일은 제외
         sessions.push({ day: d, time, makeup: false });
+        if (sessions.length >= limit) break;
       }
     }
     if (sessions.length === 0) { noSlot++; continue; } // 반복요일은 있으나 시간대 미설정
