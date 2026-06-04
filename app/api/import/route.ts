@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
         serviceType,
         defaultSlot: r.defaultSlot?.trim() || null,
         defaultDays: r.defaultDays?.trim() || null,
-        defaultUnit: r.defaultUnit ?? 65000,
+        defaultUnit: r.defaultUnit ?? 0,
         defaultTarget: r.defaultTarget ?? 5,
         monthlyCopay: r.monthlyCopay ?? null,
       },

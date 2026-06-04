@@ -51,7 +51,7 @@ function parseServices(formData: FormData): ServiceInput[] {
       defaultSlot: String(formData.get(`svc[${i}][defaultSlot]`) ?? "") || null,
       defaultDays: String(formData.get(`svc[${i}][defaultDays]`) ?? "") || null,
       daySlots: String(formData.get(`svc[${i}][daySlots]`) ?? "") || null,
-      defaultUnit: Number(formData.get(`svc[${i}][defaultUnit]`) ?? 65000) || 65000,
+      defaultUnit: Number(formData.get(`svc[${i}][defaultUnit]`) ?? 0) || 0,
       defaultTarget: Number(formData.get(`svc[${i}][defaultTarget]`) ?? 5) || 5,
       monthlyCopay: copayRaw ? (Number(copayRaw) || 0) : null,
     });

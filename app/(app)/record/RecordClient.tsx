@@ -585,7 +585,7 @@ function RecordSheet({
   const [amounts, setAmounts] = useState(
     rows.map((s) => (s.amt && String(s.amt).trim()
       ? String(s.amt)
-      : (matchedService?.defaultUnit ? matchedService.defaultUnit.toLocaleString("ko-KR") : "65,000")))
+      : (matchedService?.defaultUnit ? matchedService.defaultUnit.toLocaleString("ko-KR") : "0")))
   );
   const [results, setResults] = useState(rows.map(() => ""));
   // 제공일자(일정표) ≠ 승인일자(엑셀) 일 때 입력하는 사유. 저장 시 resultExtra 로 들어감.
