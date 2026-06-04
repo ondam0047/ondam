@@ -196,8 +196,8 @@ export default function ExportClient({
                     : `선택한 ${selected.size}명 ${kind === "schedule" ? "일정표" : "기록지"} 다운로드`}
                 </button>
                 <button
-                  className="btn btn-ghost"
-                  style={{ color: "var(--danger)" }}
+                  className="btn"
+                  style={{ color: "var(--danger)", background: "#fff", border: "1.5px solid var(--danger)", fontWeight: 700 }}
                   onClick={del}
                   disabled={downloading || deleting || selected.size === 0}
                 >
