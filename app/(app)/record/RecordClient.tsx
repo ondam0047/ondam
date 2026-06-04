@@ -381,7 +381,7 @@ export default function RecordClient({
           <span className="step">1</span>
           <h2>엑셀 없이 직접 시작</h2>
           <span className="hint">미리 작성 · 일정표 회기를 자동 시드</span>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={resetRecord} style={{ marginLeft: "auto" }}>
+          <button type="button" className="btn btn-sm" onClick={resetRecord} style={{ marginLeft: "auto", border: "1px solid var(--border)", background: "#fff", fontWeight: 600 }}>
             초기화
           </button>
         </div>

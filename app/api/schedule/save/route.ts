@@ -81,5 +81,10 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  // 서비스 제공자명(제공기관명)을 아동 기본값으로 저장 → 다음 달 불러올 때 자동 유지
+  if (body.pvOrg && body.pvOrg !== cs.org) {
+    await prisma.childService.update({ where: { id: body.childServiceId }, data: { org: body.pvOrg } });
+  }
+
   return Response.json({ ok: true, scheduleId });
 }

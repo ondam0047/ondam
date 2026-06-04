@@ -21,6 +21,7 @@ type ChildOption = {
   defaultSlot: string | null;
   defaultDays: string | null;
   daySlots: string | null;       // 요일별 시간대 오버라이드 ("1=09:00~09:50,...")
+  org: string | null;            // 서비스 제공자명(제공기관명) — 아동별 저장값
   defaultUnit: number;
   defaultTarget: number;
   monthlyCopay: number | null;
@@ -294,6 +295,8 @@ export default function ScheduleClient({
     if (c.therapistName) setTherapist(c.therapistName);
     if (c.serviceType) setServiceType(c.serviceType);
     setMgmt(c.mgmtNumber ?? "");
+    // 서비스 제공자명(제공기관명): 아동별 저장값이 있으면 그걸로(없으면 내 설정 기본값 유지)
+    if (c.org) setPvOrg(c.org);
     if (c.defaultSlot) setDefaultSlot(c.defaultSlot);
     // 아동에 저장된 요일별 시간대 오버라이드를 그대로 불러옴 (없으면 기본 시간대)
     setSlotByDow(parseDaySlots(c.daySlots));
@@ -626,7 +629,7 @@ export default function ScheduleClient({
           <span className="step">1</span>
           <h2>아동 정보 & 패턴 설정</h2>
           <span className="hint">아동을 미리 등록해두면 매월 한 번에 불러올 수 있어요</span>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={resetAll} style={{ marginLeft: "auto" }}>
+          <button type="button" className="btn btn-sm" onClick={resetAll} style={{ marginLeft: "auto", border: "1px solid var(--border)", background: "#fff", fontWeight: 600 }}>
             초기화
           </button>
         </div>

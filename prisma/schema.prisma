@@ -149,6 +149,8 @@ model ChildService {
   defaultDays   String?
   // 요일별 시간대 오버라이드. "1=09:00~09:50,3=10:00~10:50" 형식. 비면 모든 요일이 defaultSlot.
   daySlots      String?
+  // 서비스 제공자명(제공기관명). 일정표에서 바꾸면 저장돼 다음 달부터 유지(프리랜서 다(多)센터 대응).
+  org           String?
   defaultUnit   Int       @default(65000)
   defaultTarget Int       @default(5)
   // 월 본인부담금 (원). 부모님이 매월 내는 금액. 일정표 자동 채움용.
