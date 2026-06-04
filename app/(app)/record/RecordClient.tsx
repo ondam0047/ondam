@@ -228,13 +228,15 @@ export default function RecordClient({
 
       // 1) 이 달 일정표가 있으면 회기를 시드로
       const r = await fetch(`/api/schedule/load?childServiceId=${csId}&year=${y}&month=${m}`);
-      let scheduleData: { sessions: { day: number; time: string }[] } | null = null;
+      let scheduleData: { sessions: { day: number; time: string }[]; pvOrg?: string; costUnit?: string } | null = null;
       if (r.ok) scheduleData = await r.json();
 
-      // 2) SessionRow[] 구성 — 아동에 저장된 제공기관명·회당 단가를 채움
+      // 2) SessionRow[] 구성 — 제공기관명·회당단가는 (1) 그 달 저장된 일정표 → (2) 아동 저장값 → (3) 내 설정 순
       const tag = cs.hasMultipleServices ? `${cs.name} · ${cs.serviceType}` : cs.name;
-      const seedOrg = cs.org || defaultOrg;
-      const seedAmt = cs.defaultUnit ? cs.defaultUnit.toLocaleString("ko-KR") : "";
+      const schedOrg = scheduleData && typeof scheduleData.pvOrg === "string" ? scheduleData.pvOrg.trim() : "";
+      const seedOrg = schedOrg || cs.org || defaultOrg;
+      const schedUnit = scheduleData && typeof scheduleData.costUnit === "string" ? scheduleData.costUnit.trim() : "";
+      const seedAmt = schedUnit || (cs.defaultUnit ? cs.defaultUnit.toLocaleString("ko-KR") : "");
       let rows: SessionRow[] = [];
       if (scheduleData && Array.isArray(scheduleData.sessions) && scheduleData.sessions.length > 0) {
         rows = scheduleData.sessions.map((sess) => {
