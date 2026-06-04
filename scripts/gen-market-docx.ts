@@ -66,10 +66,20 @@ const children: (Paragraph | Table)[] = [];
 children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 200, after: 60 },
   children: [new TextRun({ text: "바로일지 시장분석", bold: true, size: 44, font: FONT, color: "1F4E91" })] }));
 children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 40 },
-  children: [new TextRun({ text: "v2 · 정확도 강화판 — 발달바우처 치료사용 일지 자동화 SaaS", size: 22, font: FONT, color: "475467" })] }));
+  children: [new TextRun({ text: "확정본 — 발달바우처 치료사용 일지 자동화 SaaS", size: 22, font: FONT, color: "475467" })] }));
 children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 160 },
   children: [new TextRun({ text: "작성일 2026-06-03", size: 18, font: FONT, color: "98A2B3" })] }));
 children.push(p("신뢰도 등급 — A: 1차 출처 확인 / B: 공식 보도·제도값 / C: 계산·추정 / D: 미확인(검증 필요).", { italic: true, color: "667085" }));
+children.push(h1("요약 (Executive Summary)"));
+[
+  "시장: 발달바우처는 복지부·지자체 안정적 공공 재원 사업. 2026년 단가 인상(회당 ~35,000원, 월 지원 17~25만원)으로 매력도 상승.",
+  "고객(TAM): 발달바우처 활동 제공인력 약 1.2만~1.3만명(2020–21, A), 매년 신규 자격 3천명+ 유입으로 성장(2025 ~1.5만 추정). 자격증 언어재활 45% 최다.",
+  "광의 시장: 사설·비급여 포함 아동치료 종사자까지 수만~10만대(추정) — 제품 일반화 시 확장.",
+  "왜 지금: 일정표·제공기록지는 발달바우처 필수 제출 서류·지자체 점검 대조 대상. 1인·개인사업자의 서류 불일치·행정부담이 명확한 미해결 페인.",
+  "가격·매출: 월 15,000원 구독. ARR — 보수 0.54억 / 기본 1.62억 / 낙관 3.89억.",
+  "규제 적합성: 처리위탁(이용자=처리자, 회사=수탁자) 구조로 정부 서류 수정 없이 합법 사용 가능(약관·처리방침 정비 완료).",
+  "리스크: 제도·단가·양식 변경, 개인정보 규제, 공공 흡수 → 도메인 특화·프라이버시·한글 출력 '마지막 1마일' 집중.",
+].forEach((t) => children.push(bullet(t)));
 
 // 0
 children.push(h1("0. 정확도 향상 방법론"));
