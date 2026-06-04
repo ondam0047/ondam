@@ -643,7 +643,7 @@ function RecordSheet({
         }));
         setVouchers((prev) => prev.map((v, i) => sm.get(i + 1)?.voucher ?? v));
         setExtras((prev) => prev.map((v, i) => sm.get(i + 1)?.extra ?? v));
-        setAmounts((prev) => prev.map((v, i) => sm.get(i + 1)?.amount ?? v));
+        // 총이용금액은 저장된 옛 값으로 덮지 않고, 항상 현재 회당단가(시드값)를 유지
         setResults((prev) => prev.map((v, i) => sm.get(i + 1)?.result ?? v));
         setMismatchReasons((prev) => prev.map((v, i) => {
           const sess = sm.get(i + 1);
