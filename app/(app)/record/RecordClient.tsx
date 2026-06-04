@@ -231,12 +231,13 @@ export default function RecordClient({
       let scheduleData: { sessions: { day: number; time: string }[]; pvOrg?: string; costUnit?: string } | null = null;
       if (r.ok) scheduleData = await r.json();
 
-      // 2) SessionRow[] 구성 — 제공기관명·회당단가는 (1) 그 달 저장된 일정표 → (2) 아동 저장값 → (3) 내 설정 순
+      // 2) SessionRow[] 구성
+      //  - 제공기관명: (1) 그 달 저장된 일정표 → (2) 아동 저장값 → (3) 내 설정 (일정표에서 수정 반영)
+      //  - 총이용금액: 아동의 현재 회당 단가(내 아동에서 수정하면 바로 반영) — 옛 일정표 값 안 씀
       const tag = cs.hasMultipleServices ? `${cs.name} · ${cs.serviceType}` : cs.name;
       const schedOrg = scheduleData && typeof scheduleData.pvOrg === "string" ? scheduleData.pvOrg.trim() : "";
       const seedOrg = schedOrg || cs.org || defaultOrg;
-      const schedUnit = scheduleData && typeof scheduleData.costUnit === "string" ? scheduleData.costUnit.trim() : "";
-      const seedAmt = schedUnit || (cs.defaultUnit ? cs.defaultUnit.toLocaleString("ko-KR") : "");
+      const seedAmt = cs.defaultUnit ? cs.defaultUnit.toLocaleString("ko-KR") : "0";
       let rows: SessionRow[] = [];
       if (scheduleData && Array.isArray(scheduleData.sessions) && scheduleData.sessions.length > 0) {
         rows = scheduleData.sessions.map((sess) => {
