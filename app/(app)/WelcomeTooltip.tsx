@@ -66,6 +66,15 @@ export default function WelcomeTooltip({ role, userId }: { role: Role; userId: n
     setOpen(false);
   }
 
+  // Esc 로도 닫기 (어떤 오버레이가 위에 있어도 키보드로 빠져나오게)
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
   if (!open) return null;
 
   const tips = TIPS[role] ?? TIPS.THERAPIST;
@@ -78,7 +87,8 @@ export default function WelcomeTooltip({ role, userId }: { role: Role; userId: n
         position: "fixed",
         inset: 0,
         background: "rgba(0,0,0,0.45)",
-        zIndex: 50,
+        zIndex: 100001, // driver.js 오버레이(10000대)보다 항상 위 — 환영 모달이 가려져 클릭 막힘 방지
+
         display: "grid",
         placeItems: "center",
         padding: 16,
