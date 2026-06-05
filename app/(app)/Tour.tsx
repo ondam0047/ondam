@@ -71,9 +71,27 @@ export default function Tour({ userId, role }: { userId: number; role: Role }) {
       if (!localStorage.getItem(`baroilji_welcome_seen_v1_${userId}`)) return;
     } catch { return; }
 
+    // 좁은 화면(모바일)에선 사이드바가 화면 밖(translateX(-100%))으로 숨겨져 있어
+    // 투어 타깃이 DOM 엔 있지만 보이지 않음 → 어두운 오버레이만 전체에 깔리고
+    // 클릭이 막히는 "검은 화면" 버그가 됨. 좁은 화면에선 자동 투어를 아예 띄우지 않음.
+    if (window.innerWidth <= 820) return;
+
+    // 요소가 실제로 화면에 보이고 뷰포트 안에 있는지 검사 (숨겨진/화면 밖 타깃 배제).
+    const isVisible = (el: Element | null): el is HTMLElement => {
+      if (!el || !(el instanceof HTMLElement)) return false;
+      if (el.offsetParent === null) return false;
+      const r = el.getBoundingClientRect();
+      return (
+        r.width > 0 && r.height > 0 &&
+        r.left >= 0 && r.top >= 0 &&
+        r.right <= window.innerWidth && r.bottom <= window.innerHeight
+      );
+    };
+
     // 환영 모달이 열려있을 수 있으니 닫힐 때까지 잠시 기다림.
     const start = () => {
-      const steps = COMMON_STEPS.filter((s) => document.querySelector(s.selector));
+      const steps = COMMON_STEPS.filter((s) => isVisible(document.querySelector(s.selector)));
+      // 보이는 타깃이 하나도 없으면 투어를 띄우지 않음 — 빈 오버레이로 화면이 막히는 것 방지.
       if (steps.length === 0) return;
 
       const drv = driver({
