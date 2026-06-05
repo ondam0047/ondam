@@ -66,6 +66,9 @@ export default function Tour({ userId, role }: { userId: number; role: Role }) {
     const KEY = tourKey(userId);
     try {
       if (localStorage.getItem(KEY)) return;
+      // 환영 모달이 아직 안 닫혔으면(첫 방문) 이번엔 투어를 띄우지 않음 — 오버레이 겹침 방지.
+      // 환영 모달을 닫은 뒤 다음 화면 이동 때 투어가 실행됨.
+      if (!localStorage.getItem(`baroilji_welcome_seen_v1_${userId}`)) return;
     } catch { return; }
 
     // 환영 모달이 열려있을 수 있으니 닫힐 때까지 잠시 기다림.
