@@ -88,6 +88,7 @@ export async function GET(req: NextRequest) {
         resultExtra: s.resultExtra ?? undefined,
       })),
       opinion: r.opinion ?? undefined,
+      serviceType: r.childService.serviceType,
     };
     const sheets = buildRecordSheets(templateBuf, payload, form);
 

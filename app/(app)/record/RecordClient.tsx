@@ -768,6 +768,7 @@ function RecordSheet({
         month: monthNum,
         sessions: sessionsPayload,
         opinion,
+        serviceType: matchedService?.serviceType,
       };
       const res = await fetch("/api/record/hwpx", {
         method: "POST",

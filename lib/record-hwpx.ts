@@ -36,6 +36,8 @@ export type RecordPayload = {
   month: number;
   sessions: RecordSessionDetail[];
   opinion?: string;
+  // 치료 종류(예: "언어재활"). 서비스 종류별 블록이 있는 양식(대구/파주)에서 사용.
+  serviceType?: string;
 };
 
 export const RECORD_TEMPLATE_PATH = path.join(process.cwd(), "samples", "기록지_template.hwpx");
@@ -226,6 +228,10 @@ type CoordSpec = {
     result?: Coord;
   }>;
   note?: Coord; // 비고 ← 종합의견(opinion)
+  // 서비스 종류별로 시작/종료 시간을 다른 블록에 넣는 양식(대구/파주)용.
+  // serviceType 에 keyword 가 포함되면 그 블록, 없으면 serviceBlockDefault 사용.
+  serviceBlocks?: Array<{ keyword: string; start: Coord[]; end: Coord[] }>;
+  serviceBlockDefault?: { start: Coord[]; end: Coord[] };
   // 별지(2페이지) 상세 결과표 — 회기별 (서비스일자·승인일자·승인번호·결과 narrative).
   detail?: Array<{
     date?: Coord;
@@ -351,12 +357,42 @@ const WONJU_SPEC: CoordSpec = {
   })),
 };
 
+// 대구·파주형: 한 양식에 서비스 종류 4블록(언어·미술·음악·기타재활). 치료 종류에 맞는
+// 블록 시작/종료 행에만 시간을 넣는다. 회기 5칸. 결과표는 상태·결과 한 칸.
+const DAEGU_SPEC: CoordSpec = {
+  org: [0, 0, 2],
+  name: [0, 1, 2],
+  birth: [0, 2, 2],
+  date: COL5.map((c) => [1, 0, c] as Coord),
+  start: COL5.map((c) => [1, 2, c] as Coord), // 기본(언어재활) 블록
+  end: COL5.map((c) => [1, 3, c] as Coord),
+  serviceBlocks: [
+    { keyword: "언어", start: COL5.map((c) => [1, 2, c] as Coord), end: COL5.map((c) => [1, 3, c] as Coord) },
+    { keyword: "미술", start: COL5.map((c) => [1, 5, c] as Coord), end: COL5.map((c) => [1, 6, c] as Coord) },
+    { keyword: "음악", start: COL5.map((c) => [1, 8, c] as Coord), end: COL5.map((c) => [1, 9, c] as Coord) },
+  ],
+  serviceBlockDefault: {
+    start: COL5.map((c) => [1, 11, c] as Coord), // 기타재활 블록
+    end: COL5.map((c) => [1, 12, c] as Coord),
+  },
+  voucher: COL5.map((c) => [1, 14, c] as Coord),
+  extra: COL5.map((c) => [1, 15, c] as Coord),
+  amount: COL5.map((c) => [1, 16, c] as Coord),
+  result: ROW5.map((r) => ({
+    date: [2, r, 0] as Coord, // 서비스일자
+    apprDate: [2, r, 1] as Coord, // 승인일자
+    apprNum: [2, r, 2] as Coord,
+    result: [2, r, 3] as Coord, // 이용자의 상태 및 서비스 결과
+  })),
+};
+
 const COORD_SPECS: Record<Exclude<RecordFormKey, "standard">, CoordSpec> = {
   play: PLAY_SPEC,
   dongtan: DONGTAN_SPEC,
   namyangju: NAMYANGJU_SPEC,
   suncheon: SUNCHEON_SPEC,
   wonju: WONJU_SPEC,
+  daegu: DAEGU_SPEC,
 };
 
 const TEMPLATE_FILES: Record<RecordFormKey, string> = {
@@ -366,6 +402,7 @@ const TEMPLATE_FILES: Record<RecordFormKey, string> = {
   namyangju: "기록지_template_namyangju.hwpx",
   suncheon: "기록지_template_suncheon.hwpx",
   wonju: "기록지_template_wonju.hwpx",
+  daegu: "기록지_template_daegu.hwpx",
 };
 
 function push(edits: CellEdit[], c: Coord | undefined, value: string) {
@@ -397,11 +434,24 @@ function buildCoordEdits(spec: CoordSpec, p: RecordPayload): CellEdit[] {
   push(edits, spec.name, p.childName);
   push(edits, spec.birth, p.childBirth);
   push(edits, spec.serviceArea, "");
+
+  // 서비스 종류별 블록이 있으면 치료 종류에 맞는 시작/종료 칸을 고른다.
+  let startCoords = spec.start;
+  let endCoords = spec.end;
+  if (spec.serviceBlocks?.length) {
+    const st = p.serviceType ?? "";
+    const blk = spec.serviceBlocks.find((b) => st.includes(b.keyword)) ?? spec.serviceBlockDefault;
+    if (blk) {
+      startCoords = blk.start;
+      endCoords = blk.end;
+    }
+  }
+
   for (let i = 0; i < MAX_SESSIONS; i++) {
     const s = sessions[i];
     push(edits, spec.date[i], s?.date ?? "");
-    push(edits, spec.start[i], s?.startTime ?? "");
-    push(edits, spec.end[i], s?.endTime ?? "");
+    push(edits, startCoords[i], s?.startTime ?? "");
+    push(edits, endCoords[i], s?.endTime ?? "");
     push(edits, spec.voucher[i], s?.voucher ?? "");
     push(edits, spec.extra[i], s?.extra ?? "");
     push(edits, spec.amount[i], s?.amount ?? "");
