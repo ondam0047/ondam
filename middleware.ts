@@ -20,8 +20,8 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // 정적 자산, _next, api 일부 제외
+  // 정적 자산, _next, api 일부, 공개 정적 폴더(forms 미리보기) 제외
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|ondam-logo.png|api/auth).*)",
+    "/((?!_next/static|_next/image|favicon.ico|ondam-logo.png|api/auth|forms/).*)",
   ],
 };
