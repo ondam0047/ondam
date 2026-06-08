@@ -214,6 +214,9 @@ type CoordSpec = {
   voucher: Coord[];
   extra: Coord[];
   amount: Coord[];
+  // 금액을 바우처/자부담으로 나누는 양식(원주형)용. 총금액을 분(分) 비율로 분배.
+  voucherAmount?: Coord[];
+  copayAmount?: Coord[];
   result: Array<{
     date?: Coord;
     time?: Coord;
@@ -337,6 +340,8 @@ const WONJU_SPEC: CoordSpec = {
   voucher: COL5.map((c) => [1, 5, c] as Coord),
   extra: COL5.map((c) => [1, 6, c] as Coord),
   amount: COL5.map((c) => [1, 9, c] as Coord), // 총 금액 행
+  voucherAmount: COL5.map((c) => [1, 7, c] as Coord), // 3.총이용금액 > 바우처 행
+  copayAmount: COL5.map((c) => [1, 8, c] as Coord), // 3.총이용금액 > 자부담 행
   result: ROW5.map((r) => ({
     date: [3, r, 0] as Coord, // 제공일자
     apprDate: [3, r, 1] as Coord, // 승인일자
@@ -368,6 +373,23 @@ function push(edits: CellEdit[], c: Coord | undefined, value: string) {
   edits.push({ table: c[0], row: c[1], col: c[2], p: c[3], value });
 }
 
+// 총금액을 바우처분:추가구매분 비율로 나눔. 합은 항상 총액과 일치(반올림 차이는 자부담에 흡수).
+function splitAmount(
+  amount: string,
+  voucherMin: string,
+  extraMin: string
+): { voucher: string; copay: string } {
+  const total = Number(String(amount).replace(/[^\d.-]/g, ""));
+  if (!Number.isFinite(total) || total === 0) return { voucher: "", copay: "" };
+  const v = Number(String(voucherMin).replace(/[^\d.]/g, "")) || 0;
+  const e = Number(String(extraMin).replace(/[^\d.]/g, "")) || 0;
+  const denom = v + e;
+  const fmt = (n: number) => n.toLocaleString("ko-KR");
+  if (denom <= 0) return { voucher: fmt(total), copay: "" };
+  const voucherWon = Math.round((total * v) / denom);
+  return { voucher: fmt(voucherWon), copay: fmt(total - voucherWon) };
+}
+
 function buildCoordEdits(spec: CoordSpec, p: RecordPayload): CellEdit[] {
   const sessions = p.sessions.slice(0, MAX_SESSIONS);
   const edits: CellEdit[] = [];
@@ -383,6 +405,13 @@ function buildCoordEdits(spec: CoordSpec, p: RecordPayload): CellEdit[] {
     push(edits, spec.voucher[i], s?.voucher ?? "");
     push(edits, spec.extra[i], s?.extra ?? "");
     push(edits, spec.amount[i], s?.amount ?? "");
+    if (spec.voucherAmount || spec.copayAmount) {
+      const split = s
+        ? splitAmount(s.amount, s.voucher, s.extra)
+        : { voucher: "", copay: "" };
+      push(edits, spec.voucherAmount?.[i], split.voucher);
+      push(edits, spec.copayAmount?.[i], split.copay);
+    }
     const r = spec.result[i];
     if (r) {
       push(edits, r.date, s?.date ?? "");
