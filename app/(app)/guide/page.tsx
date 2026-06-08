@@ -202,7 +202,7 @@ export default async function GuidePage() {
         </Section>
 
         {/* 2. 내 설정 */}
-        <Section id="settings" num="2" title="내 설정" summary="한 번 저장하면 일정표·기록지에 자동으로 반영돼요.">
+        <Section id="settings" num="2" title="내 설정" summary="한 번 저장하면 일정표·기록지에 자동으로 반영돼요. 지역별 기록지 서식도 여기서 골라요.">
           <GuideVideo slug="guide-02-settings" title="내 설정" />
           <Detail>
             <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
@@ -223,6 +223,11 @@ export default async function GuidePage() {
             <Step n={4} title="회기 시간대">
               본인이 실제로 운영하는 슬롯 목록 (예: 09:00~09:50). 일정표 생성·세션 편집의 드롭다운 옵션으로 사용됩니다.
               <b>HH:MM~HH:MM</b> 형식, 콤마 또는 줄바꿈으로 구분.
+            </Step>
+            <Step n={5} title="기록지 서식 (지역 양식)">
+              <b>지역마다 기록지 양식이 달라요.</b> 우리 지역 서식을 한 번 고르면, 그 다음부터
+              <b> 기록지·일괄 다운로드가 그 양식(.hwpx)</b>으로 만들어집니다.
+              현재 지원: 표준형(기본)·익산형·동탄형·남양주형·순천형·원주형·대구·파주형. (양식은 계속 추가돼요)
             </Step>
             <Callout kind="tip">
               결과를 손으로 적는 분은 기록지에서 <b>상태 및 결과 기록만 비워두고</b> 한글파일을 출력하세요.
