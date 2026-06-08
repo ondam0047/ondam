@@ -3,10 +3,11 @@
 
 export const RECORD_FORMS = [
   { key: "standard", label: "표준형 (기본)" },
-  { key: "play", label: "발달재활(놀이재활)형" },
+  { key: "play", label: "익산형" },
   { key: "dongtan", label: "동탄형" },
   { key: "namyangju", label: "남양주형" },
   { key: "suncheon", label: "순천형" },
+  { key: "wonju", label: "원주형" },
 ] as const;
 
 export type RecordFormKey = (typeof RECORD_FORMS)[number]["key"];

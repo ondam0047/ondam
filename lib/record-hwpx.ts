@@ -324,11 +324,34 @@ const SUNCHEON_SPEC: CoordSpec = {
   })),
 };
 
+// 원주형: 회기 5칸(+누계 열은 안 채움). 헤더 값이 c3 열. 금액은 바우처·자부담·총금액
+// 3행으로 나뉘는데 우리 데이터는 총액만 있어 '총 금액'(r9) 에 넣는다.
+const WONJU_SPEC: CoordSpec = {
+  org: [0, 0, 3],
+  serviceArea: [0, 1, 3],
+  name: [0, 2, 3],
+  birth: [0, 3, 3],
+  date: COL5.map((c) => [1, 0, c] as Coord),
+  start: COL5.map((c) => [1, 2, c] as Coord),
+  end: COL5.map((c) => [1, 3, c] as Coord),
+  voucher: COL5.map((c) => [1, 5, c] as Coord),
+  extra: COL5.map((c) => [1, 6, c] as Coord),
+  amount: COL5.map((c) => [1, 9, c] as Coord), // 총 금액 행
+  result: ROW5.map((r) => ({
+    date: [3, r, 0] as Coord, // 제공일자
+    apprDate: [3, r, 1] as Coord, // 승인일자
+    apprNum: [3, r, 2] as Coord,
+    status: [3, r, 3] as Coord, // 이용자의 상태
+    result: [3, r, 4] as Coord, // 서비스 결과
+  })),
+};
+
 const COORD_SPECS: Record<Exclude<RecordFormKey, "standard">, CoordSpec> = {
   play: PLAY_SPEC,
   dongtan: DONGTAN_SPEC,
   namyangju: NAMYANGJU_SPEC,
   suncheon: SUNCHEON_SPEC,
+  wonju: WONJU_SPEC,
 };
 
 const TEMPLATE_FILES: Record<RecordFormKey, string> = {
@@ -337,6 +360,7 @@ const TEMPLATE_FILES: Record<RecordFormKey, string> = {
   dongtan: "기록지_template_dongtan.hwpx",
   namyangju: "기록지_template_namyangju.hwpx",
   suncheon: "기록지_template_suncheon.hwpx",
+  wonju: "기록지_template_wonju.hwpx",
 };
 
 function push(edits: CellEdit[], c: Coord | undefined, value: string) {
