@@ -1,0 +1,8 @@
+{
+  "serverIp": "223.130.xxx.xxx",
+  "sshUser": "root",
+  "sshKey": "C:\\Users\\user\\keys\\baroilji-prod.pem",
+  "remotePath": "/opt/baroilji",
+  "branch": "main",
+  "pm2Name": "baroilji"
+}
