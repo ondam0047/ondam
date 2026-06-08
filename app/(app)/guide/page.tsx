@@ -1,5 +1,6 @@
 import { requireUser } from "@/lib/auth";
 import TourReplay from "./TourReplay";
+import GuideVideo from "./GuideVideo";
 
 export const dynamic = "force-dynamic";
 
@@ -147,6 +148,7 @@ export default async function GuidePage() {
 
         {/* 1. 시작하기 */}
         <Section id="intro" num="1" title="시작하기">
+          <GuideVideo slug="guide-03-start" title="계정·시작" />
           <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
             바로일지는 발달재활 치료사 한 분이 본인 작업만 처리하는 <b>1인 사물함</b> 입니다.
             한 번 등록한 아동·치료사 정보로 매월 반복되는 일정표·기록지를 자동 생성하고,
@@ -174,6 +176,7 @@ export default async function GuidePage() {
 
         {/* 2. 내 설정 */}
         <Section id="settings" num="2" title="내 설정">
+          <GuideVideo slug="guide-02-settings" title="내 설정" />
           <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
             가입 시 입력한 모든 항목과 작업 환경값을 한 곳에서 수정합니다.
             <b>저장하는 즉시 일정표·기록지에 반영</b>됩니다.
@@ -201,6 +204,7 @@ export default async function GuidePage() {
 
         {/* 3. 내 아동 등록 */}
         <Section id="children" num="3" title="내 아동 등록">
+          <GuideVideo slug="guide-04-child-register" title="내 아동 한 명씩 등록" />
           <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
             아동을 등록해두면 매월 일정표·기록지에서 클릭 한 번에 정보가 채워져요.
             세 가지 등록 경로가 있습니다.
@@ -217,6 +221,12 @@ export default async function GuidePage() {
           <Step n={3} title="엑셀로 한 번에 가져오기">
             <b>[내 아동] → [엑셀로 가져오기]</b> → 전자바우처 '서비스제공내역.xls' 그대로 업로드 → 대상자 명단 자동 추출.
           </Step>
+          <div style={{ marginTop: 14, marginBottom: 4 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-soft)", marginBottom: 8 }}>
+              📹 엑셀로 한꺼번에 등록하기
+            </div>
+            <GuideVideo slug="guide-01-children-excel" title="아동 엑셀 일괄등록" />
+          </div>
 
           <Callout kind="tip">
             <b>월 본인부담금</b>을 입력해두면 일정표의 '본인부담금' 칸이 자동으로 채워져요.
@@ -226,6 +236,7 @@ export default async function GuidePage() {
 
         {/* 4. 일정표 */}
         <Section id="schedule" num="4" title="일정표 작성">
+          <GuideVideo slug="guide-05-schedule" title="일정표 작성" />
           <Step n={1} title="아동 · 연·월 선택">
             드롭다운에서 아동 선택 → 이름·생년월일·기관명·치료사·서비스 종류·회당 단가·본인부담금이 자동으로 채워져요.
             연·월도 함께 선택.
@@ -253,6 +264,7 @@ export default async function GuidePage() {
 
         {/* 5. 기록지 */}
         <Section id="record" num="5" title="기록지 작성">
+          <GuideVideo slug="guide-06-record" title="기록지 작성" />
           <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
             두 가지 방식이 있어요. 미리 작성해도 되고, 월말 엑셀 받은 후 일괄로 처리해도 됩니다.
           </p>
@@ -323,6 +335,7 @@ export default async function GuidePage() {
 
         {/* 7. 승인내역 점검 */}
         <Section id="approval" num="7" title="승인내역 점검">
+          <GuideVideo slug="guide-07-approval" title="승인내역 점검" />
           <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
             지자체 점검 전에 본인 결제 내역을 미리 자가 점검합니다.
             가장 흔한 문제 — <b>같은 날 결제 시간이 너무 가까워서 이전 회기와 겹치는 경우</b>를 자동으로 잡아줘요.
@@ -360,6 +373,7 @@ export default async function GuidePage() {
 
         {/* 8. 한꺼번에 다운로드 */}
         <Section id="bulk" num="9" title="한꺼번에 다운로드">
+          <GuideVideo slug="guide-08-dashboard" title="대시보드·일괄 다운로드·내 시간표" />
           <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
             <b>[한꺼번에 다운로드]</b> 메뉴(또는 대시보드 버튼)에서 월말 마감을 한 번에.
           </p>
