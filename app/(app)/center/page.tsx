@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/db";
 import { requireRole, getEffectiveTherapistId } from "@/lib/auth";
 import { THERAPIST_TYPES } from "@/lib/constants";
-import { RECORD_FORMS } from "@/lib/record-forms";
 import { updateCenter } from "./actions";
 import SlotsEditor from "./SlotsEditor";
+import RecordFormField from "./RecordFormField";
 
 export const dynamic = "force-dynamic";
 
@@ -114,17 +114,7 @@ export default async function CenterPage({
                   새 아동 등록·일정표의 회당 단가에 자동 채워져요. 일정표에서 회기마다 수정 가능.
                 </div>
               </div>
-              <div className="field">
-                <label>기록지 서식</label>
-                <select className="select" name="recordForm" defaultValue={center.recordForm ?? "standard"}>
-                  {RECORD_FORMS.map((f) => (
-                    <option key={f.key} value={f.key}>{f.label}</option>
-                  ))}
-                </select>
-                <div className="sub-mute" style={{ fontSize: 11, marginTop: 4 }}>
-                  지역마다 양식이 달라요. 우리 지역 양식을 고르면 기록지를 그 서식으로 받아요.
-                </div>
-              </div>
+              <RecordFormField defaultValue={center.recordForm ?? "standard"} />
               <div className="field" style={{ gridColumn: "1 / -1" }}>
                 <label>회기 시간대 <span className="sub-mute">(시작·종료를 골라 추가하세요)</span></label>
                 <SlotsEditor initial={center.slots} />
