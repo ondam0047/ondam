@@ -269,15 +269,61 @@ const DONGTAN_SPEC: CoordSpec = {
   })),
 };
 
+// 남양주형: 회기 칸 6개지만 5칸만 사용. 결과표 4열(승인일자·시간·승인번호·기타사항).
+// '서비스 결과' 전용 칸이 없어 결과 narrative 는 기타사항 칸에 넣는다.
+const NAMYANGJU_SPEC: CoordSpec = {
+  org: [0, 0, 2],
+  serviceArea: [0, 1, 2],
+  name: [0, 2, 2],
+  birth: [0, 3, 2],
+  date: COL5.map((c) => [1, 0, c] as Coord),
+  start: COL5.map((c) => [1, 2, c] as Coord),
+  end: COL5.map((c) => [1, 3, c] as Coord),
+  voucher: COL5.map((c) => [1, 5, c] as Coord),
+  extra: COL5.map((c) => [1, 6, c] as Coord),
+  amount: COL5.map((c) => [1, 7, c] as Coord),
+  result: ROW5.map((r) => ({
+    apprDate: [2, r, 0] as Coord, // 승인일자
+    time: [2, r, 1] as Coord, // 시간
+    apprNum: [2, r, 2] as Coord,
+    result: [2, r, 3] as Coord, // 기타사항(수업일자변경 등) ← 결과 narrative
+  })),
+};
+
+// 순천형: 회기 5칸. 결과표(표2)는 동탄형과 동일 5열. 별지 상세표(표3)는 현재 비워둠.
+const SUNCHEON_SPEC: CoordSpec = {
+  org: [0, 0, 2],
+  serviceArea: [0, 1, 2],
+  name: [0, 2, 2],
+  birth: [0, 3, 2],
+  date: COL5.map((c) => [1, 0, c] as Coord),
+  start: COL5.map((c) => [1, 2, c] as Coord),
+  end: COL5.map((c) => [1, 3, c] as Coord),
+  voucher: COL5.map((c) => [1, 5, c] as Coord),
+  extra: COL5.map((c) => [1, 6, c] as Coord),
+  amount: COL5.map((c) => [1, 7, c] as Coord),
+  result: ROW5.map((r) => ({
+    date: [2, r, 0] as Coord, // 서비스 제공 일자
+    apprDate: [2, r, 1] as Coord, // 승인일자
+    apprNum: [2, r, 2] as Coord,
+    status: [2, r, 3] as Coord, // 이용자의 상태
+    result: [2, r, 4] as Coord, // 서비스 결과
+  })),
+};
+
 const COORD_SPECS: Record<Exclude<RecordFormKey, "standard">, CoordSpec> = {
   play: PLAY_SPEC,
   dongtan: DONGTAN_SPEC,
+  namyangju: NAMYANGJU_SPEC,
+  suncheon: SUNCHEON_SPEC,
 };
 
 const TEMPLATE_FILES: Record<RecordFormKey, string> = {
   standard: "기록지_template.hwpx",
   play: "기록지_template_play.hwpx",
   dongtan: "기록지_template_dongtan.hwpx",
+  namyangju: "기록지_template_namyangju.hwpx",
+  suncheon: "기록지_template_suncheon.hwpx",
 };
 
 function push(edits: CellEdit[], c: Coord | undefined, value: string) {
