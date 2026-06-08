@@ -223,6 +223,13 @@ type CoordSpec = {
     result?: Coord;
   }>;
   note?: Coord; // 비고 ← 종합의견(opinion)
+  // 별지(2페이지) 상세 결과표 — 회기별 (서비스일자·승인일자·승인번호·결과 narrative).
+  detail?: Array<{
+    date?: Coord;
+    apprDate?: Coord;
+    apprNum?: Coord;
+    result?: Coord;
+  }>;
 };
 
 const COL5 = [4, 5, 6, 7, 8];
@@ -302,12 +309,18 @@ const SUNCHEON_SPEC: CoordSpec = {
   voucher: COL5.map((c) => [1, 5, c] as Coord),
   extra: COL5.map((c) => [1, 6, c] as Coord),
   amount: COL5.map((c) => [1, 7, c] as Coord),
+  // 앞 페이지(표2): 날짜·승인일자·승인번호만. 결과 narrative 는 별지(표3)에 넣는다.
   result: ROW5.map((r) => ({
     date: [2, r, 0] as Coord, // 서비스 제공 일자
     apprDate: [2, r, 1] as Coord, // 승인일자
     apprNum: [2, r, 2] as Coord,
-    status: [2, r, 3] as Coord, // 이용자의 상태
-    result: [2, r, 4] as Coord, // 서비스 결과
+  })),
+  // 별지(표3): 회기 블록 3행(서비스일자/승인일자/승인번호) + 큰 결과칸(c2).
+  detail: ROW5.map((_, i) => ({
+    date: [3, 1 + i * 3, 1] as Coord,
+    apprDate: [3, 2 + i * 3, 1] as Coord,
+    apprNum: [3, 3 + i * 3, 1] as Coord,
+    result: [3, 1 + i * 3, 2] as Coord,
   })),
 };
 
@@ -354,6 +367,17 @@ function buildCoordEdits(spec: CoordSpec, p: RecordPayload): CellEdit[] {
       push(edits, r.apprNum, s?.apprNumber ?? "");
       push(edits, r.status, "");
       push(edits, r.result, s?.result ?? "");
+    }
+  }
+  if (spec.detail) {
+    for (let i = 0; i < MAX_SESSIONS; i++) {
+      const s = sessions[i];
+      const d = spec.detail[i];
+      if (!d) continue;
+      push(edits, d.date, s?.date ?? "");
+      push(edits, d.apprDate, s ? s.payDay || s.date || "" : "");
+      push(edits, d.apprNum, s?.apprNumber ?? "");
+      push(edits, d.result, s?.result ?? "");
     }
   }
   push(edits, spec.note, p.opinion ?? "");
