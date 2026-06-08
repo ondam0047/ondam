@@ -8,7 +8,7 @@ export const RECORD_FORMS = [
   { key: "namyangju", label: "남양주형" },
   { key: "suncheon", label: "순천형" },
   { key: "wonju", label: "원주형" },
-  { key: "daegu", label: "대구·파주형" },
+  { key: "daegu", label: "대구·파주·광명·시흥·안산형" },
 ] as const;
 
 export type RecordFormKey = (typeof RECORD_FORMS)[number]["key"];
