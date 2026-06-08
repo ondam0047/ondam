@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { getCurrentUser, getEffectiveTherapistId } from "@/lib/auth";
 import { pad } from "@/lib/constants";
+import { isRecordFormKey } from "@/lib/record-forms";
 import {
   buildRecordSheets,
   bundleAsZip,
@@ -51,9 +52,14 @@ export async function GET(req: NextRequest) {
     return Response.json({ error: `${year}년 ${month}월 선택한 기록지가 없어요.` }, { status: 404 });
   }
 
+  const center = user.centerId
+    ? await prisma.center.findUnique({ where: { id: user.centerId }, select: { recordForm: true } })
+    : null;
+  const form = isRecordFormKey(center?.recordForm) ? center!.recordForm : "standard";
+
   let templateBuf: Buffer;
   try {
-    templateBuf = await readRecordTemplate();
+    templateBuf = await readRecordTemplate(form);
   } catch {
     return Response.json({ error: "템플릿 파일을 찾을 수 없어요." }, { status: 500 });
   }
@@ -83,7 +89,7 @@ export async function GET(req: NextRequest) {
       })),
       opinion: r.opinion ?? undefined,
     };
-    const sheets = buildRecordSheets(templateBuf, payload);
+    const sheets = buildRecordSheets(templateBuf, payload, form);
 
     const baseName = `${safeFileName(child.name)}_${pad(r.month)}월_기록지`;
     if (sheets.length === 1) {

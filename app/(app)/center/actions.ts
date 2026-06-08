@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireRole, generateApprovalCode } from "@/lib/auth";
 import { THERAPIST_TYPES, THERAPIST_TO_SERVICE, DEFAULT_SERVICE_TYPES } from "@/lib/constants";
+import { isRecordFormKey, type RecordFormKey } from "@/lib/record-forms";
 
 export async function updateCenter(formData: FormData) {
   const me = await requireRole(["OWNER", "ADMIN"]);
@@ -18,6 +19,8 @@ export async function updateCenter(formData: FormData) {
   const phone = String(formData.get("phone") ?? "").trim();
   const slotsRaw = String(formData.get("slots") ?? "").trim();
   const defaultUnit = Number(formData.get("defaultUnit") ?? 60000) || 60000;
+  const recordFormRaw = String(formData.get("recordForm") ?? "standard");
+  const recordForm: RecordFormKey = isRecordFormKey(recordFormRaw) ? recordFormRaw : "standard";
   if (!userName) {
     redirect("/center?err=" + encodeURIComponent("내 이름은 비울 수 없어요"));
   }
@@ -49,6 +52,7 @@ export async function updateCenter(formData: FormData) {
         serviceTypes,
         slots: slots.join(","),
         defaultUnit,
+        recordForm,
       },
     });
     await tx.user.update({
