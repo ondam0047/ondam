@@ -128,13 +128,15 @@ $target     = "$sshUser@$($cfg.serverIp)"
 #  - .env 주입: prisma(7) + prisma.config.ts 는 .env 자동 로드 안 함 → 없으면 postgres:postgres 폴백 → P1000.
 #  - db:gen:postgres: npm install 의 postinstall 이 sqlite 클라이언트로 덮어쓰므로 매번 postgres 로 재생성.
 #  - build && restart: 빌드 성공해야만 pm2 restart (set -e + && 로 실패 시 중단 → .next 깨진 채 재시작 방지).
+#  - npm install --include=dev: .env 의 NODE_ENV=production 때문에 devDep(@tailwindcss/postcss 등)이
+#    빠지면 빌드가 깨짐 → 빌드에 필요한 devDep 을 항상 설치.
 $steps = @(
     "cd $remotePath",
     "set -a && . ./.env && set +a",
     "git fetch --all --prune",
     "git checkout $Branch",
     "git pull --ff-only origin $Branch",
-    "npm install --no-audit --no-fund",
+    "npm install --include=dev --no-audit --no-fund",
     "npm run db:gen:postgres"
 )
 if (-not $SkipMigrate) { $steps += "npm run db:migrate:postgres" }
