@@ -233,6 +233,7 @@ model RecordSession {
   apprNumber  String?
   result      String?
   resultExtra String?
+  status      String?
 
   @@unique([recordId, ordinal])
 }

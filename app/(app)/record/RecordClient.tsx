@@ -13,6 +13,7 @@ type RecordSessionData = {
   extra?: string | null;
   amount?: string | null;
   result?: string | null;
+  status?: string | null;
 };
 
 type SessionRow = {
@@ -94,11 +95,13 @@ export default function RecordClient({
   defaultTherapist,
   defaultOrg,
   centerDefaultUnit = 0,
+  recordForm = "standard",
 }: {
   myServices: MyServiceOption[];
   defaultTherapist: string;
   defaultOrg: string;
   centerDefaultUnit?: number;
+  recordForm?: string;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -546,6 +549,7 @@ export default function RecordClient({
                 rows={grouped[curChild]}
                 therapist={therapist}
                 myServices={myServices}
+                recordForm={recordForm}
               />
             )}
           </div>
@@ -560,12 +564,16 @@ function RecordSheet({
   rows,
   therapist,
   myServices,
+  recordForm,
 }: {
   child: string;
   rows: SessionRow[];
   therapist: string;
   myServices: MyServiceOption[];
+  recordForm: string;
 }) {
+  // 서식B(동탄)는 '이용자 상태'와 '서비스 결과'가 별도 칸 → 상태 입력칸을 따로 보여준다.
+  const splitStatus = recordForm === "dongtan";
   const monthSet = [...new Set(rows.map((s) => parseYMD(s.use)?.mo).filter(Boolean))];
   const month = monthSet[0] ?? "";
   // DB 매칭: 본인 담당 ChildService 중 라벨/이름이 일치.
@@ -594,6 +602,8 @@ function RecordSheet({
       : (matchedService?.defaultUnit ? matchedService.defaultUnit.toLocaleString("ko-KR") : "0")))
   );
   const [results, setResults] = useState(rows.map(() => ""));
+  // 이용자 상태 (서식B 등 상태·결과 분리 양식에서 사용)
+  const [statuses, setStatuses] = useState(rows.map(() => ""));
   // 제공일자(일정표) ≠ 승인일자(엑셀) 일 때 입력하는 사유. 저장 시 resultExtra 로 들어감.
   const [mismatchReasons, setMismatchReasons] = useState(rows.map(() => ""));
   // 일정표에서 가져온 회기 예정일 (제공일자). 일정표 회기 ↔ 엑셀 행을 ordinal 로 매칭.
@@ -649,6 +659,7 @@ function RecordSheet({
         setExtras((prev) => prev.map((v, i) => sm.get(i + 1)?.extra ?? v));
         // 총이용금액은 저장된 옛 값으로 덮지 않고, 항상 현재 회당단가(시드값)를 유지
         setResults((prev) => prev.map((v, i) => sm.get(i + 1)?.result ?? v));
+        setStatuses((prev) => prev.map((v, i) => sm.get(i + 1)?.status ?? v));
         setMismatchReasons((prev) => prev.map((v, i) => {
           const sess = sm.get(i + 1);
           // 일부 RecordSession 에 resultExtra 가 있을 수도 있음
@@ -680,6 +691,7 @@ function RecordSheet({
       // 각 회차 result 를 현재 회차에 매핑 (앞에서부터)
       const recSessions = rec.sessions as RecordSessionData[];
       setResults((prev) => prev.map((v, i) => recSessions[i]?.result ?? v));
+      setStatuses((prev) => prev.map((v, i) => recSessions[i]?.status ?? v));
       setSavedMsg(`✓ ${py}년 ${pm}월 기록 내용을 가져왔어요. 수정 후 저장하세요.`);
     } catch {
       alert("불러오기 실패");
@@ -719,6 +731,7 @@ function RecordSheet({
             apprNumber: s.appr,
             result: results[i],
             resultExtra: mismatchReasons[i] || undefined,
+            status: statuses[i] || undefined,
           };
         }),
       };
@@ -759,6 +772,7 @@ function RecordSheet({
           apprNumber: s.appr,
           result: results[i],
           resultExtra: mismatchReasons[i] || undefined,
+          status: statuses[i] || undefined,
         };
       });
       const payload = {
@@ -978,6 +992,23 @@ function RecordSheet({
                     ? <span className="okflag">✓ 일치</span>
                     : <span className="warnflag">⚠ 제공일자≠승인일자 — 사유 작성 필요</span>}
               </div>
+              {splitStatus && (
+                <div style={{ marginBottom: 8 }}>
+                  <label style={{ display: "block", fontSize: 12.5, fontWeight: 600, color: "var(--text-soft)", marginBottom: 4 }}>
+                    이용자 상태
+                  </label>
+                  <textarea
+                    className="textarea"
+                    rows={2}
+                    value={statuses[i]}
+                    placeholder="그날 이용자 상태 (이 서식은 상태·결과 칸이 나뉘어 있어요)"
+                    onChange={(e) => setStatuses((p) => { const n = [...p]; n[i] = e.target.value; return n; })}
+                  />
+                  <label style={{ display: "block", fontSize: 12.5, fontWeight: 600, color: "var(--text-soft)", margin: "8px 0 4px" }}>
+                    서비스 결과
+                  </label>
+                </div>
+              )}
               <textarea
                 className="textarea"
                 rows={6}

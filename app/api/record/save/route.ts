@@ -15,6 +15,7 @@ type SessionInput = {
   apprNumber?: string;
   result?: string;
   resultExtra?: string;
+  status?: string;
 };
 
 type Body = {
@@ -92,6 +93,7 @@ export async function POST(req: NextRequest) {
         apprNumber: s.apprNumber || null,
         result: s.result || null,
         resultExtra: s.resultExtra || null,
+        status: s.status || null,
       })),
     });
   }

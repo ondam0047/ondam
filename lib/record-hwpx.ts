@@ -26,6 +26,7 @@ export type RecordSessionDetail = {
   apprNumber: string;
   result: string;
   resultExtra?: string;
+  status?: string; // 이용자 상태 (상태·결과 칸이 분리된 양식용; 합쳐진 양식은 미사용)
 };
 
 export type RecordPayload = {
@@ -201,7 +202,7 @@ function buildCoordEdits(spec: CoordSpec, p: RecordPayload): CellEdit[] {
       push(edits, r.time, s?.endTime ?? "");
       push(edits, r.apprDate, s ? s.payDay || s.date || "" : "");
       push(edits, r.apprNum, s?.apprNumber ?? "");
-      push(edits, r.status, "");
+      push(edits, r.status, s?.status ?? ""); // 이용자 상태 (분리 칸 양식만; 없으면 no-op)
       push(edits, r.result, s?.result ?? "");
     }
   }
