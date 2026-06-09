@@ -30,7 +30,7 @@ async function login(formData: FormData) {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ err?: string }>;
+  searchParams: Promise<{ err?: string; ok?: string }>;
 }) {
   const sp = await searchParams;
   // 이미 로그인이면 대시보드로
@@ -55,6 +55,7 @@ export default async function LoginPage({
       </div>
       <div className="card-body">
         {sp.err && <div className="flash warn" style={{ marginBottom: 12 }}>{sp.err}</div>}
+        {sp.ok && <div className="flash" style={{ marginBottom: 12, background: "#E8F1FC", borderColor: "#7BAEE5" }}>{sp.ok}</div>}
         <div className="tip" style={{ marginBottom: 14, wordBreak: "keep-all", lineHeight: 1.65 }}>
           처음 사용하시나요?{" "}
           <Link href="/signup" style={{ color: "var(--primary)", fontWeight: 700, whiteSpace: "nowrap" }}>
@@ -79,6 +80,11 @@ export default async function LoginPage({
             로그인
           </button>
         </form>
+        <div style={{ marginTop: 14, textAlign: "center" }}>
+          <Link href="/forgot-password" style={{ color: "var(--text-mute)", fontSize: 13, fontWeight: 600 }}>
+            비밀번호를 잊으셨나요?
+          </Link>
+        </div>
       </div>
     </div>
   );

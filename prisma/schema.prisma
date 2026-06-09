@@ -74,6 +74,17 @@ model User {
   sessions     AuthSession[]
   schedules    Schedule[] @relation("ScheduleCreatedBy")
   records      Record[]   @relation("RecordCreatedBy")
+  passwordResets PasswordReset[]
+}
+
+model PasswordReset {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
 }
 
 model AuthSession {
