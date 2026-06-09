@@ -85,26 +85,6 @@ type CoordSpec = {
 const COL5 = [4, 5, 6, 7, 8];
 const ROW5 = [1, 2, 3, 4, 5];
 
-// 발달재활(놀이재활)형: 결과표 승인일자 칸이 날짜·시각 2단락으로 쌓여 있음.
-const PLAY_SPEC: CoordSpec = {
-  org: [0, 0, 2],
-  name: [0, 1, 2],
-  birth: [0, 2, 2],
-  date: COL5.map((c) => [1, 0, c] as Coord),
-  start: COL5.map((c) => [1, 2, c] as Coord),
-  end: COL5.map((c) => [1, 3, c] as Coord),
-  voucher: COL5.map((c) => [1, 5, c] as Coord),
-  extra: COL5.map((c) => [1, 6, c] as Coord),
-  amount: COL5.map((c) => [1, 7, c] as Coord),
-  result: ROW5.map((r) => ({
-    date: [2, r, 0, 0] as Coord, // 승인일자 칸 1단락: 날짜
-    time: [2, r, 0, 1] as Coord, // 승인일자 칸 2단락: 시각
-    apprNum: [2, r, 1] as Coord,
-    result: [2, r, 2] as Coord,
-  })),
-  note: [2, 6, 1],
-};
-
 // 동탄형: 회기 칸 9개지만 5칸만 사용. 결과표 5열(서비스일자·승인일자·승인번호·상태·결과).
 const DONGTAN_SPEC: CoordSpec = {
   org: [0, 0, 2],
@@ -147,103 +127,15 @@ const NAMYANGJU_SPEC: CoordSpec = {
   })),
 };
 
-// 순천형: 회기 5칸. 결과표(표2)는 동탄형과 동일 5열. 별지 상세표(표3)는 현재 비워둠.
-const SUNCHEON_SPEC: CoordSpec = {
-  org: [0, 0, 2],
-  serviceArea: [0, 1, 2],
-  name: [0, 2, 2],
-  birth: [0, 3, 2],
-  date: COL5.map((c) => [1, 0, c] as Coord),
-  start: COL5.map((c) => [1, 2, c] as Coord),
-  end: COL5.map((c) => [1, 3, c] as Coord),
-  voucher: COL5.map((c) => [1, 5, c] as Coord),
-  extra: COL5.map((c) => [1, 6, c] as Coord),
-  amount: COL5.map((c) => [1, 7, c] as Coord),
-  // 앞 페이지(표2): 날짜·승인일자·승인번호만. 결과 narrative 는 별지(표3)에 넣는다.
-  result: ROW5.map((r) => ({
-    date: [2, r, 0] as Coord, // 서비스 제공 일자
-    apprDate: [2, r, 1] as Coord, // 승인일자
-    apprNum: [2, r, 2] as Coord,
-  })),
-  // 별지(표3): 회기 블록 3행(서비스일자/승인일자/승인번호) + 큰 결과칸(c2).
-  detail: ROW5.map((_, i) => ({
-    date: [3, 1 + i * 3, 1] as Coord,
-    apprDate: [3, 2 + i * 3, 1] as Coord,
-    apprNum: [3, 3 + i * 3, 1] as Coord,
-    result: [3, 1 + i * 3, 2] as Coord,
-  })),
-};
-
-// 원주형: 회기 5칸(+누계 열은 안 채움). 헤더 값이 c3 열. 금액은 바우처·자부담·총금액
-// 3행으로 나뉘는데 우리 데이터는 총액만 있어 '총 금액'(r9) 에 넣는다.
-const WONJU_SPEC: CoordSpec = {
-  org: [0, 0, 3],
-  serviceArea: [0, 1, 3],
-  name: [0, 2, 3],
-  birth: [0, 3, 3],
-  date: COL5.map((c) => [1, 0, c] as Coord),
-  start: COL5.map((c) => [1, 2, c] as Coord),
-  end: COL5.map((c) => [1, 3, c] as Coord),
-  voucher: COL5.map((c) => [1, 5, c] as Coord),
-  extra: COL5.map((c) => [1, 6, c] as Coord),
-  amount: COL5.map((c) => [1, 9, c] as Coord), // 총 금액 행
-  voucherAmount: COL5.map((c) => [1, 7, c] as Coord), // 3.총이용금액 > 바우처 행
-  copayAmount: COL5.map((c) => [1, 8, c] as Coord), // 3.총이용금액 > 자부담 행
-  result: ROW5.map((r) => ({
-    date: [3, r, 0] as Coord, // 제공일자
-    apprDate: [3, r, 1] as Coord, // 승인일자
-    apprNum: [3, r, 2] as Coord,
-    status: [3, r, 3] as Coord, // 이용자의 상태
-    result: [3, r, 4] as Coord, // 서비스 결과
-  })),
-};
-
-// 대구·파주형: 한 양식에 서비스 종류 4블록(언어·미술·음악·기타재활). 치료 종류에 맞는
-// 블록 시작/종료 행에만 시간을 넣는다. 회기 5칸. 결과표는 상태·결과 한 칸.
-const DAEGU_SPEC: CoordSpec = {
-  org: [0, 0, 2],
-  name: [0, 1, 2],
-  birth: [0, 2, 2],
-  date: COL5.map((c) => [1, 0, c] as Coord),
-  start: COL5.map((c) => [1, 2, c] as Coord), // 기본(언어재활) 블록
-  end: COL5.map((c) => [1, 3, c] as Coord),
-  serviceBlocks: [
-    { keyword: "언어", start: COL5.map((c) => [1, 2, c] as Coord), end: COL5.map((c) => [1, 3, c] as Coord) },
-    { keyword: "미술", start: COL5.map((c) => [1, 5, c] as Coord), end: COL5.map((c) => [1, 6, c] as Coord) },
-    { keyword: "음악", start: COL5.map((c) => [1, 8, c] as Coord), end: COL5.map((c) => [1, 9, c] as Coord) },
-  ],
-  serviceBlockDefault: {
-    start: COL5.map((c) => [1, 11, c] as Coord), // 기타재활 블록
-    end: COL5.map((c) => [1, 12, c] as Coord),
-  },
-  voucher: COL5.map((c) => [1, 14, c] as Coord),
-  extra: COL5.map((c) => [1, 15, c] as Coord),
-  amount: COL5.map((c) => [1, 16, c] as Coord),
-  result: ROW5.map((r) => ({
-    date: [2, r, 0] as Coord, // 서비스일자
-    apprDate: [2, r, 1] as Coord, // 승인일자
-    apprNum: [2, r, 2] as Coord,
-    result: [2, r, 3] as Coord, // 이용자의 상태 및 서비스 결과
-  })),
-};
-
 const COORD_SPECS: Record<Exclude<RecordFormKey, "standard">, CoordSpec> = {
-  play: PLAY_SPEC,
   dongtan: DONGTAN_SPEC,
   namyangju: NAMYANGJU_SPEC,
-  suncheon: SUNCHEON_SPEC,
-  wonju: WONJU_SPEC,
-  daegu: DAEGU_SPEC,
 };
 
 const TEMPLATE_FILES: Record<RecordFormKey, string> = {
   standard: "기록지_template.hwpx",
-  play: "기록지_template_play.hwpx",
   dongtan: "기록지_template_dongtan.hwpx",
   namyangju: "기록지_template_namyangju.hwpx",
-  suncheon: "기록지_template_suncheon.hwpx",
-  wonju: "기록지_template_wonju.hwpx",
-  daegu: "기록지_template_daegu.hwpx",
 };
 
 function push(edits: CellEdit[], c: Coord | undefined, value: string) {

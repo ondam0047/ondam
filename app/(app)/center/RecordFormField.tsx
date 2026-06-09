@@ -10,11 +10,13 @@ import { RECORD_FORMS } from "@/lib/record-forms";
 
 // 양식별 페이지 수
 const PAGES: Record<string, number> = {
-  standard: 1, play: 1, dongtan: 1, namyangju: 1, suncheon: 2, wonju: 1, daegu: 1,
+  standard: 1, dongtan: 1, namyangju: 1,
 };
 
 export default function RecordFormField({ defaultValue }: { defaultValue: string }) {
-  const [form, setForm] = useState(defaultValue || "standard");
+  // 삭제된 양식(구버전 선택값)은 표준(서식A)으로 폴백
+  const initial = RECORD_FORMS.some((f) => f.key === defaultValue) ? defaultValue : "standard";
+  const [form, setForm] = useState(initial);
   const [zoom, setZoom] = useState<string | null>(null);
   const label = RECORD_FORMS.find((f) => f.key === form)?.label ?? form;
   const pages = PAGES[form] ?? 1;

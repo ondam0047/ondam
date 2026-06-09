@@ -2,13 +2,9 @@
 // 클라이언트·서버 양쪽에서 import 가능하도록 데이터만 둔다.
 
 export const RECORD_FORMS = [
-  { key: "standard", label: "표준형 (기본)" },
-  { key: "play", label: "익산형" },
-  { key: "dongtan", label: "동탄형" },
-  { key: "namyangju", label: "남양주형" },
-  { key: "suncheon", label: "순천형" },
-  { key: "wonju", label: "원주형" },
-  { key: "daegu", label: "대구·파주·광명·시흥·안산형" },
+  { key: "standard", label: "서식A" },
+  { key: "dongtan", label: "서식B" },
+  { key: "namyangju", label: "서식C" },
 ] as const;
 
 export type RecordFormKey = (typeof RECORD_FORMS)[number]["key"];
