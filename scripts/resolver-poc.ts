@@ -9,7 +9,7 @@ import { readSection0 } from "@/lib/hwpx";
 import { COORD_SPECS, type CoordSpec } from "@/lib/record-hwpx";
 import type { Coord } from "@/lib/record-fill";
 
-type Cell = { row: number; col: number; colSpan: number; text: string; norm: string };
+type Cell = { row: number; col: number; colSpan: number; text: string; norm: string; paras: number };
 type Table = { idx: number; cells: Cell[] };
 
 const nz = (s: string) => s.replace(/\s+/g, "");
@@ -35,7 +35,8 @@ function parseTables(xml: string): Table[] {
       const m = cell.match(/<hp:cellAddr colAddr="(\d+)" rowAddr="(\d+)"/);
       const sp = cell.match(/<hp:cellSpan colSpan="(\d+)" rowSpan="(\d+)"/);
       const text = [...cell.matchAll(/<hp:t>([\s\S]*?)<\/hp:t>/g)].map((x) => x[1]).join("");
-      if (m) cells.push({ col: +m[1], row: +m[2], colSpan: sp ? +sp[1] : 1, text, norm: nz(text) });
+      const paras = (cell.match(/<hp:p\b/g) || []).length;
+      if (m) cells.push({ col: +m[1], row: +m[2], colSpan: sp ? +sp[1] : 1, text, norm: nz(text), paras });
       cp = cb + 8;
     }
     tables.push({ idx, cells });
@@ -167,12 +168,23 @@ function resolve(tables: Table[]): { spec: Derived; notes: string[] } {
     for (const { field, col } of best.cols) if (!(field in colOf)) colOf[field] = col;
     const dataRows = [...new Set(t.cells.filter((c) => c.row > best!.row).map((c) => c.row))]
       .sort((a, b) => a - b).slice(0, 5);
+    // 승인일자 칸이 단락 2개(날짜/시각 쌓임)면 date(p0)+time(p1) 로 분리 (익산형)
+    const apprCol = colOf["apprDate"];
+    const cell0 = apprCol != null ? t.cells.find((c) => c.row === dataRows[0] && c.col === apprCol) : undefined;
+    const stacked = !!cell0 && cell0.paras >= 2;
     spec.result = dataRows.map((r) => {
       const o: any = {};
-      for (const f of Object.keys(colOf)) o[f] = [t.idx, r, colOf[f]] as Coord;
+      for (const f of Object.keys(colOf)) {
+        if (f === "apprDate" && stacked) {
+          o.date = [t.idx, r, colOf[f], 0] as Coord;
+          o.time = [t.idx, r, colOf[f], 1] as Coord;
+        } else {
+          o[f] = [t.idx, r, colOf[f]] as Coord;
+        }
+      }
       return o;
     });
-    notes.push(`결과표=T${t.idx}, 열:${Object.keys(colOf).join("/")}, ${dataRows.length}행`);
+    notes.push(`결과표=T${t.idx}, 열:${Object.keys(colOf).join("/")}${stacked ? "(승인일자=날짜+시각 분리)" : ""}, ${dataRows.length}행`);
     break;
   }
 
