@@ -33,7 +33,7 @@ export const TOOL_MODULES: ToolModule[] = [
 
   { key: "speech-rate", no: 5, tier: "pro", status: "ready", href: "/tools/speech-rate",
     label: "말속도 측정", desc: "발화 구간을 잡아 초당 음절수(SPS)로 말속도를 측정해요." },
-  { key: "fluency",     no: 6, tier: "pro", status: "soon", href: "/tools/fluency",
+  { key: "fluency",     no: 6, tier: "pro", status: "ready", href: "/tools/fluency",
     label: "유창성 자가 모니터링", desc: "말의 흐름을 스스로 점검하고 기록으로 누적해요." },
   { key: "pacing",      no: 7, tier: "pro", status: "ready", href: "/tools/pacing",
     label: "말속도 조절 연습", desc: "메트로놈·페이싱 안내에 맞춰 말하기 속도를 조절하는 연습이에요." },

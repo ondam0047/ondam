@@ -8,7 +8,7 @@ export default function SpeechRatePage() {
     <>
       <ToolHeader
         title="말속도 측정"
-        subtitle="아래 문장을 녹음하며 읽으면 초당 음절수(SPS)로 말속도를 측정하고, 목표 속도와 비교해 알려줘요."
+        subtitle="한 번 녹음하거나 녹음 파일을 올리면 전체속도·조음속도·쉼 구간을 함께 보여줍니다. 쉼은 자동으로 분할되고, 실시간 녹음 시 음성 인식으로 음절 수까지 자동 산출합니다."
       />
       <SpeechRateClient />
     </>

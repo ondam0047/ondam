@@ -1,232 +1,1180 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { micSupported } from "@/lib/voice/audio";
-import { countKoreanSyllables, getRateFeedback, type RateFeedback } from "@/lib/voice/syllables";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useKoreanASR } from "@/lib/voice/useKoreanASR";
+import { decodeAudioFile } from "@/lib/voice/audioFile";
+import { downloadReport } from "@/lib/voice/report";
 
-const DEFAULT_TEXT = "오늘은 아침에 일어나서 세수를 하고 밥을 먹었어요.";
-
-type Result = {
-  syllables: number;
-  sec: number;
-  sps: number;
-  feedback: RateFeedback;
-  targetSps: number;
-  at: string; // 표시용 시각
+// ───────────────────────── 말속도 분석 (VAD 기반 쉼 자동 분할) ─────────────────────────
+type Segment = {
+  start: number;
+  end: number;
+  type: "speech" | "pause";
 };
 
-const FEEDBACK_STYLE: Record<RateFeedback, { bg: string; fg: string; label: string }> = {
-  빠름: { bg: "#F6E4DE", fg: "#8A2F1C", label: "목표보다 빠름" },
-  느림: { bg: "#E1ECF4", fg: "#1F4E79", label: "목표보다 느림" },
-  적절: { bg: "#DDEBD3", fg: "#3F6132", label: "목표에 적절" },
+type SpeechRateResult = {
+  totalDuration: number;
+  speechDuration: number;
+  pauseDuration: number;
+  segments: Segment[];
+  pauseCount: number;
+  longPauseCount: number;
+  meanPauseDuration: number;
+  maxPauseDuration: number;
+};
+
+function analyzeSpeechRate(
+  signal: Float32Array,
+  sampleRate: number,
+  options?: {
+    threshold?: number;
+    minPauseMs?: number;
+    longPauseMs?: number;
+  },
+): SpeechRateResult {
+  const threshold = options?.threshold ?? 0.012;
+  const minPauseMs = options?.minPauseMs ?? 100;
+  const longPauseMs = options?.longPauseMs ?? 250;
+
+  const frameSize = Math.round(sampleRate * 0.025);
+  const hopSize = Math.round(sampleRate * 0.01);
+
+  const frameTimes: number[] = [];
+  const isVoiced: boolean[] = [];
+  for (let start = 0; start + frameSize <= signal.length; start += hopSize) {
+    let sumSq = 0;
+    for (let i = 0; i < frameSize; i++) {
+      const s = signal[start + i];
+      sumSq += s * s;
+    }
+    const rms = Math.sqrt(sumSq / frameSize);
+    frameTimes.push(start / sampleRate);
+    isVoiced.push(rms > threshold);
+  }
+
+  if (isVoiced.length === 0) {
+    return {
+      totalDuration: signal.length / sampleRate,
+      speechDuration: 0,
+      pauseDuration: 0,
+      segments: [],
+      pauseCount: 0,
+      longPauseCount: 0,
+      meanPauseDuration: 0,
+      maxPauseDuration: 0,
+    };
+  }
+
+  // 프레임 상태 변화 기반 초기 분할
+  const raw: Segment[] = [];
+  let curType: "speech" | "pause" = isVoiced[0] ? "speech" : "pause";
+  let curStartIdx = 0;
+  for (let i = 1; i < isVoiced.length; i++) {
+    const t = isVoiced[i] ? "speech" : "pause";
+    if (t !== curType) {
+      raw.push({
+        start: frameTimes[curStartIdx],
+        end: frameTimes[i],
+        type: curType,
+      });
+      curType = t;
+      curStartIdx = i;
+    }
+  }
+  raw.push({
+    start: frameTimes[curStartIdx],
+    end: signal.length / sampleRate,
+    type: curType,
+  });
+
+  // 짧은 쉼(<minPauseMs)을 주변 발화로 병합
+  const filtered: Segment[] = [];
+  for (const seg of raw) {
+    const durMs = (seg.end - seg.start) * 1000;
+    if (
+      seg.type === "pause" &&
+      durMs < minPauseMs &&
+      filtered.length > 0 &&
+      filtered[filtered.length - 1].type === "speech"
+    ) {
+      filtered[filtered.length - 1].end = seg.end;
+    } else if (
+      filtered.length > 0 &&
+      filtered[filtered.length - 1].type === seg.type
+    ) {
+      filtered[filtered.length - 1].end = seg.end;
+    } else {
+      filtered.push({ ...seg });
+    }
+  }
+
+  // 선행/후행 쉼(첫 발화 전·마지막 발화 후 침묵) 제거
+  while (filtered.length > 0 && filtered[0].type === "pause") filtered.shift();
+  while (
+    filtered.length > 0 &&
+    filtered[filtered.length - 1].type === "pause"
+  )
+    filtered.pop();
+
+  const speechSegs = filtered.filter((s) => s.type === "speech");
+  const pauseSegs = filtered.filter((s) => s.type === "pause");
+
+  const totalDuration =
+    filtered.length > 0
+      ? filtered[filtered.length - 1].end - filtered[0].start
+      : 0;
+  const speechDuration = speechSegs.reduce((s, x) => s + (x.end - x.start), 0);
+  const pauseDuration = pauseSegs.reduce((s, x) => s + (x.end - x.start), 0);
+  const longPauseCount = pauseSegs.filter(
+    (x) => (x.end - x.start) * 1000 >= longPauseMs,
+  ).length;
+  const meanPauseDuration =
+    pauseSegs.length > 0 ? pauseDuration / pauseSegs.length : 0;
+  const maxPauseDuration =
+    pauseSegs.length > 0
+      ? Math.max(...pauseSegs.map((x) => x.end - x.start))
+      : 0;
+
+  return {
+    totalDuration,
+    speechDuration,
+    pauseDuration,
+    segments: filtered,
+    pauseCount: pauseSegs.length,
+    longPauseCount,
+    meanPauseDuration,
+    maxPauseDuration,
+  };
+}
+
+// ───────────────────────── 음절 수 추정 (한글·자모·숫자·영어 모음군) ─────────────────────────
+const HANGUL_SYLLABLE = /[가-힣]/g;
+const HANGUL_JAMO = /[ㄱ-ㅎㅏ-ㅣ]/g;
+const DIGITS = /[0-9]/g;
+const ENGLISH_WORD = /[a-zA-Z]+/g;
+
+function countEnglishSyllables(word: string): number {
+  const w = word.toLowerCase();
+  if (w.length === 0) return 0;
+  const groups = w.match(/[aeiouy]+/g) ?? [];
+  let count = groups.length;
+  if (count > 1 && /e$/.test(w)) count -= 1;
+  return Math.max(1, count);
+}
+
+function countSyllables(text: string): number {
+  if (!text) return 0;
+  const hangulCount = (text.match(HANGUL_SYLLABLE) ?? []).length;
+  const jamoCount = (text.match(HANGUL_JAMO) ?? []).length;
+  const digitCount = (text.match(DIGITS) ?? []).length;
+  let englishCount = 0;
+  const words = text.match(ENGLISH_WORD) ?? [];
+  for (const w of words) englishCount += countEnglishSyllables(w);
+  return hangulCount + jamoCount + digitCount + englishCount;
+}
+
+function normalizeTranscript(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+// ───────────────────────── 파형 피크 추출 ─────────────────────────
+function computePeaks(data: Float32Array, buckets: number): number[] {
+  const out = new Array(buckets).fill(0);
+  const size = Math.floor(data.length / buckets) || 1;
+  for (let i = 0; i < buckets; i++) {
+    let max = 0;
+    const start = i * size;
+    const end = Math.min(data.length, start + size);
+    for (let j = start; j < end; j++) {
+      const a = Math.abs(data[j]);
+      if (a > max) max = a;
+    }
+    out[i] = max;
+  }
+  const peak = Math.max(...out, 1e-6);
+  return out.map((v) => v / peak);
+}
+
+type Phase = "idle" | "recording" | "done";
+const DURATION_OPTIONS = [10, 15, 30, 60] as const;
+type Duration = (typeof DURATION_OPTIONS)[number];
+
+// 인라인 스타일 토큰 헬퍼
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "9px 12px",
+  borderRadius: 10,
+  border: "1px solid var(--border)",
+  background: "var(--surface)",
+  fontSize: 14,
+  color: "var(--text)",
+};
+const labelStyle: React.CSSProperties = {
+  display: "block",
+  marginBottom: 8,
+  fontSize: 13,
+  fontWeight: 600,
+  color: "var(--text-soft)",
 };
 
 export default function SpeechRateClient() {
-  const [name, setName] = useState("");
-  const [text, setText] = useState(DEFAULT_TEXT);
-  const [targetSps, setTargetSps] = useState(3.0);
-
-  const [recording, setRecording] = useState(false);
+  const [phase, setPhase] = useState<Phase>("idle");
+  const [maxDuration, setMaxDuration] = useState<Duration>(15);
   const [elapsed, setElapsed] = useState(0);
-  const [result, setResult] = useState<Result | null>(null);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<SpeechRateResult | null>(null);
+  const [syllables, setSyllables] = useState<string>("");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [editedTranscript, setEditedTranscript] = useState<string>("");
+  const [autoFilled, setAutoFilled] = useState(false);
+  const [peaks, setPeaks] = useState<number[]>([]);
+  const [rawDuration, setRawDuration] = useState(0);
 
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
+  const asr = useKoreanASR();
+
+  const audioCtxRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const startRef = useRef<number>(0);
-  const tickRef = useRef<number | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const recordedRef = useRef<Float32Array[]>([]);
+  const rafRef = useRef<number | null>(null);
+  const startTimeRef = useRef(0);
 
-  function stopTracks() {
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
-  }
-
-  async function startRec() {
-    setError(null);
-    setResult(null);
-    if (audioUrl) { URL.revokeObjectURL(audioUrl); setAudioUrl(null); }
-    if (!micSupported() || typeof MediaRecorder === "undefined") {
-      setError("이 브라우저에서는 녹음을 사용할 수 없어요. 크롬·엣지 최신 버전을 권장해요.");
-      return;
+  const cleanup = useCallback(() => {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
     }
-    if (!text.trim()) {
-      setError("측정할 문장을 먼저 입력해 주세요.");
-      return;
+    if (processorRef.current) {
+      processorRef.current.disconnect();
+      processorRef.current = null;
     }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-      const recorder = new MediaRecorder(stream);
-      recorderRef.current = recorder;
-      chunksRef.current = [];
-
-      recorder.ondataavailable = (ev) => { if (ev.data.size > 0) chunksRef.current.push(ev.data); };
-      recorder.onstop = () => {
-        const sec = (performance.now() - startRef.current) / 1000;
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
-        setAudioUrl(URL.createObjectURL(blob));
-
-        const syllables = countKoreanSyllables(text);
-        const sps = sec > 0 ? syllables / sec : 0;
-        setResult({
-          syllables,
-          sec: Number(sec.toFixed(2)),
-          sps: Number(sps.toFixed(2)),
-          feedback: getRateFeedback(sps, targetSps),
-          targetSps,
-          at: new Date().toLocaleString("ko-KR"),
-        });
-        stopTracks();
-      };
-
-      startRef.current = performance.now();
-      recorder.start();
-      setRecording(true);
-      setElapsed(0);
-      tickRef.current = window.setInterval(() => {
-        setElapsed((performance.now() - startRef.current) / 1000);
-      }, 100);
-    } catch (e) {
-      const n = (e as DOMException)?.name;
-      setError(
-        n === "NotAllowedError" || n === "SecurityError"
-          ? "마이크 권한이 거부됐어요. 주소창의 마이크 아이콘에서 허용해 주세요."
-          : n === "NotFoundError"
-          ? "마이크 장치를 찾을 수 없어요."
-          : "녹음을 시작하지 못했어요. 잠시 후 다시 시도해 주세요."
-      );
-      setRecording(false);
+    if (sourceRef.current) {
+      sourceRef.current.disconnect();
+      sourceRef.current = null;
     }
-  }
-
-  function stopRec() {
-    if (tickRef.current != null) { window.clearInterval(tickRef.current); tickRef.current = null; }
-    recorderRef.current?.stop();
-    setRecording(false);
-  }
-
-  function downloadReport() {
-    if (!result) return;
-    const lines = [
-      "말속도 측정 결과",
-      "──────────────────────",
-      name.trim() ? `대상자: ${name.trim()}` : null,
-      `측정 시각: ${result.at}`,
-      "",
-      `읽은 문장: ${text.trim()}`,
-      `음절 수: ${result.syllables} 음절`,
-      `소요 시간: ${result.sec} 초`,
-      `측정 말속도: ${result.sps} 음절/초`,
-      `목표 말속도: ${result.targetSps.toFixed(1)} 음절/초`,
-      `결과: ${FEEDBACK_STYLE[result.feedback].label}`,
-      "",
-      "※ 본 자료는 의료 진단·치료를 제공·대체하지 않는 학습·연습·시각화 보조 자료입니다.",
-    ].filter(Boolean);
-    const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    const stamp = result.at.replace(/[^0-9]/g, "").slice(0, 12);
-    a.download = `말속도측정_${name.trim() || "결과"}_${stamp}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  useEffect(() => () => {
-    if (tickRef.current != null) window.clearInterval(tickRef.current);
-    stopTracks();
-    if (audioUrl) URL.revokeObjectURL(audioUrl);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    if (audioCtxRef.current) {
+      audioCtxRef.current.close().catch(() => undefined);
+      audioCtxRef.current = null;
+    }
   }, []);
+
+  const finalizeAndAnalyze = useCallback(() => {
+    if (processorRef.current) processorRef.current.disconnect();
+    if (sourceRef.current) sourceRef.current.disconnect();
+
+    const totalLen = recordedRef.current.reduce((s, b) => s + b.length, 0);
+    const combined = new Float32Array(totalLen);
+    let offset = 0;
+    for (const b of recordedRef.current) {
+      combined.set(b, offset);
+      offset += b.length;
+    }
+    const sr = audioCtxRef.current?.sampleRate ?? 44100;
+    const res = analyzeSpeechRate(combined, sr);
+    setPeaks(computePeaks(combined, 800));
+    setRawDuration(combined.length / sr);
+    setResult(res);
+    setPhase("done");
+    asr.stop();
+    cleanup();
+  }, [cleanup, asr]);
+
+  const start = useCallback(async () => {
+    setErrorMsg(null);
+    setElapsed(0);
+    setResult(null);
+    setEditedTranscript("");
+    setAutoFilled(false);
+    setSyllables("");
+    setPhase("recording");
+    recordedRef.current = [];
+    if (asr.supported) asr.start();
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
+      });
+      streamRef.current = stream;
+      const Ctx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext })
+          .webkitAudioContext;
+      const ctx = new Ctx();
+      audioCtxRef.current = ctx;
+      const source = ctx.createMediaStreamSource(stream);
+      sourceRef.current = source;
+      const proc = ctx.createScriptProcessor(4096, 1, 1);
+      proc.onaudioprocess = (e) => {
+        const input = e.inputBuffer.getChannelData(0);
+        const copy = new Float32Array(input.length);
+        copy.set(input);
+        recordedRef.current.push(copy);
+      };
+      processorRef.current = proc;
+      source.connect(proc);
+      proc.connect(ctx.destination);
+      startTimeRef.current = performance.now();
+
+      const tick = () => {
+        const e = (performance.now() - startTimeRef.current) / 1000;
+        setElapsed(e);
+        if (e >= maxDuration) {
+          finalizeAndAnalyze();
+        } else {
+          rafRef.current = requestAnimationFrame(tick);
+        }
+      };
+      rafRef.current = requestAnimationFrame(tick);
+    } catch (err) {
+      console.error(err);
+      setErrorMsg("마이크 접근 실패");
+      setPhase("idle");
+      asr.stop();
+      cleanup();
+    }
+  }, [maxDuration, finalizeAndAnalyze, cleanup, asr]);
+
+  const analyzeFile = useCallback(async (file: File) => {
+    setErrorMsg(null);
+    setResult(null);
+    setEditedTranscript("");
+    setSyllables("");
+    setAutoFilled(true); // 파일 업로드 시 ASR 자동채움 비활성 (전사 직접 입력)
+    try {
+      const { data, sampleRate } = await decodeAudioFile(file);
+      const res = analyzeSpeechRate(data, sampleRate);
+      setPeaks(computePeaks(data, 800));
+      setRawDuration(data.length / sampleRate);
+      setResult(res);
+      setPhase("done");
+    } catch (err) {
+      console.error(err);
+      setErrorMsg("오디오 파일을 분석할 수 없습니다. 다른 파일을 시도하세요.");
+      setPhase("idle");
+    }
+  }, []);
+
+  const onFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (file) analyzeFile(file);
+    },
+    [analyzeFile],
+  );
+
+  const stopEarly = useCallback(() => {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    finalizeAndAnalyze();
+  }, [finalizeAndAnalyze]);
+
+  const reset = useCallback(() => {
+    setResult(null);
+    setSyllables("");
+    setEditedTranscript("");
+    setAutoFilled(false);
+    setPhase("idle");
+    setElapsed(0);
+    setPeaks([]);
+    setRawDuration(0);
+    asr.reset();
+  }, [asr]);
+
+  // 녹음이 끝났을 때 ASR 전사로부터 음절 수 자동 산출.
+  useEffect(() => {
+    if (phase !== "done") return;
+    if (!asr.supported) return;
+    const finalText = normalizeTranscript(asr.finalTranscript);
+    if (autoFilled || !finalText) return;
+    setEditedTranscript(finalText);
+    setSyllables(String(countSyllables(finalText)));
+    setAutoFilled(true);
+  }, [phase, asr.finalTranscript, asr.supported, autoFilled]);
+
+  const recountFromEdited = useCallback(() => {
+    setSyllables(String(countSyllables(editedTranscript)));
+  }, [editedTranscript]);
+
+  useEffect(() => () => cleanup(), [cleanup]);
+
+  const syllablesNum = parseInt(syllables, 10);
+  const validSyllables = !isNaN(syllablesNum) && syllablesNum > 0;
+
+  const overallSPS =
+    result && validSyllables ? syllablesNum / result.totalDuration : 0;
+  const articulationSPS =
+    result && validSyllables && result.speechDuration > 0
+      ? syllablesNum / result.speechDuration
+      : 0;
+  const overallWPM = (overallSPS * 60) / 2.5; // 음절·단어 대략 2.5음절 기준
+
+  const downloadSrReport = () => {
+    if (!result) return;
+    const rateRows = validSyllables
+      ? [
+          { label: "음절 수", value: `${syllablesNum} 개` },
+          {
+            label: "전체 말속도",
+            value: `${overallSPS.toFixed(2)} SPS`,
+            ref: `≈ ${overallWPM.toFixed(0)} WPM`,
+          },
+          {
+            label: "조음속도 (쉼 제외)",
+            value: `${articulationSPS.toFixed(2)} SPS`,
+          },
+        ]
+      : [{ label: "음절 수", value: "(미입력 — 말속도 계산 불가)" }];
+    downloadReport(
+      {
+        title: "말속도 측정 리포트",
+        subtitle: `전체 ${result.totalDuration.toFixed(2)}초 · 발화 ${result.speechDuration.toFixed(2)}초`,
+        sections: [
+          {
+            heading: "시간 · 쉼 구간",
+            rows: [
+              {
+                label: "전체 시간",
+                value: `${result.totalDuration.toFixed(2)} 초`,
+              },
+              {
+                label: "순 발화 시간",
+                value: `${result.speechDuration.toFixed(2)} 초`,
+                ref: `${((result.speechDuration / result.totalDuration) * 100).toFixed(0)}%`,
+              },
+              {
+                label: "쉼 구간 수",
+                value: `${result.pauseCount} 회`,
+                ref: `장쉼(≥250ms) ${result.longPauseCount}회`,
+              },
+              {
+                label: "평균 쉼 길이",
+                value: `${(result.meanPauseDuration * 1000).toFixed(0)} ms`,
+                ref: `최대 ${(result.maxPauseDuration * 1000).toFixed(0)} ms`,
+              },
+            ],
+          },
+          { heading: "말속도", rows: rateRows },
+          ...(editedTranscript.trim()
+            ? [
+                {
+                  heading: "전사",
+                  rows: [{ label: "내용", value: editedTranscript.trim() }],
+                },
+              ]
+            : []),
+        ],
+        footnote:
+          "참고 범위: 낭독 4.5–6.0 SPS / 자유발화 3.5–5.0 SPS. VAD 임계 기반 쉼 자동 분할. 본 수치는 학습·연습·시각화 보조용 추정치입니다.",
+      },
+      "speech_rate",
+    );
+  };
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
+      {errorMsg && (
+        <div
+          style={{
+            padding: "10px 16px",
+            borderRadius: 10,
+            fontSize: 14,
+            background: "#F6E4DE",
+            color: "#8A2F1C",
+            border: "1px solid #E6C3B8",
+          }}
+        >
+          {errorMsg}
+        </div>
+      )}
+
       <div className="card">
         <div className="card-body" style={{ display: "grid", gap: 18 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
-            <div className="field">
-              <label>대상자 (선택 — 보고서 표기용)</label>
-              <input value={name} disabled={recording} onChange={(e) => setName(e.target.value)}
-                placeholder="예: 홍길동"
-                style={{ padding: "9px 12px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface)", fontSize: 14, color: "var(--text)" }} />
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <h2
+              style={{
+                margin: 0,
+                fontSize: 18,
+                fontWeight: 800,
+                color: "var(--text)",
+              }}
+            >
+              녹음
+            </h2>
+            <span
+              className="badge"
+              style={{
+                fontSize: 12,
+                padding: "5px 12px",
+                borderColor: "transparent",
+                ...(phase === "idle"
+                  ? { background: "var(--surface-2)", color: "var(--text-soft)" }
+                  : phase === "recording"
+                    ? { background: "#F4E4C8", color: "#8A6422" }
+                    : { background: "var(--primary-soft)", color: "var(--primary)" }),
+              }}
+            >
+              {phase === "idle" && "대기"}
+              {phase === "recording" && "● 녹음 중"}
+              {phase === "done" && "✓ 완료"}
+            </span>
+          </div>
+
+          {phase === "idle" && (
+            <div style={{ display: "grid", gap: 16 }}>
+              <div>
+                <label style={labelStyle}>최대 녹음 시간</label>
+                <div
+                  style={{
+                    display: "flex",
+                    overflow: "hidden",
+                    borderRadius: 10,
+                    border: "1px solid var(--border-strong)",
+                  }}
+                >
+                  {DURATION_OPTIONS.map((d) => (
+                    <button
+                      key={d}
+                      onClick={() => setMaxDuration(d)}
+                      style={{
+                        flex: 1,
+                        padding: "8px 12px",
+                        fontSize: 14,
+                        fontWeight: 600,
+                        border: "none",
+                        cursor: "pointer",
+                        ...(d === maxDuration
+                          ? { background: "var(--primary)", color: "var(--primary-ink)" }
+                          : { background: "var(--surface)", color: "var(--text-soft)" }),
+                      }}
+                    >
+                      {d}초
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <button
+                className="btn btn-primary"
+                onClick={start}
+                style={{ width: "100%", padding: "14px 24px", fontSize: 17 }}
+              >
+                녹음 시작
+              </button>
+              <label
+                style={{
+                  display: "flex",
+                  cursor: "pointer",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                  borderRadius: 12,
+                  border: "2px dashed var(--border-strong)",
+                  background: "var(--surface-2)",
+                  padding: "12px 24px",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: "var(--text-soft)",
+                }}
+              >
+                📁 또는 녹음 파일 업로드
+                <input
+                  type="file"
+                  accept="audio/*"
+                  onChange={onFileChange}
+                  style={{ display: "none" }}
+                />
+              </label>
+              <p
+                style={{
+                  fontSize: 12,
+                  color: "var(--text-mute)",
+                  lineHeight: 1.6,
+                  margin: 0,
+                }}
+              >
+                &quot;녹음 시작&quot; 후 대상자에게 낭독·자유발화를 요청하세요
+                (설정 시간에 자동 종료, 조기 종료 가능). 또는 미리 녹음한 파일을
+                업로드하면 VAD 로 쉼을 자동 분할합니다. 파일 업로드 시 음절 수는
+                전사를 붙여넣거나 직접 입력하세요.
+              </p>
             </div>
-            <div className="field">
-              <label>목표 말속도 — {targetSps.toFixed(1)} 음절/초</label>
-              <input type="range" min={1} max={6} step={0.1} value={targetSps}
-                disabled={recording} onChange={(e) => setTargetSps(Number(e.target.value))} />
+          )}
+
+          {phase === "recording" && (
+            <div style={{ display: "grid", gap: 16 }}>
+              <div style={{ textAlign: "center" }}>
+                <div
+                  style={{
+                    fontSize: 60,
+                    fontWeight: 800,
+                    fontVariantNumeric: "tabular-nums",
+                    color: "var(--text)",
+                    lineHeight: 1.1,
+                  }}
+                >
+                  {elapsed.toFixed(1)}
+                </div>
+                <div
+                  style={{ marginTop: 4, fontSize: 14, color: "var(--text-mute)" }}
+                >
+                  / {maxDuration}초
+                </div>
+              </div>
+              <div
+                style={{
+                  height: 12,
+                  overflow: "hidden",
+                  borderRadius: 999,
+                  background: "var(--surface-2)",
+                }}
+              >
+                <div
+                  style={{
+                    height: "100%",
+                    background: "var(--primary)",
+                    transition: "all 0.1s",
+                    width: `${(elapsed / maxDuration) * 100}%`,
+                  }}
+                />
+              </div>
+              {asr.supported && (
+                <div
+                  style={{
+                    borderRadius: 10,
+                    border: "1px solid #E8D097",
+                    background: "#F4E4C8",
+                    padding: 12,
+                  }}
+                >
+                  <p
+                    style={{
+                      margin: "0 0 4px",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: "#8A6422",
+                    }}
+                  >
+                    실시간 전사 {asr.active ? "● 인식 중" : "대기"}
+                  </p>
+                  <p
+                    style={{
+                      margin: 0,
+                      minHeight: "1.5rem",
+                      fontSize: 14,
+                      color: "var(--text)",
+                    }}
+                  >
+                    <span>{asr.finalTranscript}</span>
+                    <span style={{ color: "var(--text-mute)" }}>
+                      {" "}
+                      {asr.interim}
+                    </span>
+                  </p>
+                </div>
+              )}
+              <button
+                className="btn"
+                onClick={stopEarly}
+                style={{ width: "100%", padding: "12px 24px", fontSize: 14 }}
+              >
+                조기 종료 + 분석
+              </button>
             </div>
-          </div>
+          )}
 
-          <div className="field">
-            <label>측정할 문장 (녹음하는 동안 이 문장을 읽어 주세요)</label>
-            <textarea value={text} disabled={recording} onChange={(e) => setText(e.target.value)} rows={3}
-              style={{ resize: "vertical", padding: "10px 12px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface)", fontSize: 15, lineHeight: 1.6, color: "var(--text)", fontFamily: "inherit" }} />
-            <span style={{ fontSize: 12, color: "var(--text-mute)" }}>이 문장의 한글 음절 수: {countKoreanSyllables(text)} 음절</span>
-          </div>
+          {phase === "done" && result && (
+            <div style={{ display: "grid", gap: 16 }}>
+              <p style={{ margin: 0, fontSize: 14, color: "var(--primary)" }}>
+                ✓ 녹음 완료 · 자동 분석 결과
+              </p>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            {!recording ? (
-              <button className="btn btn-primary" onClick={startRec}>녹음 시작</button>
-            ) : (
-              <button className="btn" onClick={stopRec}>녹음 정지</button>
-            )}
-            {recording && (
-              <span style={{ fontSize: 14, color: "var(--primary)", fontWeight: 700 }}>
-                ● 녹음 중 — {elapsed.toFixed(1)}초
-              </span>
-            )}
-          </div>
+              {/* 파형 + 발화/쉼 오버레이 */}
+              <div
+                style={{
+                  borderRadius: 10,
+                  border: "1px solid var(--border)",
+                  background: "var(--surface-2)",
+                  padding: 12,
+                }}
+              >
+                <p
+                  style={{
+                    margin: "0 0 8px",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: "var(--text-soft)",
+                  }}
+                >
+                  파형 · 발화 / 쉼 구간 (초록 = 발화, 회색 = 쉼)
+                </p>
+                <SpeechWaveform
+                  peaks={peaks}
+                  rawDuration={rawDuration}
+                  result={result}
+                />
+                <div
+                  style={{
+                    marginTop: 8,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    fontSize: 12,
+                    color: "var(--text-mute)",
+                  }}
+                >
+                  <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <span
+                      style={{
+                        display: "inline-block",
+                        height: 12,
+                        width: 12,
+                        borderRadius: 3,
+                        background: "var(--primary)",
+                      }}
+                    ></span>{" "}
+                    발화 {result.speechDuration.toFixed(2)}초
+                  </span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <span
+                      style={{
+                        display: "inline-block",
+                        height: 12,
+                        width: 12,
+                        borderRadius: 3,
+                        background: "var(--border-strong)",
+                      }}
+                    ></span>{" "}
+                    쉼 {result.pauseDuration.toFixed(2)}초 ({result.pauseCount}회)
+                  </span>
+                </div>
+              </div>
 
-          {error && (
-            <div style={{ padding: "10px 14px", borderRadius: 10, fontSize: 13.5, lineHeight: 1.6, background: "#F6E4DE", color: "#8A2F1C", border: "1px solid #E6C3B8" }}>
-              {error}
+              {asr.supported ? (
+                <div style={{ display: "grid", gap: 12 }}>
+                  <div>
+                    <label style={labelStyle}>자동 전사 (수정 가능)</label>
+                    <textarea
+                      value={editedTranscript}
+                      onChange={(e) => setEditedTranscript(e.target.value)}
+                      rows={3}
+                      placeholder={
+                        asr.finalTranscript
+                          ? ""
+                          : "전사 결과 없음 — 직접 입력하거나 음절 수만 아래에 입력하세요."
+                      }
+                      style={{ ...inputStyle, resize: "vertical", lineHeight: 1.6, fontFamily: "inherit" }}
+                    />
+                    <div
+                      style={{
+                        marginTop: 4,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        fontSize: 12,
+                        color: "var(--text-mute)",
+                      }}
+                    >
+                      <span>Web Speech API (Chrome/Edge) · 한국어 인식</span>
+                      <button
+                        className="btn btn-sm"
+                        onClick={recountFromEdited}
+                      >
+                        전사 → 음절 수 재계산
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>
+                      음절 수 (자동 카운트, 수정 가능)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={syllables}
+                      onChange={(e) => setSyllables(e.target.value)}
+                      placeholder="예: 45"
+                      style={{
+                        ...inputStyle,
+                        padding: "12px 16px",
+                        fontSize: 18,
+                        fontWeight: 700,
+                        fontVariantNumeric: "tabular-nums",
+                      }}
+                    />
+                    <p
+                      style={{
+                        margin: "4px 0 0",
+                        fontSize: 12,
+                        color: "var(--text-mute)",
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      한글 음절 블록·자모·숫자 자릿수·영어 단어(모음군) 합산. ASR
+                      인식 오류 가능 → 검토 후 보정 권장.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label style={labelStyle}>
+                    음절 수 입력 (대상자가 말한 전체 음절 수)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={syllables}
+                    onChange={(e) => setSyllables(e.target.value)}
+                    placeholder="예: 45"
+                    style={{
+                      ...inputStyle,
+                      padding: "12px 16px",
+                      fontSize: 18,
+                      fontWeight: 700,
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  />
+                  <p
+                    style={{
+                      margin: "4px 0 0",
+                      fontSize: 12,
+                      color: "#8A6422",
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    이 브라우저는 음성 인식을 지원하지 않습니다. Chrome/Edge
+                    사용을 권장합니다. 직접 음절 수를 입력하세요.
+                  </p>
+                </div>
+              )}
+
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+                <button
+                  className="btn btn-primary"
+                  onClick={start}
+                  style={{ flex: 1, padding: "12px 24px", fontSize: 14 }}
+                >
+                  다시 녹음
+                </button>
+                <label
+                  className="btn"
+                  style={{
+                    display: "flex",
+                    cursor: "pointer",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  📁 파일 업로드
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    onChange={onFileChange}
+                    style={{ display: "none" }}
+                  />
+                </label>
+                <button className="btn" onClick={reset}>
+                  전체 초기화
+                </button>
+              </div>
             </div>
           )}
         </div>
       </div>
 
-      {result && (
+      {/* Results */}
+      {phase === "done" && result && (
         <div className="card">
-          <div className="card-body" style={{ display: "grid", gap: 18 }}>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 14, flexWrap: "wrap" }}>
-              <div>
-                <div style={{ fontSize: 13, color: "var(--text-mute)" }}>측정 말속도</div>
-                <div style={{ fontSize: 34, fontWeight: 800, color: "var(--primary)", lineHeight: 1.1 }}>
-                  {result.sps}<span style={{ fontSize: 15, fontWeight: 600, color: "var(--text-mute)" }}> 음절/초</span>
+          <div className="card-body" style={{ display: "grid", gap: 16 }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <h3
+                style={{
+                  margin: 0,
+                  fontSize: 16,
+                  fontWeight: 800,
+                  color: "var(--text)",
+                }}
+              >
+                분석 결과
+              </h3>
+              <button className="btn btn-sm" onClick={downloadSrReport}>
+                📄 리포트 다운로드
+              </button>
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+                gap: 12,
+              }}
+            >
+              <ResultBox
+                label="전체 시간"
+                value={`${result.totalDuration.toFixed(2)} 초`}
+              />
+              <ResultBox
+                label="순 발화 시간"
+                value={`${result.speechDuration.toFixed(2)} 초`}
+                sub={`${((result.speechDuration / result.totalDuration) * 100).toFixed(0)}% of total`}
+              />
+              <ResultBox
+                label="쉼 구간 수"
+                value={`${result.pauseCount} 회`}
+                sub={`장쉼(≥250ms) ${result.longPauseCount}회`}
+              />
+              <ResultBox
+                label="평균 쉼 길이"
+                value={`${(result.meanPauseDuration * 1000).toFixed(0)} ms`}
+                sub={`최대 ${(result.maxPauseDuration * 1000).toFixed(0)} ms`}
+              />
+            </div>
+            {validSyllables && (
+              <div
+                style={{
+                  borderRadius: 12,
+                  border: "1px solid var(--border-strong)",
+                  background: "var(--primary-soft)",
+                  padding: 16,
+                }}
+              >
+                <h4
+                  style={{
+                    margin: "0 0 12px",
+                    fontSize: 14,
+                    fontWeight: 700,
+                    color: "var(--primary)",
+                  }}
+                >
+                  음절 수 {syllablesNum}개 기준 말속도
+                </h4>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+                    gap: 12,
+                  }}
+                >
+                  <ResultBox
+                    label="전체 말속도"
+                    value={`${overallSPS.toFixed(2)} SPS`}
+                    sub={`≈ ${overallWPM.toFixed(0)} WPM`}
+                    highlight
+                  />
+                  <ResultBox
+                    label="조음속도"
+                    value={`${articulationSPS.toFixed(2)} SPS`}
+                    sub={"쉼 제외"}
+                  />
+                  <ResultBox
+                    label="속도 비율"
+                    value={`${((overallSPS / articulationSPS) * 100 || 0).toFixed(0)}%`}
+                    sub={"전체/조음"}
+                  />
                 </div>
               </div>
-              <span className="badge" style={{ background: FEEDBACK_STYLE[result.feedback].bg, color: FEEDBACK_STYLE[result.feedback].fg, borderColor: "transparent", fontSize: 13, padding: "5px 12px" }}>
-                {FEEDBACK_STYLE[result.feedback].label}
-              </span>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 12, fontSize: 14 }}>
-              {[
-                ["음절 수", `${result.syllables} 음절`],
-                ["소요 시간", `${result.sec} 초`],
-                ["목표 속도", `${result.targetSps.toFixed(1)} 음절/초`],
-              ].map(([k, v]) => (
-                <div key={k} style={{ padding: "10px 14px", borderRadius: 10, background: "var(--surface-2)" }}>
-                  <div style={{ fontSize: 12, color: "var(--text-mute)" }}>{k}</div>
-                  <div style={{ fontWeight: 700 }}>{v}</div>
-                </div>
-              ))}
-            </div>
-
-            {audioUrl && (
-              <audio controls src={audioUrl} style={{ width: "100%" }} />
             )}
-
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <button className="btn btn-primary" onClick={downloadReport}>결과 보고서 (.txt) 다운로드</button>
-              {audioUrl && (
-                <a className="btn" href={audioUrl} download={`말속도녹음_${name.trim() || "결과"}.webm`}>녹음 파일 다운로드</a>
-              )}
-            </div>
           </div>
         </div>
+      )}
+
+      <details
+        className="card"
+        style={{ padding: 0 }}
+      >
+        <summary
+          style={{
+            cursor: "pointer",
+            padding: "12px 16px",
+            fontSize: 14,
+            fontWeight: 600,
+            color: "var(--text-soft)",
+            listStyle: "revert",
+          }}
+        >
+          참고 범위 + 활용
+        </summary>
+        <div
+          style={{
+            padding: "0 16px 14px",
+            display: "grid",
+            gap: 12,
+            fontSize: 14,
+            color: "var(--text-soft)",
+          }}
+        >
+          <div>
+            <p style={{ margin: 0, fontWeight: 700 }}>성인 일반 참고 범위</p>
+            <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--text-mute)" }}>
+              낭독: 4.5–6.0 SPS / 자유발화: 3.5–5.0 SPS
+            </p>
+          </div>
+          <div>
+            <p style={{ margin: 0, fontWeight: 700 }}>활용</p>
+            <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--text-mute)" }}>
+              말속도가 빠르거나 불규칙할 때 자기 인식·조절 연습에 활용할 수
+              있습니다. 전체속도·조음속도·쉼 분포를 함께 보며 말의 흐름을
+              점검해 보세요.
+            </p>
+          </div>
+          <p
+            style={{
+              margin: "8px 0 0",
+              fontSize: 12,
+              color: "var(--text-mute)",
+              lineHeight: 1.6,
+            }}
+          >
+            본 자료는 학습·연습·시각화 보조용이며, 수치는 추정치입니다. VAD
+            임계 기반으로 쉼을 자동 분할합니다.
+          </p>
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function SpeechWaveform({
+  peaks,
+  rawDuration,
+  result,
+}: {
+  peaks: number[];
+  rawDuration: number;
+  result: SpeechRateResult;
+}) {
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    const canvas = canvasRef.current;
+    if (!wrap || !canvas) return;
+
+    const classify = (t: number): "speech" | "pause" | "none" => {
+      for (const s of result.segments) {
+        if (t >= s.start && t <= s.end) return s.type;
+      }
+      return "none";
+    };
+
+    const draw = () => {
+      const cssW = wrap.clientWidth;
+      const cssH = 72;
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.max(1, Math.floor(cssW * dpr));
+      canvas.height = Math.floor(cssH * dpr);
+      canvas.style.width = `${cssW}px`;
+      canvas.style.height = `${cssH}px`;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.scale(dpr, dpr);
+      ctx.clearRect(0, 0, cssW, cssH);
+      ctx.fillStyle = "#F5EDE0";
+      ctx.fillRect(0, 0, cssW, cssH);
+      const mid = cssH / 2;
+      const n = peaks.length;
+      if (n === 0 || rawDuration <= 0) return;
+      const barW = cssW / n;
+      const colors = { speech: "#5A6E3D", pause: "#C9BC9C", none: "#E4DAC4" };
+      for (let i = 0; i < n; i++) {
+        const t = (i / n) * rawDuration;
+        const h = Math.max(1, peaks[i] * cssH * 0.9);
+        ctx.fillStyle = colors[classify(t)];
+        ctx.fillRect(i * barW, mid - h / 2, Math.max(0.5, barW), h);
+      }
+    };
+
+    draw();
+    const ro = new ResizeObserver(draw);
+    ro.observe(wrap);
+    return () => ro.disconnect();
+  }, [peaks, rawDuration, result]);
+
+  return (
+    <div
+      ref={wrapRef}
+      style={{
+        width: "100%",
+        overflow: "hidden",
+        borderRadius: 8,
+        border: "1px solid var(--border-strong)",
+      }}
+    >
+      <canvas ref={canvasRef} style={{ display: "block" }} />
+    </div>
+  );
+}
+
+function ResultBox({
+  label,
+  value,
+  sub,
+  highlight,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        borderRadius: 12,
+        border: highlight
+          ? "1px solid var(--accent)"
+          : "1px solid var(--border)",
+        background: "var(--surface)",
+        padding: "12px 16px",
+      }}
+    >
+      <p
+        style={{
+          margin: 0,
+          fontSize: 12,
+          fontWeight: 600,
+          textTransform: "uppercase",
+          letterSpacing: "0.03em",
+          color: "var(--text-soft)",
+        }}
+      >
+        {label}
+      </p>
+      <p
+        style={{
+          margin: "4px 0 0",
+          fontSize: 20,
+          fontWeight: 700,
+          fontVariantNumeric: "tabular-nums",
+          color: highlight ? "var(--primary)" : "var(--text)",
+        }}
+      >
+        {value}
+      </p>
+      {sub && (
+        <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--text-mute)" }}>
+          {sub}
+        </p>
       )}
     </div>
   );
