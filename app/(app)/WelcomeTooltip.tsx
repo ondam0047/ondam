@@ -16,37 +16,35 @@ function storageKey(userId: number) {
 
 const TIPS: Record<Role, { emoji: string; title: string; body: React.ReactNode }[]> = {
   OWNER: [
-    { emoji: "🔒", title: "내 사물함",
+    { emoji: "", title: "내 사물함",
       body: <>본인 자료는 본인만 봅니다. 다른 사람에게 절대 노출되지 않아요.</> },
-    { emoji: "⚙️", title: "내 설정",
+    { emoji: "", title: "내 설정",
       body: <>왼쪽 <b>[내 설정]</b> 에서 본인 정보·치료 영역·시간대를 먼저 맞춰주세요.</> },
-    { emoji: "👶", title: "내 아동",
+    { emoji: "", title: "내 아동",
       body: <><b>[내 아동]</b> 에서 본인 담당 아동을 등록하면 매월 일정표·기록지에서 자동 호출돼요.</> },
-    { emoji: "📅", title: "일정표 · 기록지",
+    { emoji: "", title: "일정표 · 기록지",
       body: <>매월 한 번씩 [일정표] · [기록지] 작성 → 한글파일(.hwpx) 다운로드 → 인쇄·제출.</> },
-    { emoji: "📖", title: "도움말",
+    { emoji: "", title: "도움말",
       body: <>왼쪽 맨 아래 <b>[도움말]</b> 에서 자세한 사용 설명서 + PDF 다운로드.</> },
   ],
   ADMIN: [
-    { emoji: "👶", title: "아동 관리",
+    { emoji: "", title: "아동 관리",
       body: <><b>[아동 관리]</b> 에서 등록·수정·담당 치료사 배정을 합니다.</> },
-    { emoji: "📊", title: "치료사 시간표",
+    { emoji: "", title: "치료사 시간표",
       body: <><b>[치료사 시간표]</b> 에서 선생님별 월간 스케줄·출석부를 확인하세요.</> },
-    { emoji: "📥", title: "엑셀 가져오기",
+    { emoji: "", title: "엑셀 가져오기",
       body: <>전자바우처 엑셀을 그대로 올리면 자동으로 아동 명단 추출.</> },
-    { emoji: "📖", title: "도움말",
+    { emoji: "", title: "도움말",
       body: <>왼쪽 맨 아래 <b>[도움말]</b> 에서 행정용 매뉴얼 PDF 다운로드.</> },
   ],
   THERAPIST: [
-    { emoji: "⏰", title: "내 차단 시간",
-      body: <><b>[내 차단 시간]</b> 에 받기 어려운 요일·시간을 미리 등록해두세요.</> },
-    { emoji: "👶", title: "내 아동",
+    { emoji: "", title: "내 아동",
       body: <><b>[내 아동]</b> 에서 본인 담당 아동을 직접 등록·수정할 수 있어요.</> },
-    { emoji: "📅", title: "일정표",
+    { emoji: "", title: "일정표",
       body: <>'전월 일정 복사' 버튼으로 지난달 패턴을 그대로 가져와 빠르게 만들기.</> },
-    { emoji: "📝", title: "기록지",
+    { emoji: "", title: "기록지",
       body: <>전자바우처 엑셀 업로드 → 자동 회기 추출 → '전월 기록 가져오기' 로 빠른 작성.</> },
-    { emoji: "📖", title: "도움말",
+    { emoji: "", title: "도움말",
       body: <>왼쪽 맨 아래 <b>[도움말]</b> 에서 치료사용 매뉴얼 PDF 다운로드.</> },
   ],
 };
@@ -68,6 +66,15 @@ export default function WelcomeTooltip({ role, userId }: { role: Role; userId: n
     setOpen(false);
   }
 
+  // Esc 로도 닫기 (어떤 오버레이가 위에 있어도 키보드로 빠져나오게)
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
   if (!open) return null;
 
   const tips = TIPS[role] ?? TIPS.THERAPIST;
@@ -80,7 +87,8 @@ export default function WelcomeTooltip({ role, userId }: { role: Role; userId: n
         position: "fixed",
         inset: 0,
         background: "rgba(0,0,0,0.45)",
-        zIndex: 50,
+        zIndex: 100001, // driver.js 오버레이(10000대)보다 항상 위 — 환영 모달이 가려져 클릭 막힘 방지
+
         display: "grid",
         placeItems: "center",
         padding: 16,
@@ -103,7 +111,7 @@ export default function WelcomeTooltip({ role, userId }: { role: Role; userId: n
         }}>
           <div style={{ fontSize: 13, color: "var(--text-mute)", fontWeight: 600 }}>처음 사용하세요?</div>
           <h2 style={{ margin: "4px 0 0", fontSize: 22, fontWeight: 800 }}>
-            {roleLabel}, 환영합니다 👋
+            {roleLabel}, 환영합니다
           </h2>
           <div style={{ marginTop: 6, fontSize: 13.5, color: "var(--text-soft)" }}>
             바로일지 사용 전 알아두면 좋은 5가지.

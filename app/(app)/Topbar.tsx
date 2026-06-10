@@ -8,13 +8,10 @@ const META: Record<string, { title: string; crumb: string }> = {
   "/schedule":   { title: "일정표",      crumb: "아동 선택 → 회기 패턴 → 일정표 생성 → 한글파일 출력" },
   "/record":     { title: "기록지",      crumb: "엑셀 업로드 → 아동별 회기 확인 → 상태/결과 기록 → 한글파일 출력" },
   "/children":   { title: "내 아동",     crumb: "아동 등록 → 기본값 설정 → 일정표에서 한 번에 불러오기" },
-  "/therapists": { title: "치료사 관리", crumb: "치료사 등록 → 아동 배정" },
-  "/users":      { title: "사용자 관리", crumb: "치료사·행정 계정 발급 · 권한 관리" },
-  "/import":     { title: "엑셀 가져오기", crumb: "기존 엑셀 → 아동·서비스 일괄 등록" },
+  "/import":     { title: "엑셀 가져오기", crumb: "쓰던 엑셀 → 내 아동으로 일괄 등록" },
   "/center":     { title: "내 설정",     crumb: "내 정보·치료 영역·시간대 관리" },
   "/timetable":  { title: "내 시간표",   crumb: "요일·시간 회기 현황 + 출석부 엑셀" },
-  "/availability": { title: "내 차단 시간", crumb: "받기 어려운 시간을 막아 일정표 작성에 반영" },
-  "/guide":      { title: "도움말",     crumb: "역할별 사용 설명서" },
+  "/guide":      { title: "도움말",     crumb: "사용 설명서" },
 };
 
 export default function Topbar() {

@@ -35,6 +35,12 @@ async function signupSolo(formData: FormData) {
   if (!THERAPIST_TYPES.includes(therapistType as typeof THERAPIST_TYPES[number])) {
     redirect("/signup?err=" + encodeURIComponent("치료사 종류가 잘못됐어요"));
   }
+  if (formData.get("agree") !== "on") {
+    redirect("/signup?err=" + encodeURIComponent("이용약관·개인정보 처리방침에 동의해주세요"));
+  }
+  if (formData.get("agreeData") !== "on") {
+    redirect("/signup?err=" + encodeURIComponent("아동 개인정보 처리 책임·위탁 동의가 필요해요"));
+  }
 
   // 베타 코드 검증
   const betaCode = getBetaCode();
@@ -96,6 +102,7 @@ export default async function SignupPage({
       <div style={{ padding: "28px 26px 8px", textAlign: "center" }}>
         <div style={{ display: "flex", justifyContent: "center" }}><BrandMark size={56} /></div>
         <h2 style={{ marginTop: 12, fontSize: 18 }}>바로일지 시작하기</h2>
+        <div className="sub-mute" style={{ marginTop: 6, fontWeight: 600 }}>치료사의 1인 사물함, 바로일지</div>
         <div className="sub-mute" style={{ marginTop: 4 }}>
           본인 명의로 가입하면 본인만 보는 사물함이 열려요.
         </div>
@@ -106,7 +113,7 @@ export default async function SignupPage({
 
         {betaLocked && (
           <div className="tip" style={{ marginBottom: 14 }}>
-            🔒 <b>베타 테스트 중</b>입니다. 운영자가 알려드린 <b>초대코드</b>가 필요해요.
+            <b>베타 테스트 중</b>입니다. 운영자가 알려드린 <b>초대코드</b>가 필요해요.
           </div>
         )}
 
@@ -157,11 +164,28 @@ export default async function SignupPage({
             <label>비밀번호 <span className="sub-mute">(6자 이상)</span></label>
             <input className="input" name="password" type="password" required minLength={6} />
           </div>
+          <label className="modal-check" style={{ marginBottom: 10, fontSize: 12.5, alignItems: "flex-start", lineHeight: 1.5 }}>
+            <input type="checkbox" name="agree" required style={{ marginTop: 2 }} />
+            <span>
+              (필수){" "}
+              <Link href="/terms" target="_blank" style={{ color: "var(--primary)", fontWeight: 600 }}>이용약관</Link>
+              {" 및 "}
+              <Link href="/privacy" target="_blank" style={{ color: "var(--primary)", fontWeight: 600 }}>개인정보 처리방침</Link>
+              에 동의합니다.
+            </span>
+          </label>
+          <label className="modal-check" style={{ marginBottom: 14, fontSize: 12.5, alignItems: "flex-start", lineHeight: 1.5 }}>
+            <input type="checkbox" name="agreeData" required style={{ marginTop: 2 }} />
+            <span>
+              (필수) 본인은 담당 아동·보호자로부터 <b>서비스 제공에 필요한 개인정보 수집·이용 동의를 적법하게 받았으며</b>,
+              바로일지를 <b>개인정보 처리위탁 도구</b>로 이용하는 데 동의합니다. (아동 정보의 개인정보처리자는 본인이며, 바로일지는 수탁자입니다.)
+            </span>
+          </label>
           <button className="btn btn-primary" type="submit" style={{ width: "100%", justifyContent: "center" }}>
             가입하고 바로 시작
           </button>
           <div className="tip" style={{ marginTop: 14 }}>
-            💡 가입 즉시 본인만 보는 사물함이 열립니다. 다른 사람은 절대 못 봐요.
+            가입 즉시 본인만 보는 사물함이 열립니다. 다른 사람은 절대 못 봐요.
           </div>
         </form>
 

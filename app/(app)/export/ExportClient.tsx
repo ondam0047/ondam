@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 type Item = { childServiceId: number; name: string; serviceType: string };
 type MonthGroup = { ym: string; year: number; month: number; items: Item[] };
@@ -22,6 +23,8 @@ export default function ExportClient({
   // 선택된 childServiceId 집합. 월/종류 바뀌면 초기화 위해 key 로 관리.
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [downloading, setDownloading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const router = useRouter();
 
   // 종류 전환 시 그 종류의 첫 달로 리셋
   function switchKind(k: Kind) {
@@ -76,11 +79,31 @@ export default function ExportClient({
     }
   }
 
+  async function del() {
+    if (!group || selected.size === 0) return;
+    const label = kind === "schedule" ? "일정표" : "기록지";
+    if (!window.confirm(`선택한 ${selected.size}명의 ${group.year}년 ${group.month}월 ${label}를 삭제할까요?\n저장된 내용이 사라지며 되돌릴 수 없어요.`)) return;
+    setDeleting(true);
+    try {
+      const res = await fetch("/api/export/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind, ids: [...selected], year: group.year, month: group.month }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { alert("삭제 실패: " + (j.error ?? res.status)); return; }
+      setSelected(new Set());
+      router.refresh();
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <>
       <div className="section-head">
         <div>
-          <h2>한꺼번에 다운로드</h2>
+          <h2>일괄 다운로드</h2>
           <p>월과 아동을 골라 저장된 일정표·기록지를 한 번에 받습니다.</p>
         </div>
       </div>
@@ -95,12 +118,12 @@ export default function ExportClient({
                 type="button"
                 className={"btn " + (kind === "schedule" ? "btn-primary" : "btn-ghost")}
                 onClick={() => switchKind("schedule")}
-              >📅 일정표</button>
+              >일정표</button>
               <button
                 type="button"
                 className={"btn " + (kind === "record" ? "btn-primary" : "btn-ghost")}
                 onClick={() => switchKind("record")}
-              >📝 기록지</button>
+              >기록지</button>
             </div>
           </div>
 
@@ -162,20 +185,30 @@ export default function ExportClient({
 
               <div className="divider" />
 
-              <button
-                className="btn btn-primary"
-                onClick={download}
-                disabled={downloading || selected.size === 0}
-              >
-                {downloading
-                  ? "생성 중..."
-                  : `📦 선택한 ${selected.size}명 ${kind === "schedule" ? "일정표" : "기록지"} 다운로드`}
-              </button>
-              {selected.size === 0 && (
-                <span className="sub-mute" style={{ marginLeft: 10, fontSize: 12.5 }}>
-                  받을 아동을 한 명 이상 선택하세요.
-                </span>
-              )}
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <button
+                  className="btn btn-primary"
+                  onClick={download}
+                  disabled={downloading || deleting || selected.size === 0}
+                >
+                  {downloading
+                    ? "생성 중..."
+                    : `선택한 ${selected.size}명 ${kind === "schedule" ? "일정표" : "기록지"} 다운로드`}
+                </button>
+                <button
+                  className="btn"
+                  style={{ color: "var(--danger)", background: "#fff", border: "1.5px solid var(--danger)", fontWeight: 700 }}
+                  onClick={del}
+                  disabled={downloading || deleting || selected.size === 0}
+                >
+                  {deleting ? "삭제 중..." : `선택 ${selected.size}명 삭제`}
+                </button>
+                {selected.size === 0 && (
+                  <span className="sub-mute" style={{ fontSize: 12.5 }}>
+                    아동을 한 명 이상 선택하세요.
+                  </span>
+                )}
+              </div>
             </>
           )}
         </div>

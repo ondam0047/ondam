@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  WEEK, holiday, pad,
+  WEEK, holiday, pad, parseDaySlots,
 } from "@/lib/constants";
 
 type Session = { time: string; makeup: boolean };
@@ -20,6 +20,8 @@ type ChildOption = {
   mgmtNumber: string | null;
   defaultSlot: string | null;
   defaultDays: string | null;
+  daySlots: string | null;       // 요일별 시간대 오버라이드 ("1=09:00~09:50,...")
+  org: string | null;            // 서비스 제공자명(제공기관명) — 아동별 저장값
   defaultUnit: number;
   defaultTarget: number;
   monthlyCopay: number | null;
@@ -87,8 +89,9 @@ export default function ScheduleClient({
   const [serviceType, setServiceType] = useState<string>(serviceTypes[0] ?? "언어재활");
   const [ym, setYm] = useState(defaultYm);
   const [target, setTarget] = useState(5);
-  const [defaultSlot, setDefaultSlot] = useState(""); // 미선택
-  const [pattern, setPattern] = useState<number[]>([]); // 미선택
+  const [defaultSlot, setDefaultSlot] = useState(""); // 미선택 — 요일별 기본 시간대
+  const [pattern, setPattern] = useState<number[]>([]); // 미선택 — 반복 요일
+  const [slotByDow, setSlotByDow] = useState<Record<number, string>>({}); // 요일별 시간대 오버라이드 (없으면 defaultSlot)
   const [childBirth, setChildBirth] = useState<string>("");
 
   // generated
@@ -179,6 +182,13 @@ export default function ScheduleClient({
         if (typeof d.target === "number") setTarget(d.target);
         if (typeof d.defaultSlot === "string") setDefaultSlot(d.defaultSlot);
         if (Array.isArray(d.pattern)) setPattern(d.pattern.filter((n: unknown) => typeof n === "number"));
+        if (d.slotByDow && typeof d.slotByDow === "object") {
+          const clean: Record<number, string> = {};
+          for (const [k, v] of Object.entries(d.slotByDow as Record<string, unknown>)) {
+            if (typeof v === "string" && v) clean[Number(k)] = v;
+          }
+          setSlotByDow(clean);
+        }
         if (typeof d.childBirth === "string") setChildBirth(d.childBirth);
         if (typeof d.mgmt === "string") setMgmt(d.mgmt);
         // pvOrg(제공기관명), pvCharge(담당), pvType(서비스 종류) 도 설정에서 옴 — 복원 안 함.
@@ -214,7 +224,7 @@ export default function ScheduleClient({
       const draft = {
         csId: typeof selectedChildId === "number" ? selectedChildId : null,
         ym,
-        name, therapist, serviceType, target, defaultSlot, pattern, childBirth,
+        name, therapist, serviceType, target, defaultSlot, pattern, slotByDow, childBirth,
         mgmt, pvOrg, pvTel, pvCharge, pvType, costUnit, costSelf, writeDate,
         sessions, genY, genM,
         loadedScheduleId,
@@ -227,7 +237,7 @@ export default function ScheduleClient({
     } catch {}
   }, [
     hydrated, selectedChildId, ym,
-    name, therapist, serviceType, target, defaultSlot, pattern, childBirth,
+    name, therapist, serviceType, target, defaultSlot, pattern, slotByDow, childBirth,
     mgmt, pvOrg, pvTel, pvCharge, pvType, costUnit, costSelf, writeDate,
     sessions, genY, genM, loadedScheduleId,
   ]);
@@ -285,7 +295,11 @@ export default function ScheduleClient({
     if (c.therapistName) setTherapist(c.therapistName);
     if (c.serviceType) setServiceType(c.serviceType);
     setMgmt(c.mgmtNumber ?? "");
+    // 서비스 제공자명(제공기관명): 아동별 저장값이 있으면 그걸로(없으면 내 설정 기본값 유지)
+    if (c.org) setPvOrg(c.org);
     if (c.defaultSlot) setDefaultSlot(c.defaultSlot);
+    // 아동에 저장된 요일별 시간대 오버라이드를 그대로 불러옴 (없으면 기본 시간대)
+    setSlotByDow(parseDaySlots(c.daySlots));
     if (c.defaultDays) {
       const ds = c.defaultDays.split(",").filter(Boolean).map(Number);
       if (ds.length) setPattern(ds);
@@ -457,10 +471,13 @@ export default function ScheduleClient({
     const [y, m] = ym.split("-").map(Number);
     const dim = new Date(y, m, 0).getDate();
     const next: SessionMap = {};
+    let count = 0;
     for (let d = 1; d <= dim; d++) {
       const wd = new Date(y, m - 1, d).getDay();
       if (pattern.includes(wd) && !holiday(y, m, d)) {
-        next[d] = { time: defaultSlot, makeup: false };
+        if (target > 0 && count >= target) break; // 목표 회기 수만큼만 생성
+        next[d] = { time: slotByDow[wd] || defaultSlot, makeup: false };
+        count++;
       }
     }
     setSessions(next);
@@ -472,6 +489,33 @@ export default function ScheduleClient({
     requestAnimationFrame(() => {
       document.getElementById("schedCard")?.scrollIntoView({ behavior: "smooth" });
     });
+  }
+
+  function resetAll() {
+    if (!window.confirm("정말 초기화할까요? 입력한 내용이 사라져요.")) return;
+    try {
+      localStorage.removeItem(LS_DRAFT);
+      localStorage.removeItem(LS_SCROLL);
+    } catch {}
+    setSessions(null);
+    setSelectedChildId("");
+    setName("");
+    setServiceType(serviceTypes[0] ?? "언어재활");
+    setYm(defaultYm);
+    setTarget(5);
+    setDefaultSlot("");
+    setPattern([]);
+    setSlotByDow({});
+    setChildBirth("");
+    setGenY(0);
+    setGenM(0);
+    setMgmt("");
+    setCostUnit(centerDefaultUnit.toLocaleString("ko-KR"));
+    setCostSelf("0");
+    setWriteDate("");
+    setSavedMsg("");
+    setLoadedScheduleId(null);
+    window.scrollTo(0, 0);
   }
 
   function openEditor(d: number) {
@@ -588,6 +632,9 @@ export default function ScheduleClient({
           <span className="step">1</span>
           <h2>아동 정보 & 패턴 설정</h2>
           <span className="hint">아동을 미리 등록해두면 매월 한 번에 불러올 수 있어요</span>
+          <button type="button" className="btn btn-sm" onClick={resetAll} style={{ marginLeft: "auto", border: "1px solid var(--border)", background: "#fff", fontWeight: 600 }}>
+            초기화
+          </button>
         </div>
         <div className="card-body">
           {childrenOpts.length > 0 && (() => {
@@ -656,7 +703,7 @@ export default function ScheduleClient({
           })()}
           {childrenOpts.length === 0 && (
             <div className="tip" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-              <span>💡 아직 등록된 아동이 없어요. 여기서 바로 등록할 수 있어요.</span>
+              <span>아직 등록된 아동이 없어요. 여기서 바로 등록할 수 있어요.</span>
               <button
                 type="button"
                 className="btn btn-primary btn-sm"
@@ -688,7 +735,7 @@ export default function ScheduleClient({
                   onClick={copyPrevMonth}
                   title="가장 최근 일정의 요일·시간 패턴을 새 월에 자동 적용"
                 >
-                  📋 전월 일정 복사
+                  전월 일정 복사
                 </button>
                 {loadedScheduleId !== null && (
                   <button
@@ -708,7 +755,19 @@ export default function ScheduleClient({
           <div className="form-grid">
             <div className="field">
               <label>대상자 성명<span className="req">*</span></label>
-              <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
+              <input
+                className="input"
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  // 불러온 아동 이름을 직접 고치면 '직접 입력' 으로 전환
+                  if (selectedChildId !== "") {
+                    setSelectedChildId("");
+                    setLoadedScheduleId(null);
+                    setSavedList([]);
+                  }
+                }}
+              />
             </div>
             <div className="field">
               <label>치료사(제공자)<span className="req">*</span></label>
@@ -752,7 +811,7 @@ export default function ScheduleClient({
 
           <div className="field-row cols-3" style={{ alignItems: "end" }}>
             <div className="field">
-              <label>치료 시간대<span className="req">*</span></label>
+              <label>기본 시간대<span className="req">*</span></label>
               <select className="select" value={defaultSlot} onChange={(e) => setDefaultSlot(e.target.value)}>
                 <option value="">(선택)</option>
                 {slots.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -774,6 +833,31 @@ export default function ScheduleClient({
               </div>
             </div>
           </div>
+
+          {pattern.length > 0 && defaultSlot && (
+            <div className="field" style={{ marginTop: 14 }}>
+              <label>
+                요일별 시간 <span className="sub-mute">(요일마다 다르면 변경 — 비워두면 기본 시간대 적용)</span>
+              </label>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                {[...pattern].sort().map((dow) => (
+                  <div key={dow} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontWeight: 700, minWidth: 24, textAlign: "center" }}>{WEEK[dow]}</span>
+                    <select
+                      className="select"
+                      style={{ width: "auto", minWidth: 130 }}
+                      value={slotByDow[dow] || defaultSlot}
+                      onChange={(e) =>
+                        setSlotByDow((prev) => ({ ...prev, [dow]: e.target.value }))
+                      }
+                    >
+                      {slots.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div style={{ marginTop: 20, display: "flex", gap: 10, alignItems: "center" }}>
             <button
@@ -805,6 +889,15 @@ export default function ScheduleClient({
                 ? `목표 ${target}회 · ${totalCount}회 ✓`
                 : `목표 ${target}회 · ${totalCount}회 (${totalCount < target ? "부족" : "초과"} ${Math.abs(target - totalCount)})`}
             </span>
+            {typeof selectedChildId === "number" && (
+              <Link
+                href={`/record?cs=${selectedChildId}&ym=${genY}-${genM}`}
+                className="btn btn-ghost btn-sm"
+                style={{ marginLeft: 8 }}
+              >
+                이 회기로 기록지 작성 →
+              </Link>
+            )}
           </div>
           <div className="card-body">
 
@@ -881,7 +974,7 @@ export default function ScheduleClient({
                   {saving ? "저장 중..." : (loadedScheduleId ? "이 일정표 덮어쓰기 저장" : "이 일정표 저장")}
                 </button>
               ) : (
-                <span className="sub-mute">💾 저장하려면 위에서 "저장된 아동 불러오기"로 선택해주세요.</span>
+                <span className="sub-mute">저장하려면 위에서 "저장된 아동 불러오기"로 선택해주세요.</span>
               )}
               <span style={{ flex: 1 }} />
               <button className="btn btn-primary" onClick={downloadHwpx} disabled={downloadingHwpx}>

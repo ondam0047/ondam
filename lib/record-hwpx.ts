@@ -10,6 +10,8 @@ import {
   xmlEscape,
   type ZipEntry,
 } from "@/lib/hwpx";
+import { fillCells, type CellEdit, type Coord } from "@/lib/record-fill";
+import type { RecordFormKey } from "@/lib/record-forms";
 
 const MAX_SESSIONS = 5;
 
@@ -34,6 +36,8 @@ export type RecordPayload = {
   month: number;
   sessions: RecordSessionDetail[];
   opinion?: string;
+  // 치료 종류(예: "언어재활"). 서비스 종류별 블록이 있는 양식(대구/파주)에서 사용.
+  serviceType?: string;
 };
 
 export const RECORD_TEMPLATE_PATH = path.join(process.cwd(), "samples", "기록지_template.hwpx");
@@ -197,26 +201,330 @@ function substituteRecordXml(xml: string, p: RecordPayload): string {
   return out;
 }
 
-export async function readRecordTemplate(): Promise<Buffer> {
-  return readFile(RECORD_TEMPLATE_PATH);
+// ─── 지역 양식(좌표 기반) ──────────────────────────────────────────────
+// 빈 원본 양식을 셀 좌표로 채운다. 회기 칸은 표준형과 동일하게 5칸 고정
+// (6회기부터 분할). 양식마다 결과표 칸 구성이 달라 result 매핑이 다르다.
+
+export type CoordSpec = {
+  org?: Coord;
+  name?: Coord;
+  birth?: Coord;
+  serviceArea?: Coord; // 동탄: 제공영역 (현재 입력 데이터 없음 → 비움)
+  date: Coord[];
+  start: Coord[];
+  end: Coord[];
+  voucher: Coord[];
+  extra: Coord[];
+  amount: Coord[];
+  // 금액을 바우처/자부담으로 나누는 양식(원주형)용. 총금액을 분(分) 비율로 분배.
+  voucherAmount?: Coord[];
+  copayAmount?: Coord[];
+  result: Array<{
+    date?: Coord;
+    time?: Coord;
+    apprDate?: Coord;
+    apprNum?: Coord;
+    status?: Coord; // 동탄: 이용자 상태 (현재 입력 데이터 없음 → 비움)
+    result?: Coord;
+  }>;
+  note?: Coord; // 비고 ← 종합의견(opinion)
+  // 서비스 종류별로 시작/종료 시간을 다른 블록에 넣는 양식(대구/파주)용.
+  // serviceType 에 keyword 가 포함되면 그 블록, 없으면 serviceBlockDefault 사용.
+  serviceBlocks?: Array<{ keyword: string; start: Coord[]; end: Coord[] }>;
+  serviceBlockDefault?: { start: Coord[]; end: Coord[] };
+  // 별지(2페이지) 상세 결과표 — 회기별 (서비스일자·승인일자·승인번호·결과 narrative).
+  detail?: Array<{
+    date?: Coord;
+    apprDate?: Coord;
+    apprNum?: Coord;
+    result?: Coord;
+  }>;
+};
+
+const COL5 = [4, 5, 6, 7, 8];
+const ROW5 = [1, 2, 3, 4, 5];
+
+// 발달재활(놀이재활)형: 결과표 승인일자 칸이 날짜·시각 2단락으로 쌓여 있음.
+const PLAY_SPEC: CoordSpec = {
+  org: [0, 0, 2],
+  name: [0, 1, 2],
+  birth: [0, 2, 2],
+  date: COL5.map((c) => [1, 0, c] as Coord),
+  start: COL5.map((c) => [1, 2, c] as Coord),
+  end: COL5.map((c) => [1, 3, c] as Coord),
+  voucher: COL5.map((c) => [1, 5, c] as Coord),
+  extra: COL5.map((c) => [1, 6, c] as Coord),
+  amount: COL5.map((c) => [1, 7, c] as Coord),
+  result: ROW5.map((r) => ({
+    date: [2, r, 0, 0] as Coord, // 승인일자 칸 1단락: 날짜
+    time: [2, r, 0, 1] as Coord, // 승인일자 칸 2단락: 시각
+    apprNum: [2, r, 1] as Coord,
+    result: [2, r, 2] as Coord,
+  })),
+  note: [2, 6, 1],
+};
+
+// 동탄형: 회기 칸 9개지만 5칸만 사용. 결과표 5열(서비스일자·승인일자·승인번호·상태·결과).
+const DONGTAN_SPEC: CoordSpec = {
+  org: [0, 0, 2],
+  serviceArea: [0, 1, 2],
+  name: [0, 2, 2],
+  birth: [0, 3, 2],
+  date: COL5.map((c) => [1, 0, c] as Coord),
+  start: COL5.map((c) => [1, 2, c] as Coord),
+  end: COL5.map((c) => [1, 3, c] as Coord),
+  voucher: COL5.map((c) => [1, 5, c] as Coord),
+  extra: COL5.map((c) => [1, 6, c] as Coord),
+  amount: COL5.map((c) => [1, 7, c] as Coord),
+  result: ROW5.map((r) => ({
+    date: [2, r, 0] as Coord, // 서비스 제공 일자
+    apprDate: [2, r, 1] as Coord, // 승인일자
+    apprNum: [2, r, 2] as Coord,
+    status: [2, r, 3] as Coord, // 이용자의 상태
+    result: [2, r, 4] as Coord, // 서비스 결과
+  })),
+};
+
+// 남양주형: 회기 칸 6개지만 5칸만 사용. 결과표 4열(승인일자·시간·승인번호·기타사항).
+// '서비스 결과' 전용 칸이 없어 결과 narrative 는 기타사항 칸에 넣는다.
+const NAMYANGJU_SPEC: CoordSpec = {
+  org: [0, 0, 2],
+  serviceArea: [0, 1, 2],
+  name: [0, 2, 2],
+  birth: [0, 3, 2],
+  date: COL5.map((c) => [1, 0, c] as Coord),
+  start: COL5.map((c) => [1, 2, c] as Coord),
+  end: COL5.map((c) => [1, 3, c] as Coord),
+  voucher: COL5.map((c) => [1, 5, c] as Coord),
+  extra: COL5.map((c) => [1, 6, c] as Coord),
+  amount: COL5.map((c) => [1, 7, c] as Coord),
+  result: ROW5.map((r) => ({
+    apprDate: [2, r, 0] as Coord, // 승인일자
+    time: [2, r, 1] as Coord, // 시간
+    apprNum: [2, r, 2] as Coord,
+    result: [2, r, 3] as Coord, // 기타사항(수업일자변경 등) ← 결과 narrative
+  })),
+};
+
+// 순천형: 회기 5칸. 결과표(표2)는 동탄형과 동일 5열. 별지 상세표(표3)는 현재 비워둠.
+const SUNCHEON_SPEC: CoordSpec = {
+  org: [0, 0, 2],
+  serviceArea: [0, 1, 2],
+  name: [0, 2, 2],
+  birth: [0, 3, 2],
+  date: COL5.map((c) => [1, 0, c] as Coord),
+  start: COL5.map((c) => [1, 2, c] as Coord),
+  end: COL5.map((c) => [1, 3, c] as Coord),
+  voucher: COL5.map((c) => [1, 5, c] as Coord),
+  extra: COL5.map((c) => [1, 6, c] as Coord),
+  amount: COL5.map((c) => [1, 7, c] as Coord),
+  // 앞 페이지(표2): 날짜·승인일자·승인번호만. 결과 narrative 는 별지(표3)에 넣는다.
+  result: ROW5.map((r) => ({
+    date: [2, r, 0] as Coord, // 서비스 제공 일자
+    apprDate: [2, r, 1] as Coord, // 승인일자
+    apprNum: [2, r, 2] as Coord,
+  })),
+  // 별지(표3): 회기 블록 3행(서비스일자/승인일자/승인번호) + 큰 결과칸(c2).
+  detail: ROW5.map((_, i) => ({
+    date: [3, 1 + i * 3, 1] as Coord,
+    apprDate: [3, 2 + i * 3, 1] as Coord,
+    apprNum: [3, 3 + i * 3, 1] as Coord,
+    result: [3, 1 + i * 3, 2] as Coord,
+  })),
+};
+
+// 원주형: 회기 5칸(+누계 열은 안 채움). 헤더 값이 c3 열. 금액은 바우처·자부담·총금액
+// 3행으로 나뉘는데 우리 데이터는 총액만 있어 '총 금액'(r9) 에 넣는다.
+const WONJU_SPEC: CoordSpec = {
+  org: [0, 0, 3],
+  serviceArea: [0, 1, 3],
+  name: [0, 2, 3],
+  birth: [0, 3, 3],
+  date: COL5.map((c) => [1, 0, c] as Coord),
+  start: COL5.map((c) => [1, 2, c] as Coord),
+  end: COL5.map((c) => [1, 3, c] as Coord),
+  voucher: COL5.map((c) => [1, 5, c] as Coord),
+  extra: COL5.map((c) => [1, 6, c] as Coord),
+  amount: COL5.map((c) => [1, 9, c] as Coord), // 총 금액 행
+  voucherAmount: COL5.map((c) => [1, 7, c] as Coord), // 3.총이용금액 > 바우처 행
+  copayAmount: COL5.map((c) => [1, 8, c] as Coord), // 3.총이용금액 > 자부담 행
+  result: ROW5.map((r) => ({
+    date: [3, r, 0] as Coord, // 제공일자
+    apprDate: [3, r, 1] as Coord, // 승인일자
+    apprNum: [3, r, 2] as Coord,
+    status: [3, r, 3] as Coord, // 이용자의 상태
+    result: [3, r, 4] as Coord, // 서비스 결과
+  })),
+};
+
+// 대구·파주형: 한 양식에 서비스 종류 4블록(언어·미술·음악·기타재활). 치료 종류에 맞는
+// 블록 시작/종료 행에만 시간을 넣는다. 회기 5칸. 결과표는 상태·결과 한 칸.
+const DAEGU_SPEC: CoordSpec = {
+  org: [0, 0, 2],
+  name: [0, 1, 2],
+  birth: [0, 2, 2],
+  date: COL5.map((c) => [1, 0, c] as Coord),
+  start: COL5.map((c) => [1, 2, c] as Coord), // 기본(언어재활) 블록
+  end: COL5.map((c) => [1, 3, c] as Coord),
+  serviceBlocks: [
+    { keyword: "언어", start: COL5.map((c) => [1, 2, c] as Coord), end: COL5.map((c) => [1, 3, c] as Coord) },
+    { keyword: "미술", start: COL5.map((c) => [1, 5, c] as Coord), end: COL5.map((c) => [1, 6, c] as Coord) },
+    { keyword: "음악", start: COL5.map((c) => [1, 8, c] as Coord), end: COL5.map((c) => [1, 9, c] as Coord) },
+  ],
+  serviceBlockDefault: {
+    start: COL5.map((c) => [1, 11, c] as Coord), // 기타재활 블록
+    end: COL5.map((c) => [1, 12, c] as Coord),
+  },
+  voucher: COL5.map((c) => [1, 14, c] as Coord),
+  extra: COL5.map((c) => [1, 15, c] as Coord),
+  amount: COL5.map((c) => [1, 16, c] as Coord),
+  result: ROW5.map((r) => ({
+    date: [2, r, 0] as Coord, // 서비스일자
+    apprDate: [2, r, 1] as Coord, // 승인일자
+    apprNum: [2, r, 2] as Coord,
+    result: [2, r, 3] as Coord, // 이용자의 상태 및 서비스 결과
+  })),
+};
+
+export const COORD_SPECS: Record<Exclude<RecordFormKey, "standard">, CoordSpec> = {
+  play: PLAY_SPEC,
+  dongtan: DONGTAN_SPEC,
+  namyangju: NAMYANGJU_SPEC,
+  suncheon: SUNCHEON_SPEC,
+  wonju: WONJU_SPEC,
+  daegu: DAEGU_SPEC,
+};
+
+const TEMPLATE_FILES: Record<RecordFormKey, string> = {
+  standard: "기록지_template.hwpx",
+  play: "기록지_template_play.hwpx",
+  dongtan: "기록지_template_dongtan.hwpx",
+  namyangju: "기록지_template_namyangju.hwpx",
+  suncheon: "기록지_template_suncheon.hwpx",
+  wonju: "기록지_template_wonju.hwpx",
+  daegu: "기록지_template_daegu.hwpx",
+};
+
+function push(edits: CellEdit[], c: Coord | undefined, value: string) {
+  if (!c) return;
+  edits.push({ table: c[0], row: c[1], col: c[2], p: c[3], value });
+}
+
+// 총금액을 바우처분:추가구매분 비율로 나눔. 합은 항상 총액과 일치(반올림 차이는 자부담에 흡수).
+function splitAmount(
+  amount: string,
+  voucherMin: string,
+  extraMin: string
+): { voucher: string; copay: string } {
+  const total = Number(String(amount).replace(/[^\d.-]/g, ""));
+  if (!Number.isFinite(total) || total === 0) return { voucher: "", copay: "" };
+  const v = Number(String(voucherMin).replace(/[^\d.]/g, "")) || 0;
+  const e = Number(String(extraMin).replace(/[^\d.]/g, "")) || 0;
+  const denom = v + e;
+  const fmt = (n: number) => n.toLocaleString("ko-KR");
+  if (denom <= 0) return { voucher: fmt(total), copay: "" };
+  const voucherWon = Math.round((total * v) / denom);
+  return { voucher: fmt(voucherWon), copay: fmt(total - voucherWon) };
+}
+
+function buildCoordEdits(spec: CoordSpec, p: RecordPayload): CellEdit[] {
+  const sessions = p.sessions.slice(0, MAX_SESSIONS);
+  const edits: CellEdit[] = [];
+  push(edits, spec.org, p.org);
+  push(edits, spec.name, p.childName);
+  push(edits, spec.birth, p.childBirth);
+  push(edits, spec.serviceArea, "");
+
+  // 서비스 종류별 블록이 있으면 치료 종류에 맞는 시작/종료 칸을 고른다.
+  let startCoords = spec.start;
+  let endCoords = spec.end;
+  if (spec.serviceBlocks?.length) {
+    const st = p.serviceType ?? "";
+    const blk = spec.serviceBlocks.find((b) => st.includes(b.keyword)) ?? spec.serviceBlockDefault;
+    if (blk) {
+      startCoords = blk.start;
+      endCoords = blk.end;
+    }
+  }
+
+  for (let i = 0; i < MAX_SESSIONS; i++) {
+    const s = sessions[i];
+    push(edits, spec.date[i], s?.date ?? "");
+    push(edits, startCoords[i], s?.startTime ?? "");
+    push(edits, endCoords[i], s?.endTime ?? "");
+    push(edits, spec.voucher[i], s?.voucher ?? "");
+    push(edits, spec.extra[i], s?.extra ?? "");
+    push(edits, spec.amount[i], s?.amount ?? "");
+    if (spec.voucherAmount || spec.copayAmount) {
+      const split = s
+        ? splitAmount(s.amount, s.voucher, s.extra)
+        : { voucher: "", copay: "" };
+      push(edits, spec.voucherAmount?.[i], split.voucher);
+      push(edits, spec.copayAmount?.[i], split.copay);
+    }
+    const r = spec.result[i];
+    if (r) {
+      push(edits, r.date, s?.date ?? "");
+      push(edits, r.time, s?.endTime ?? "");
+      push(edits, r.apprDate, s ? s.payDay || s.date || "" : "");
+      push(edits, r.apprNum, s?.apprNumber ?? "");
+      push(edits, r.status, "");
+      push(edits, r.result, s?.result ?? "");
+    }
+  }
+  if (spec.detail) {
+    for (let i = 0; i < MAX_SESSIONS; i++) {
+      const s = sessions[i];
+      const d = spec.detail[i];
+      if (!d) continue;
+      push(edits, d.date, s?.date ?? "");
+      push(edits, d.apprDate, s ? s.payDay || s.date || "" : "");
+      push(edits, d.apprNum, s?.apprNumber ?? "");
+      push(edits, d.result, s?.result ?? "");
+    }
+  }
+  push(edits, spec.note, p.opinion ?? "");
+  return edits;
+}
+
+function substituteCoordXml(xml: string, p: RecordPayload, spec: CoordSpec): string {
+  let out = fillCells(xml, buildCoordEdits(spec, p));
+  // 제목의 "( N월 )" 표기 채우기 (빈 양식은 "(  월)" 처럼 비어 있기도 함)
+  out = out.replace(/(기록지\s*\(\s*)\d*(\s*월)/, `$1${p.month}$2`);
+  return out;
+}
+
+export async function readRecordTemplate(form: RecordFormKey = "standard"): Promise<Buffer> {
+  return readFile(path.join(process.cwd(), "samples", TEMPLATE_FILES[form]));
 }
 
 // 한 장(5회기 이하) HWPX 생성
-export function generateOneRecordSheet(templateBuf: Buffer, p: RecordPayload): Buffer {
+export function generateOneRecordSheet(
+  templateBuf: Buffer,
+  p: RecordPayload,
+  form: RecordFormKey = "standard"
+): Buffer {
   const oldXml = readSection0(templateBuf);
-  const newXml = substituteRecordXml(oldXml, p);
+  const newXml =
+    form === "standard"
+      ? substituteRecordXml(oldXml, p)
+      : substituteCoordXml(oldXml, p, COORD_SPECS[form]);
   return patchSection0(templateBuf, newXml);
 }
 
 // 회기 수에 따라 1장 또는 N장으로 분할. 항상 Buffer[] 반환.
-export function buildRecordSheets(templateBuf: Buffer, p: RecordPayload): Buffer[] {
+export function buildRecordSheets(
+  templateBuf: Buffer,
+  p: RecordPayload,
+  form: RecordFormKey = "standard"
+): Buffer[] {
   const chunks: RecordSessionDetail[][] = [];
   for (let i = 0; i < p.sessions.length; i += MAX_SESSIONS) {
     chunks.push(p.sessions.slice(i, i + MAX_SESSIONS));
   }
   if (chunks.length === 0) chunks.push([]);
   return chunks.map((chunkSessions) =>
-    generateOneRecordSheet(templateBuf, { ...p, sessions: chunkSessions })
+    generateOneRecordSheet(templateBuf, { ...p, sessions: chunkSessions }, form)
   );
 }
 

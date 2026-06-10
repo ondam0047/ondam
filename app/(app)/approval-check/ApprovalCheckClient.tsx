@@ -59,6 +59,14 @@ export default function ApprovalCheckClient() {
   const [fileName, setFileName] = useState("");
   const [error, setError] = useState("");
 
+  function resetCheck() {
+    setRows([]);
+    setTherapist("");
+    setFileName("");
+    setError("");
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
   function readExcel(file: File) {
     setError("");
     setFileName(file.name);
@@ -215,10 +223,13 @@ export default function ApprovalCheckClient() {
             {retroCount > 0 && (
               <span className="badge badge-warn" style={{ marginLeft: 6 }}>소급 {retroCount}건</span>
             )}
+            <button type="button" className="btn btn-ghost btn-sm" onClick={resetCheck} style={{ marginLeft: 8 }}>
+              다른 파일로 다시
+            </button>
           </div>
           <div className="card-body">
             <div className="tip" style={{ marginBottom: 12, fontSize: 12.5, lineHeight: 1.6 }}>
-              💡 빨간색 행 = 직전 결제와 간격이 40분(50분 ± 10분 허용) 미만 — 이전 회기와 겹침.
+              빨간색 행 = 직전 결제와 간격이 40분(50분 ± 10분 허용) 미만 — 이전 회기와 겹침.
               간격이 멀어진 건 휴식·블록 전환으로 보고 검사하지 않아요.
               소급결제 건은 별도 사유서가 필요합니다.
             </div>

@@ -6,7 +6,7 @@ import ImportClient from "./ImportClient";
 export const dynamic = "force-dynamic";
 
 export default async function ImportPage() {
-  const user = await requireRole(["OWNER", "ADMIN"]);
+  const user = await requireRole(["OWNER"]);
   const center = await prisma.center.findUnique({
     where: { id: user.centerId ?? -1 },
     select: { serviceTypes: true },

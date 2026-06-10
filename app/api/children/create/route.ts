@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { getCurrentUser, isAdmin, getEffectiveTherapistId } from "@/lib/auth";
+import { getCurrentUser, getEffectiveTherapistId } from "@/lib/auth";
 
 type Body = {
   name: string;
@@ -25,10 +25,8 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "missing name or serviceType" }, { status: 400 });
   }
 
-  let therapistId: number | null = null;
-  if (!isAdmin(user)) {
-    therapistId = await getEffectiveTherapistId(user);
-  }
+  // 새 아동 서비스는 항상 본인에게 배정
+  const therapistId = await getEffectiveTherapistId(user);
 
   const child = await prisma.child.create({
     data: {

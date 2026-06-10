@@ -46,10 +46,11 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "forbidden" }, { status: 403 });
   }
 
+  // 아동 성명·생년월일은 클라이언트 입력이 아니라 권한 검증된 DB 레코드에서 도출 (무결성)
   const meta = {
     org: body.org,
-    childName: body.childName,
-    childBirth: body.childBirth || null,
+    childName: cs.child.name,
+    childBirth: cs.child.birthDate || null,
     opinion: body.opinion || null,
   };
 

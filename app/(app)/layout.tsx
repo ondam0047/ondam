@@ -6,7 +6,7 @@ import SessionGuard from "./SessionGuard";
 import Tour from "./Tour";
 import { getCurrentUser, generateApprovalCode, getEffectiveTherapistId } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { ensureLegacyDataLinked } from "@/lib/migrate-center";
+import { ensureLegacyDataLinked, ensureMyServicesAssigned } from "@/lib/migrate-center";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   let user = await getCurrentUser();
@@ -45,10 +45,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     if (!user) redirect("/login");
   }
 
+  // 1인 사물함 정합성: 내 센터의 모든 아동 서비스를 본인 담당으로 보정
+  // (미지정·옛 가져오기로 다른 치료사에 잡힌 데이터 자동 교정. 멱등, 보통 0건)
+  if (user.centerId) {
+    const myTherapistId = await getEffectiveTherapistId(user);
+    if (myTherapistId) await ensureMyServicesAssigned(user.centerId, myTherapistId);
+  }
+
+  // 베타 운영자 — 환경변수 우선, 없으면 기본 운영자 이메일로 폴백 (page/actions 와 동일)
+  const betaEmail = (process.env.BETA_ADMIN_EMAIL ?? "yj2000102@gmail.com").toLowerCase();
+  const isBetaAdmin = user.email.toLowerCase() === betaEmail;
+
   return (
     <div className="app">
       <SessionGuard userId={user.id} />
-      <Sidebar user={user} />
+      <Sidebar user={user} isBetaAdmin={isBetaAdmin} />
       <div className="main">
         <Topbar />
         <main className="content">{children}</main>

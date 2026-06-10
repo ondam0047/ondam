@@ -1,7 +1,7 @@
 // 로그인 세션 헬퍼. 쿠키에 토큰을 두고, DB AuthSession 에서 검증.
 
 import { cookies } from "next/headers";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomInt } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 
@@ -104,17 +104,11 @@ export async function requireRole(allowed: Role[]): Promise<SessionUser> {
   return user;
 }
 
-export function isAdmin(user: SessionUser): boolean {
-  return user.role === "OWNER" || user.role === "ADMIN";
-}
-
-// ADMIN(행정)은 센터의 모든 ChildService 접근 가능 — 운영 관리 목적.
-// OWNER·THERAPIST 는 본인 담당 ChildService 만.
+// 1인 사물함: 본인 담당 ChildService 만 접근 가능.
 export function canAccessService(
   user: SessionUser,
   service: { therapistId: number | null }
 ): boolean {
-  if (user.role === "ADMIN") return true;
   if (user.therapistId !== null) {
     return service.therapistId === user.therapistId;
   }
@@ -133,7 +127,7 @@ export async function generateApprovalCode(): Promise<string> {
   for (let attempt = 0; attempt < 50; attempt++) {
     let code = "";
     for (let i = 0; i < 6; i++) {
-      code += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
+      code += CODE_ALPHABET[randomInt(CODE_ALPHABET.length)];
     }
     const exists = await prisma.center.findUnique({ where: { approvalCode: code } });
     if (!exists) return code;
@@ -146,7 +140,7 @@ export async function generateInvitationToken(): Promise<string> {
   for (let attempt = 0; attempt < 50; attempt++) {
     let token = "";
     for (let i = 0; i < 12; i++) {
-      token += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
+      token += CODE_ALPHABET[randomInt(CODE_ALPHABET.length)];
     }
     const exists = await prisma.invitation.findUnique({ where: { token } });
     if (!exists) return token;

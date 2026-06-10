@@ -1,5 +1,7 @@
 import { NextRequest } from "next/server";
+import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
+import { isRecordFormKey } from "@/lib/record-forms";
 import {
   buildRecordSheets,
   bundleAsZip,
@@ -13,16 +15,21 @@ export async function POST(req: NextRequest) {
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
   const p = (await req.json()) as RecordPayload;
 
+  const center = user.centerId
+    ? await prisma.center.findUnique({ where: { id: user.centerId }, select: { recordForm: true } })
+    : null;
+  const form = isRecordFormKey(center?.recordForm) ? center!.recordForm : "standard";
+
   let templateBuf: Buffer;
   try {
-    templateBuf = await readRecordTemplate();
+    templateBuf = await readRecordTemplate(form);
   } catch {
     return Response.json(
-      { error: "템플릿(samples/기록지_template.hwpx)을 찾을 수 없어요." },
+      { error: "기록지 템플릿 파일을 찾을 수 없어요." },
       { status: 500 }
     );
   }
-  const sheets = buildRecordSheets(templateBuf, p);
+  const sheets = buildRecordSheets(templateBuf, p, form);
 
   const baseName = `${safeFileName(p.childName)}_${String(p.month).padStart(2, "0")}월_기록지`;
 

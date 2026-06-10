@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireUser, isAdmin, getEffectiveTherapistId } from "@/lib/auth";
+import { requireUser, getEffectiveTherapistId } from "@/lib/auth";
 
 type ServiceInput = {
   id: number | null;
@@ -11,6 +11,7 @@ type ServiceInput = {
   therapistId: number | null;
   defaultSlot: string | null;
   defaultDays: string | null;
+  daySlots: string | null;
   defaultUnit: number;
   defaultTarget: number;
   monthlyCopay: number | null;
@@ -49,7 +50,8 @@ function parseServices(formData: FormData): ServiceInput[] {
       therapistId: therapistIdRaw ? Number(therapistIdRaw) : null,
       defaultSlot: String(formData.get(`svc[${i}][defaultSlot]`) ?? "") || null,
       defaultDays: String(formData.get(`svc[${i}][defaultDays]`) ?? "") || null,
-      defaultUnit: Number(formData.get(`svc[${i}][defaultUnit]`) ?? 65000) || 65000,
+      daySlots: String(formData.get(`svc[${i}][daySlots]`) ?? "") || null,
+      defaultUnit: Number(formData.get(`svc[${i}][defaultUnit]`) ?? 0) || 0,
       defaultTarget: Number(formData.get(`svc[${i}][defaultTarget]`) ?? 5) || 5,
       monthlyCopay: copayRaw ? (Number(copayRaw) || 0) : null,
     });
@@ -64,11 +66,8 @@ export async function createChild(formData: FormData) {
   const services = parseServices(formData);
   if (services.length === 0) return;
 
-  // 치료사·일반 사용자는 본인에게 강제 배정.
-  let forcedTherapistId: number | null = null;
-  if (!isAdmin(user)) {
-    forcedTherapistId = await getEffectiveTherapistId(user);
-  }
+  // 담당 치료사는 항상 등록자 본인으로 고정.
+  const forcedTherapistId = await getEffectiveTherapistId(user);
 
   await prisma.child.create({
     data: {
@@ -85,6 +84,7 @@ export async function createChild(formData: FormData) {
           therapistId: forcedTherapistId ?? s.therapistId,
           defaultSlot: s.defaultSlot,
           defaultDays: s.defaultDays,
+          daySlots: s.daySlots,
           defaultUnit: s.defaultUnit,
           defaultTarget: s.defaultTarget,
           monthlyCopay: s.monthlyCopay,
@@ -108,17 +108,13 @@ export async function updateChild(id: number, formData: FormData) {
     include: { services: true },
   });
   if (!child || child.centerId !== user.centerId) return;
-  if (!isAdmin(user)) {
-    const myId = await getEffectiveTherapistId(user);
-    // 본인이 담당하는 서비스가 있는 아동만 수정 가능
-    const hasAccess = child.services.some((s) => s.therapistId === myId);
-    if (!hasAccess) return;
-  }
 
-  let forcedTherapistId: number | null = null;
-  if (!isAdmin(user)) {
-    forcedTherapistId = await getEffectiveTherapistId(user);
-  }
+  // 신규 서비스는 본인에게 배정. 기존 서비스의 담당 치료사는 그대로 유지.
+  const forcedTherapistId = await getEffectiveTherapistId(user);
+
+  // 본인이 담당하는 서비스가 있는 아동만 수정 가능
+  const hasAccess = child.services.some((s) => s.therapistId === forcedTherapistId);
+  if (!hasAccess) return;
 
   // 트랜잭션: 헤더 업데이트 + 서비스 업서트 + 삭제된 서비스 제거
   const incomingIds = services.filter((s) => s.id !== null).map((s) => s.id!);
@@ -138,19 +134,19 @@ export async function updateChild(id: number, formData: FormData) {
     // 폼에서 사라진 기존 서비스는 (권한 검사 후) 삭제
     for (const existing of child.services) {
       if (!incomingIds.includes(existing.id)) {
-        // 치료사는 본인 담당이 아닌 서비스를 삭제할 수 없음
-        if (!isAdmin(user) && existing.therapistId !== forcedTherapistId) continue;
+        // 본인 담당이 아닌 서비스는 삭제할 수 없음
+        if (existing.therapistId !== forcedTherapistId) continue;
         await tx.childService.delete({ where: { id: existing.id } });
       }
     }
 
     // 기존 + 신규 업서트
     for (const s of services) {
-      const data = {
+      const base = {
         serviceType: s.serviceType,
-        therapistId: forcedTherapistId ?? s.therapistId,
         defaultSlot: s.defaultSlot,
         defaultDays: s.defaultDays,
+        daySlots: s.daySlots,
         defaultUnit: s.defaultUnit,
         defaultTarget: s.defaultTarget,
         monthlyCopay: s.monthlyCopay,
@@ -159,10 +155,11 @@ export async function updateChild(id: number, formData: FormData) {
         // 기존 서비스 수정 권한 확인
         const old = child.services.find((cs) => cs.id === s.id);
         if (!old) continue;
-        if (!isAdmin(user) && old.therapistId !== forcedTherapistId) continue;
-        await tx.childService.update({ where: { id: s.id }, data });
+        if (old.therapistId !== forcedTherapistId) continue;
+        // 기존 담당 치료사는 재배정하지 않고 그대로 유지
+        await tx.childService.update({ where: { id: s.id }, data: { ...base, therapistId: old.therapistId } });
       } else {
-        await tx.childService.create({ data: { childId: id, ...data } });
+        await tx.childService.create({ data: { childId: id, ...base, therapistId: forcedTherapistId ?? s.therapistId } });
       }
     }
   });
@@ -179,12 +176,10 @@ export async function deleteChild(id: number) {
   });
   if (!child || child.centerId !== user.centerId) return;
 
-  if (!isAdmin(user)) {
-    const myId = await getEffectiveTherapistId(user);
-    // 치료사: 본인 담당 서비스가 1건이라도 있어야 삭제 가능 (전체 삭제는 위험하니 ADMIN 권장)
-    const allMine = child.services.every((s) => s.therapistId === myId);
-    if (!allMine) return; // 다른 치료사 서비스도 있으면 거부
-  }
+  const myId = await getEffectiveTherapistId(user);
+  // 모든 서비스가 본인 담당일 때만 삭제 가능
+  const allMine = child.services.every((s) => s.therapistId === myId);
+  if (!allMine) return;
 
   await prisma.child.delete({ where: { id } });
   revalidatePath("/children");

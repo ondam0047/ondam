@@ -4,66 +4,63 @@
 
 ---
 
-## 🚀 운영 배포 대기 (가장 먼저)
+## ✅ 운영 배포 완료 (2026-06-02)
 
-소급결제 UI 개선 (`feat/record` 기반, 운영 브랜치 `claude/clever-ritchie-GiZtt` 에 푸시 완료)을 운영(baroilji.com)에 반영.
+소급결제 + UI 개선(초기화 버튼·엑셀 드롭존·요일별 시간·시간대 입력) 전부 운영(baroilji.com) 반영 완료.
+서버 `baroilji-prod`(NCP, /opt/baroilji)는 **TLBiq 브랜치**로 전환됨 (소급결제 커밋 포함된 상위 버전).
 
-관련 커밋:
-- `2bcde3e` feat(record): 소급결제 알림 클릭 → 해당 회기로 자동 이동
-- `e148f81` feat(record): 소급결제 알림 — 아동별로 분리 표시 + 데모 소급 3건으로
+### ⚠️ 운영 배포 메모 — 다음에 꼭 지킬 것
 
-배포 절차:
+운영은 **PostgreSQL**(`@prisma/adapter-pg`), 로컬은 SQLite. 함정 2개:
+
+1. **`npm install` 하면 postinstall(`prisma generate`)이 SQLite 클라이언트로 되돌림** → 빌드가
+   `Driver Adapter @prisma/adapter-pg is not compatible with provider sqlite` 로 실패.
+   → `npm install` 했으면 **반드시 바로 뒤에 `npm run db:gen:postgres`** 실행.
+2. 빌드가 중간 실패하면 `.next` 가 비어 앱이 `Could not find a production build` 로 **크래시 루프**(사이트 다운).
+   → 빌드는 **라우트 표가 출력되고 에러 없이 끝나는 것**까지 확인 후 `pm2 restart`.
+
+### 표준 배포 절차 (PostgreSQL 운영)
+
 ```bash
 cd /opt/baroilji
-git pull origin claude/clever-ritchie-GiZtt
-npm install
-npm run build
+git fetch origin
+git checkout <브랜치>            # 예: claude/retroactive-payment-video-launch-TLBiq
+git pull origin <브랜치>
+npm install                      # 새 의존성 있을 때만. 했으면 ↓ 필수
+npm run db:gen:postgres          # ← postgres 클라이언트 재생성 (안 하면 빌드 실패)
+npm run build                    # 라우트 표 나오고 에러 없이 끝나는지 확인
 pm2 restart baroilji
 ```
+- 의존성 변경이 없으면 `npm install` 생략 → `db:gen:postgres` 도 불필요 (이번 2단계가 그랬음).
+- 확인: `curl -I http://localhost:3000` 가 200/307, `pm2 list` 의 `↺`(restart) 가 안 오르면 정상.
+- 운영 turbopack 빌드는 정상 동작(네이티브 바인딩 있음). 혹시 실패 시 `npx next build --webpack`.
+
+### 배포된 변경 요약
+
+- **초기화 버튼**: 일정표("처음부터 다시")·기록지("초기화")·승인내역 점검("다른 파일로 다시"). confirm 1회 + `baroilji_*_draft` 삭제 + state 초기화.
+- **엑셀 가져오기 옛 UI 수정**: `/import` 의 밋밋한 `<input type=file>` → 기록지와 동일한 드롭존(드래그&드롭/클릭)으로 교체.
+- **일정표 요일별 다른 시간 (A안)**: 반복 요일 선택 시 요일별 시간 드롭다운 노출. `slotByDow` 오버라이드, 비우면 기본 시간대 적용. DB 변경 없음.
+- **센터 설정 시간대 입력 UI**: textarea 직접 타이핑 → 시작·종료 시각 피커 + 칩 추가/삭제(`SlotsEditor.tsx`). 저장 형식(콤마 문자열) 동일, 백엔드 무변경.
+
+### 남은 후속 (선택)
+- 일정표 요일별 시간 **D안**: 아동별 설정(`기본 시간대`+`기본 반복 요일`)을 "요일별 시간"으로 확장 → 매달 자동. `defaultDays` 직렬화 변경 또는 새 컬럼 + DB 마이그레이션 필요. (A안으로 당장은 충분)
+- 센터 시간대 입력 **② 자동 생성기**(시작·길이·간격·개수) 는 추후.
 
 ---
 
-## 🆕 신규 기능 — 초기화 버튼
+## 정리 — 안 쓰는 코드 청소
 
-상태 누적되는 페이지에 "처음부터 다시" 버튼 추가. localStorage 의 baroilji_*_draft 키 삭제 + React state 초기화.
+지우기 전 스캔 → 후보 목록 확인 → 삭제 순서 (AGENTS.md: 수정된 Next.js 라 신중히).
 
-### 우선순위
-1. **일정표** (`/schedule`)
-   - 위치: 미리보기 카드 헤더 우측 (생성됐을 때만 노출) 또는 상단 작은 버튼
-   - 동작: `baroilji_schedule_draft` 삭제 + 모든 form state 초기화
-   - 라벨: "🔄 처음부터 다시"
-
-2. **기록지** (`/record`)
-   - 위치: 엑셀 드롭존 위 작은 버튼 (grouped 있을 때만)
-   - 동작: `baroilji_record_draft` 삭제 + grouped/curChild/retroChildren 비움
-   - 라벨: "🔄 초기화"
-
-3. **승인내역 점검** (`/approval-check`)
-   - 위치: 결과 카드 헤더 우측
-   - 동작: rows state 비움 (드롭존 다시 보임)
-   - 라벨: "다른 파일로 다시"
-
-### 구현 메모
-- 클릭 시 confirm() 한 번 ("정말 초기화할까요?")
-- ScheduleClient, RecordClient, ApprovalCheckClient 각각 reset 함수 만들고 버튼 바인딩
-- localStorage 정리 패턴은 SessionGuard.tsx 참고
+검사 항목:
+- import 안 되는 파일 / 안 쓰는 export (knip · ts-prune)
+- 안 쓰는 npm 의존성 (depcheck)
+- 죽은 API 라우트·컴포넌트
+- 보류된 `feat/jitu` 흔적
 
 ---
 
-## 🐛 버그 수정 — 내 아동 엑셀 가져오기 옛 UI 노출
-
-증상: `/children` 에서 [엑셀로 가져오기] 클릭 시 "옛날에 있던 엑셀 파일 넣는 창" 이 갑자기 뜸.
-
-추가 정보 필요:
-- 정확한 위치 (어느 버튼·메뉴인지)
-- "옛 UI" 가 OS 파일 선택 창인지, 앱 안의 옛 모달인지
-- 스크린샷 있으면 가장 빠름
-
-조사 시작점: `app/(app)/import/`, `app/(app)/children/` 안의 import 관련 코드.
-
----
-
-## 📋 베타 운영 진행 중
+## 베타 운영 진행 중
 
 - 베타 사용자에게 영상 8편 + 한국장애인개발원 2021 보고서 인용 공유 예정
 - 베타 종료 1주 전 사용자 설문 (서류 시간 단축 비율 등) — 정식 출시 마케팅 자료용
@@ -71,17 +68,7 @@ pm2 restart baroilji
 
 ---
 
-## ⏳ 보류 — 지투(지역사회서비스투자사업)
-
-작업 브랜치: `feat/jitu` (이미 골격 코드 푸시 완료)
-
-다음 단계:
-- 베타 사용자에게서 지투 양식(.hwp) 1~2개 받기
-- HWPX 템플릿 작업 (Phase 3)
-
----
-
-## 🎬 영상 후속 작업
+## 영상 후속 작업
 
 - CapCut 으로 8편 편집 (자막·BGM·TypeCast 더빙)
 - 썸네일 8개 제작 (Bing 이미지 만들기 + Canva)

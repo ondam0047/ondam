@@ -1,7 +1,9 @@
 import { prisma } from "@/lib/db";
-import { requireRole } from "@/lib/auth";
+import { requireRole, getEffectiveTherapistId } from "@/lib/auth";
 import { THERAPIST_TYPES } from "@/lib/constants";
+import { RECORD_FORMS } from "@/lib/record-forms";
 import { updateCenter } from "./actions";
+import SlotsEditor from "./SlotsEditor";
 
 export const dynamic = "force-dynamic";
 
@@ -13,17 +15,26 @@ export default async function CenterPage({
   const me = await requireRole(["OWNER", "ADMIN"]);
   const sp = await searchParams;
   const centerId = me.centerId ?? -1;
+  const myTherapistId = await getEffectiveTherapistId(me);
 
   const [center, userRow, childCount] = await Promise.all([
     prisma.center.findUnique({
       where: { id: centerId },
       select: {
         name: true, address: true, phone: true, serviceTypes: true,
-        slots: true, defaultUnit: true,
+        slots: true, defaultUnit: true, recordForm: true,
       },
     }),
     prisma.user.findUnique({ where: { id: me.id }, select: { name: true, therapistType: true } }),
-    prisma.child.count({ where: { centerId, active: true } }),
+    // 내 아동 화면과 동일 기준: 본인 담당 · 활동 중 · 대기 제외
+    prisma.child.count({
+      where: {
+        centerId,
+        active: true,
+        waiting: false,
+        services: { some: { therapistId: myTherapistId ?? -1 } },
+      },
+    }),
   ]);
 
   if (!center || !userRow) {
@@ -103,16 +114,21 @@ export default async function CenterPage({
                   새 아동 등록·일정표의 회당 단가에 자동 채워져요. 일정표에서 회기마다 수정 가능.
                 </div>
               </div>
-              <div className="field" style={{ gridColumn: "1 / -1" }}>
-                <label>회기 시간대 <span className="sub-mute">(콤마 또는 줄바꿈으로 구분, HH:MM~HH:MM)</span></label>
-                <textarea
-                  className="textarea"
-                  name="slots"
-                  defaultValue={center.slots}
-                  rows={4}
-                  style={{ fontFamily: "monospace", fontSize: 13 }}
-                />
+              <div className="field">
+                <label>기록지 서식</label>
+                <select className="select" name="recordForm" defaultValue={center.recordForm ?? "standard"}>
+                  {RECORD_FORMS.map((f) => (
+                    <option key={f.key} value={f.key}>{f.label}</option>
+                  ))}
+                </select>
                 <div className="sub-mute" style={{ fontSize: 11, marginTop: 4 }}>
+                  지역마다 양식이 달라요. 우리 지역 양식을 고르면 기록지를 그 서식으로 받아요.
+                </div>
+              </div>
+              <div className="field" style={{ gridColumn: "1 / -1" }}>
+                <label>회기 시간대 <span className="sub-mute">(시작·종료를 골라 추가하세요)</span></label>
+                <SlotsEditor initial={center.slots} />
+                <div className="sub-mute" style={{ fontSize: 11, marginTop: 8 }}>
                   본인이 운영하는 회기 시간들. 일정표·세션 편집에서 드롭다운 옵션으로 사용됩니다.
                 </div>
               </div>

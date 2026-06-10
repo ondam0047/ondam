@@ -1,11 +1,10 @@
 import { NextRequest } from "next/server";
 import * as XLSX from "xlsx";
 import { prisma } from "@/lib/db";
-import { getCurrentUser, isAdmin } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth";
 import { WEEK, minusMin } from "@/lib/constants";
 
-// 한 달치 회기를 출석부 형식 .xlsx 로 출력
-// 치료사 본인은 본인 것만, 원장·행정은 ?therapistId= 지정해서 누구든 조회
+// 한 달치 회기를 출석부 형식 .xlsx 로 출력 — 본인 회기만.
 
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
@@ -13,18 +12,12 @@ export async function GET(req: NextRequest) {
 
   const year = Number(req.nextUrl.searchParams.get("year"));
   const month = Number(req.nextUrl.searchParams.get("month"));
-  const requestedTherapistId = Number(req.nextUrl.searchParams.get("therapistId")) || null;
   if (!Number.isInteger(year) || !Number.isInteger(month)) {
     return Response.json({ error: "year/month required" }, { status: 400 });
   }
 
-  // 권한: 치료사는 본인만, 관리자는 아무나
-  let therapistId: number;
-  if (isAdmin(user)) {
-    therapistId = requestedTherapistId ?? (user.therapistId ?? -1);
-  } else {
-    therapistId = user.therapistId ?? -1;
-  }
+  // 본인 회기만 조회
+  const therapistId = user.therapistId ?? -1;
   const therapist = await prisma.therapist.findUnique({ where: { id: therapistId } });
   if (!therapist || therapist.centerId !== user.centerId) {
     return Response.json({ error: "forbidden" }, { status: 403 });

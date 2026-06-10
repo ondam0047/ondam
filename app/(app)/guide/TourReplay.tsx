@@ -13,7 +13,7 @@ export default function TourReplay({ userId }: { userId: number }) {
   }
   return (
     <button type="button" className="btn btn-primary" onClick={replay}>
-      🚀 인앱 투어 다시 보기
+      인앱 투어 다시 보기
     </button>
   );
 }

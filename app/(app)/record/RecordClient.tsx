@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import * as XLSX from "xlsx";
 import { minusMin } from "@/lib/constants";
 
@@ -66,6 +67,8 @@ type MyServiceOption = {
   name: string;
   birthDate: string | null;
   serviceType: string;
+  defaultUnit?: number;       // 회당 단가 → 기록지 총이용금액 기본값
+  org?: string | null;        // 서비스 제공자명(제공기관명) — 아동별 저장값
   hasMultipleServices?: boolean;
 };
 
@@ -90,10 +93,12 @@ export default function RecordClient({
   myServices,
   defaultTherapist,
   defaultOrg,
+  centerDefaultUnit = 0,
 }: {
   myServices: MyServiceOption[];
   defaultTherapist: string;
   defaultOrg: string;
+  centerDefaultUnit?: number;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -147,6 +152,24 @@ export default function RecordClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 일정표/대시보드에서 ?cs=&ym= 로 넘어오면 해당 아동·월로 자동 작성 시작
+  const searchParams = useSearchParams();
+  const [autoStarted, setAutoStarted] = useState(false);
+  useEffect(() => {
+    if (!hydrated || autoStarted) return;
+    const csParam = searchParams.get("cs");
+    const ymParam = searchParams.get("ym");
+    if (!csParam || !ymParam) return;
+    const csId = Number(csParam);
+    if (myServices.some((s) => s.id === csId) && monthOptions.some((o) => o.value === ymParam)) {
+      setManualCSId(csId);
+      setManualYm(ymParam);
+      setAutoStarted(true);
+      void startManual(csId, ymParam);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated]);
+
   useEffect(() => {
     if (!hydrated) return;
     try {
@@ -195,21 +218,29 @@ export default function RecordClient({
     };
   }, [hydrated]);
 
-  async function startManual() {
-    if (!manualCSId || !manualYm) return;
+  async function startManual(csIdArg?: number, ymArg?: string) {
+    const csId = csIdArg ?? (typeof manualCSId === "number" ? manualCSId : 0);
+    const ym = ymArg ?? manualYm;
+    if (!csId || !ym) return;
     setManualLoading(true);
     try {
-      const cs = myServices.find((s) => s.id === manualCSId);
+      const cs = myServices.find((s) => s.id === csId);
       if (!cs) return;
-      const [y, m] = manualYm.split("-").map(Number);
+      const [y, m] = ym.split("-").map(Number);
 
       // 1) 이 달 일정표가 있으면 회기를 시드로
-      const r = await fetch(`/api/schedule/load?childServiceId=${manualCSId}&year=${y}&month=${m}`);
-      let scheduleData: { sessions: { day: number; time: string }[] } | null = null;
+      const r = await fetch(`/api/schedule/load?childServiceId=${csId}&year=${y}&month=${m}`);
+      let scheduleData: { sessions: { day: number; time: string }[]; pvOrg?: string; costUnit?: string } | null = null;
       if (r.ok) scheduleData = await r.json();
 
-      // 2) SessionRow[] 구성
+      // 2) SessionRow[] 구성 — 우선순위: (3) 일정표 그 달 수정값 → (2) 내 아동 단가 → (1) 내 설정 기본단가
       const tag = cs.hasMultipleServices ? `${cs.name} · ${cs.serviceType}` : cs.name;
+      const schedOrg = scheduleData && typeof scheduleData.pvOrg === "string" ? scheduleData.pvOrg.trim() : "";
+      const seedOrg = schedOrg || cs.org || defaultOrg;
+      const schedUnit = scheduleData && typeof scheduleData.costUnit === "string" ? scheduleData.costUnit.trim() : "";
+      const childUnit = cs.defaultUnit && cs.defaultUnit > 0 ? cs.defaultUnit.toLocaleString("ko-KR") : "";
+      const centerUnit = centerDefaultUnit > 0 ? centerDefaultUnit.toLocaleString("ko-KR") : "0";
+      const seedAmt = schedUnit || childUnit || centerUnit;
       let rows: SessionRow[] = [];
       if (scheduleData && Array.isArray(scheduleData.sessions) && scheduleData.sessions.length > 0) {
         rows = scheduleData.sessions.map((sess) => {
@@ -221,8 +252,8 @@ export default function RecordClient({
             end: end || "",
             pay: "",
             appr: "",
-            amt: "",
-            org: defaultOrg,
+            amt: seedAmt,
+            org: seedOrg,
           };
         });
       } else {
@@ -232,7 +263,7 @@ export default function RecordClient({
         rows = placeholders.map((d) => ({
           name: cs.name, birth: cs.birthDate ?? "",
           use: `${y}.${pad(m)}.${pad(d)}`,
-          end: "", pay: "", appr: "", amt: "", org: defaultOrg,
+          end: "", pay: "", appr: "", amt: seedAmt, org: seedOrg,
         }));
       }
 
@@ -330,6 +361,21 @@ export default function RecordClient({
 
   const names = Object.keys(grouped);
 
+  function resetRecord() {
+    if (!window.confirm("정말 초기화할까요? 불러온 내용이 사라져요.")) return;
+    try {
+      localStorage.removeItem(LS_DRAFT);
+      localStorage.removeItem(LS_SCROLL);
+    } catch {}
+    setGrouped({});
+    setCurChild(null);
+    setRetroChildren([]);
+    setRetroByChild({});
+    setRetroCount(0);
+    setUploadInfo("");
+    setError("");
+  }
+
   return (
     <>
       <div className="section-head">
@@ -345,6 +391,9 @@ export default function RecordClient({
           <span className="step">1</span>
           <h2>엑셀 없이 직접 시작</h2>
           <span className="hint">미리 작성 · 일정표 회기를 자동 시드</span>
+          <button type="button" className="btn btn-sm" onClick={resetRecord} style={{ marginLeft: "auto", border: "1px solid var(--border)", background: "#fff", fontWeight: 600 }}>
+            초기화
+          </button>
         </div>
         <div className="card-body">
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}>
@@ -374,14 +423,14 @@ export default function RecordClient({
             <button
               type="button"
               className="btn btn-primary"
-              onClick={startManual}
+              onClick={() => startManual()}
               disabled={!manualCSId || manualLoading}
             >
-              {manualLoading ? "불러오는 중..." : "📝 작성 시작"}
+              {manualLoading ? "불러오는 중..." : "작성 시작"}
             </button>
           </div>
           <div className="sub-mute" style={{ marginTop: 10, fontSize: 12.5, lineHeight: 1.6 }}>
-            💡 일정표를 미리 만들어두면 회기 날짜·시간이 자동으로 채워집니다.
+            일정표를 미리 만들어두면 회기 날짜·시간이 자동으로 채워집니다.
             저장하면 나중에 같은 아동·월로 들어와 이어 작성할 수 있어요.
             엑셀이 나중에 도착하면 아래에서 업로드해 승인번호·결제일 등을 보강할 수 있습니다.
           </div>
@@ -539,7 +588,11 @@ function RecordSheet({
   const [times, setTimes] = useState(initial);
   const [vouchers, setVouchers] = useState(rows.map(() => "40"));
   const [extras, setExtras] = useState(rows.map(() => "10"));
-  const [amounts, setAmounts] = useState(rows.map(() => "65,000"));
+  const [amounts, setAmounts] = useState(
+    rows.map((s) => (s.amt && String(s.amt).trim()
+      ? String(s.amt)
+      : (matchedService?.defaultUnit ? matchedService.defaultUnit.toLocaleString("ko-KR") : "0")))
+  );
   const [results, setResults] = useState(rows.map(() => ""));
   // 제공일자(일정표) ≠ 승인일자(엑셀) 일 때 입력하는 사유. 저장 시 resultExtra 로 들어감.
   const [mismatchReasons, setMismatchReasons] = useState(rows.map(() => ""));
@@ -594,7 +647,7 @@ function RecordSheet({
         }));
         setVouchers((prev) => prev.map((v, i) => sm.get(i + 1)?.voucher ?? v));
         setExtras((prev) => prev.map((v, i) => sm.get(i + 1)?.extra ?? v));
-        setAmounts((prev) => prev.map((v, i) => sm.get(i + 1)?.amount ?? v));
+        // 총이용금액은 저장된 옛 값으로 덮지 않고, 항상 현재 회당단가(시드값)를 유지
         setResults((prev) => prev.map((v, i) => sm.get(i + 1)?.result ?? v));
         setMismatchReasons((prev) => prev.map((v, i) => {
           const sess = sm.get(i + 1);
@@ -715,6 +768,7 @@ function RecordSheet({
         month: monthNum,
         sessions: sessionsPayload,
         opinion,
+        serviceType: matchedService?.serviceType,
       };
       const res = await fetch("/api/record/hwpx", {
         method: "POST",
@@ -814,7 +868,7 @@ function RecordSheet({
         <tbody>
           <tr><td className="lbl">제공기관명</td><td colSpan={3}>{org}</td></tr>
           <tr>
-            <td className="lbl">이용자</td><td>성명 : {child}</td>
+            <td className="lbl">이용자</td><td>{child}</td>
             <td className="lbl">생년월일</td><td>{birth}</td>
           </tr>
           <tr>
@@ -934,7 +988,7 @@ function RecordSheet({
               {hasBoth && !match && (
                 <div style={{ marginTop: 8 }}>
                   <label style={{ display: "block", fontSize: 12.5, fontWeight: 600, color: "var(--danger)", marginBottom: 4 }}>
-                    📝 불일치 사유
+                    불일치 사유
                   </label>
                   <input
                     className="input"
@@ -974,7 +1028,7 @@ function RecordSheet({
           disabled={!childServiceId}
           title="이전 달 기록의 결과·총평을 복사 (수정 후 저장)"
         >
-          📋 전월 기록 가져오기
+          전월 기록 가져오기
         </button>
         <button className="btn" onClick={saveRecord} disabled={saving || !childServiceId}>
           {saving ? "저장 중..." : "현재 내용 저장"}
