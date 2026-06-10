@@ -8,7 +8,7 @@ export default function SpectrogramPage() {
     <>
       <ToolHeader
         title="/s/ 스펙트로그램"
-        subtitle="마이크 소리의 주파수 성분을 실시간 스펙트로그램으로 보여줘요. /s/ 같은 마찰음은 높은 주파수(4–8kHz)에 에너지가 모여, 소리를 눈으로 구분하는 학습에 활용할 수 있어요."
+        subtitle="마찰음을 길게 내면 스펙트럼 중심(centroid) 주파수를 실시간으로 잡아 /s/·/ɕ/·/ʃ/ 구간 게이지에 표시해요. 중심이 높을수록 표준 /s/에 가깝습니다. 누적 분포·체류율로 조음 학습을 도와요."
       />
       <SpectrogramClient />
     </>
