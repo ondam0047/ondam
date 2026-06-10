@@ -30,11 +30,14 @@ function analyzeSpeechRate(
     threshold?: number;
     minPauseMs?: number;
     longPauseMs?: number;
+    trimEnds?: boolean;
   },
 ): SpeechRateResult {
   const threshold = options?.threshold ?? 0.012;
   const minPauseMs = options?.minPauseMs ?? 100;
   const longPauseMs = options?.longPauseMs ?? 250;
+  // trimEnds=false 면 선행/후행 침묵을 제거하지 않음(사용자가 구간을 직접 지정한 경우).
+  const trimEnds = options?.trimEnds ?? true;
 
   const frameSize = Math.round(sampleRate * 0.025);
   const hopSize = Math.round(sampleRate * 0.01);
@@ -108,13 +111,15 @@ function analyzeSpeechRate(
     }
   }
 
-  // 선행/후행 쉼(첫 발화 전·마지막 발화 후 침묵) 제거
-  while (filtered.length > 0 && filtered[0].type === "pause") filtered.shift();
-  while (
-    filtered.length > 0 &&
-    filtered[filtered.length - 1].type === "pause"
-  )
-    filtered.pop();
+  // 선행/후행 쉼(첫 발화 전·마지막 발화 후 침묵) 제거 (trimEnds 일 때만)
+  if (trimEnds) {
+    while (filtered.length > 0 && filtered[0].type === "pause") filtered.shift();
+    while (
+      filtered.length > 0 &&
+      filtered[filtered.length - 1].type === "pause"
+    )
+      filtered.pop();
+  }
 
   const speechSegs = filtered.filter((s) => s.type === "speech");
   const pauseSegs = filtered.filter((s) => s.type === "pause");
@@ -228,8 +233,17 @@ export default function SpeechRateClient() {
   const [autoFilled, setAutoFilled] = useState(false);
   const [peaks, setPeaks] = useState<number[]>([]);
   const [rawDuration, setRawDuration] = useState(0);
+  // 사용자가 파형에서 드래그로 정하는 분석 구간(초)
+  const [selStart, setSelStart] = useState(0);
+  const [selEnd, setSelEnd] = useState(0);
+  // 파형 색칠용 전체 신호 세그먼트(선택과 무관)
+  const [fullSegments, setFullSegments] = useState<Segment[]>([]);
 
   const asr = useKoreanASR();
+
+  // 분석에 사용할 원본 신호(녹음 또는 파일) 보관 — 구간 변경 시 재분석.
+  const signalRef = useRef<Float32Array | null>(null);
+  const srRef = useRef<number>(44100);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -262,6 +276,41 @@ export default function SpeechRateClient() {
     }
   }, []);
 
+  // 선택 구간(초)으로 재분석. trimEnds=false → 선택 길이 = 전체 시간.
+  const recompute = useCallback((startSec: number, endSec: number) => {
+    const sig = signalRef.current;
+    const sr = srRef.current;
+    if (!sig) return;
+    const a = Math.max(0, Math.floor(startSec * sr));
+    const b = Math.min(sig.length, Math.floor(endSec * sr));
+    if (b - a < sr * 0.2) return; // 최소 0.2초
+    setResult(analyzeSpeechRate(sig.subarray(a, b), sr, { trimEnds: false }));
+  }, []);
+
+  // 녹음/파일 신호로 파형·기본 선택구간·초기 분석 세팅.
+  const setupFromSignal = useCallback((combined: Float32Array, sr: number) => {
+    signalRef.current = combined;
+    srRef.current = sr;
+    const dur = combined.length / sr;
+    setPeaks(computePeaks(combined, 800));
+    setRawDuration(dur);
+    // 파형 색칠용: 전체 신호를 트리밍 없이 분석한 세그먼트
+    setFullSegments(analyzeSpeechRate(combined, sr, { trimEnds: false }).segments);
+    // 기본 선택구간 = VAD 감지 발화 구간(앞뒤 침묵 제외), 없으면 전체
+    const trimmed = analyzeSpeechRate(combined, sr);
+    let s0 = 0;
+    let e0 = dur;
+    if (trimmed.segments.length > 0) {
+      s0 = trimmed.segments[0].start;
+      e0 = trimmed.segments[trimmed.segments.length - 1].end;
+    }
+    setSelStart(s0);
+    setSelEnd(e0);
+    const a = Math.max(0, Math.floor(s0 * sr));
+    const b = Math.min(combined.length, Math.floor(e0 * sr));
+    setResult(analyzeSpeechRate(combined.subarray(a, b), sr, { trimEnds: false }));
+  }, []);
+
   const finalizeAndAnalyze = useCallback(() => {
     if (processorRef.current) processorRef.current.disconnect();
     if (sourceRef.current) sourceRef.current.disconnect();
@@ -274,14 +323,11 @@ export default function SpeechRateClient() {
       offset += b.length;
     }
     const sr = audioCtxRef.current?.sampleRate ?? 44100;
-    const res = analyzeSpeechRate(combined, sr);
-    setPeaks(computePeaks(combined, 800));
-    setRawDuration(combined.length / sr);
-    setResult(res);
+    setupFromSignal(combined, sr);
     setPhase("done");
     asr.stop();
     cleanup();
-  }, [cleanup, asr]);
+  }, [cleanup, asr, setupFromSignal]);
 
   const start = useCallback(async () => {
     setErrorMsg(null);
@@ -309,6 +355,10 @@ export default function SpeechRateClient() {
           .webkitAudioContext;
       const ctx = new Ctx();
       audioCtxRef.current = ctx;
+      // 자동재생 정책으로 suspended 면 onaudioprocess 가 안 울려 녹음이 비게 됨 → 명시적 재개
+      if (ctx.state === "suspended") {
+        try { await ctx.resume(); } catch { /* noop */ }
+      }
       const source = ctx.createMediaStreamSource(stream);
       sourceRef.current = source;
       const proc = ctx.createScriptProcessor(4096, 1, 1);
@@ -350,17 +400,14 @@ export default function SpeechRateClient() {
     setAutoFilled(true); // 파일 업로드 시 ASR 자동채움 비활성 (전사 직접 입력)
     try {
       const { data, sampleRate } = await decodeAudioFile(file);
-      const res = analyzeSpeechRate(data, sampleRate);
-      setPeaks(computePeaks(data, 800));
-      setRawDuration(data.length / sampleRate);
-      setResult(res);
+      setupFromSignal(data, sampleRate);
       setPhase("done");
     } catch (err) {
       console.error(err);
       setErrorMsg("오디오 파일을 분석할 수 없습니다. 다른 파일을 시도하세요.");
       setPhase("idle");
     }
-  }, []);
+  }, [setupFromSignal]);
 
   const onFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -388,6 +435,10 @@ export default function SpeechRateClient() {
     setElapsed(0);
     setPeaks([]);
     setRawDuration(0);
+    setSelStart(0);
+    setSelEnd(0);
+    setFullSegments([]);
+    signalRef.current = null;
     asr.reset();
   }, [asr]);
 
@@ -713,20 +764,30 @@ export default function SpeechRateClient() {
                   padding: 12,
                 }}
               >
-                <p
-                  style={{
-                    margin: "0 0 8px",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: "var(--text-soft)",
-                  }}
-                >
-                  파형 · 발화 / 쉼 구간 (초록 = 발화, 회색 = 쉼)
-                </p>
+                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, margin: "0 0 8px", flexWrap: "wrap" }}>
+                  <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: "var(--text-soft)" }}>
+                    파형 · 양끝 손잡이를 끌어 분석 구간을 정하세요 (초록 = 발화, 회색 = 쉼)
+                  </p>
+                  <span style={{ fontSize: 12, color: "var(--text-mute)" }}>
+                    분석 구간 <b style={{ color: "var(--text)" }}>{(selEnd - selStart).toFixed(2)}초</b>
+                    {" "}({selStart.toFixed(2)}–{selEnd.toFixed(2)})
+                    {" "}
+                    <button
+                      className="btn btn-sm"
+                      style={{ marginLeft: 6, padding: "2px 8px" }}
+                      onClick={() => { setSelStart(0); setSelEnd(rawDuration); recompute(0, rawDuration); }}
+                    >
+                      전체
+                    </button>
+                  </span>
+                </div>
                 <SpeechWaveform
                   peaks={peaks}
                   rawDuration={rawDuration}
-                  result={result}
+                  segments={fullSegments}
+                  selStart={selStart}
+                  selEnd={selEnd}
+                  onChange={(s, e) => { setSelStart(s); setSelEnd(e); recompute(s, e); }}
                 />
                 <div
                   style={{
@@ -1054,25 +1115,35 @@ export default function SpeechRateClient() {
   );
 }
 
+const WAVE_H = 84;
+
 function SpeechWaveform({
   peaks,
   rawDuration,
-  result,
+  segments,
+  selStart,
+  selEnd,
+  onChange,
 }: {
   peaks: number[];
   rawDuration: number;
-  result: SpeechRateResult;
+  segments: Segment[];
+  selStart: number;
+  selEnd: number;
+  onChange: (start: number, end: number) => void;
 }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const dragRef = useRef<"start" | "end" | null>(null);
 
+  // 파형 그리기 (전체 신호, 선택과 무관)
   useEffect(() => {
     const wrap = wrapRef.current;
     const canvas = canvasRef.current;
     if (!wrap || !canvas) return;
 
     const classify = (t: number): "speech" | "pause" | "none" => {
-      for (const s of result.segments) {
+      for (const s of segments) {
         if (t >= s.start && t <= s.end) return s.type;
       }
       return "none";
@@ -1080,7 +1151,7 @@ function SpeechWaveform({
 
     const draw = () => {
       const cssW = wrap.clientWidth;
-      const cssH = 72;
+      const cssH = WAVE_H;
       const dpr = window.devicePixelRatio || 1;
       canvas.width = Math.max(1, Math.floor(cssW * dpr));
       canvas.height = Math.floor(cssH * dpr);
@@ -1109,19 +1180,61 @@ function SpeechWaveform({
     const ro = new ResizeObserver(draw);
     ro.observe(wrap);
     return () => ro.disconnect();
-  }, [peaks, rawDuration, result]);
+  }, [peaks, rawDuration, segments]);
+
+  // 드래그 → 시간 변환 후 onChange
+  useEffect(() => {
+    const move = (clientX: number) => {
+      const wrap = wrapRef.current;
+      const which = dragRef.current;
+      if (!wrap || !which || rawDuration <= 0) return;
+      const rect = wrap.getBoundingClientRect();
+      const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      const t = ratio * rawDuration;
+      const MIN = 0.2; // 최소 구간 0.2초
+      if (which === "start") onChange(Math.min(t, selEnd - MIN), selEnd);
+      else onChange(selStart, Math.max(t, selStart + MIN));
+    };
+    const onMouseMove = (e: MouseEvent) => move(e.clientX);
+    const onTouchMove = (e: TouchEvent) => { if (e.touches[0]) { e.preventDefault(); move(e.touches[0].clientX); } };
+    const onUp = () => { dragRef.current = null; };
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onUp);
+    window.addEventListener("touchmove", onTouchMove, { passive: false });
+    window.addEventListener("touchend", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchend", onUp);
+    };
+  }, [rawDuration, selStart, selEnd, onChange]);
+
+  const startPct = rawDuration > 0 ? (selStart / rawDuration) * 100 : 0;
+  const endPct = rawDuration > 0 ? (selEnd / rawDuration) * 100 : 100;
+
+  const handle = (which: "start" | "end"): React.CSSProperties => ({
+    position: "absolute", top: 0, bottom: 0, width: 12, marginLeft: -6,
+    left: `${which === "start" ? startPct : endPct}%`,
+    cursor: "ew-resize", touchAction: "none", zIndex: 3,
+    display: "flex", alignItems: "center", justifyContent: "center",
+  });
+  const bar: React.CSSProperties = { width: 3, height: "70%", borderRadius: 2, background: "var(--primary)", boxShadow: "0 0 0 1px rgba(255,255,255,0.7)" };
 
   return (
     <div
       ref={wrapRef}
-      style={{
-        width: "100%",
-        overflow: "hidden",
-        borderRadius: 8,
-        border: "1px solid var(--border-strong)",
-      }}
+      style={{ position: "relative", width: "100%", overflow: "hidden", borderRadius: 8, border: "1px solid var(--border-strong)", height: WAVE_H, userSelect: "none" }}
     >
       <canvas ref={canvasRef} style={{ display: "block" }} />
+      {/* 선택 밖 영역 어둡게 */}
+      <div style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: `${startPct}%`, background: "rgba(31,35,23,0.28)", zIndex: 1, pointerEvents: "none" }} />
+      <div style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: `${100 - endPct}%`, background: "rgba(31,35,23,0.28)", zIndex: 1, pointerEvents: "none" }} />
+      {/* 선택 경계선 */}
+      <div style={{ position: "absolute", top: 0, bottom: 0, left: `${startPct}%`, right: `${100 - endPct}%`, border: "2px solid var(--primary)", borderRadius: 4, zIndex: 2, pointerEvents: "none" }} />
+      {/* 드래그 손잡이 */}
+      <div style={handle("start")} onMouseDown={(e) => { e.preventDefault(); dragRef.current = "start"; }} onTouchStart={() => { dragRef.current = "start"; }}><div style={bar} /></div>
+      <div style={handle("end")} onMouseDown={(e) => { e.preventDefault(); dragRef.current = "end"; }} onTouchStart={() => { dragRef.current = "end"; }}><div style={bar} /></div>
     </div>
   );
 }
