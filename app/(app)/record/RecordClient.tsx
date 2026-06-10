@@ -99,6 +99,9 @@ export default function RecordClient({
   const [dragOver, setDragOver] = useState(false);
   const [therapist, setTherapist] = useState(defaultTherapist);
   const [uploadInfo, setUploadInfo] = useState("");
+  const [retroChildren, setRetroChildren] = useState<string[]>([]);
+  const [retroByChild, setRetroByChild] = useState<Record<string, number>>({});
+  const [retroCount, setRetroCount] = useState(0);
   const [error, setError] = useState("");
 
   // ─── 직접 시작 (엑셀 없이) ────────────────────────────────────────────
@@ -271,13 +274,19 @@ export default function RecordClient({
 
         const g: Grouped = {};
         let retroCount = 0;
+        const retroChildSet = new Set<string>();
+        const retroByChild: Record<string, number> = {};
         for (let i = hi + 1; i < rows.length; i++) {
           const row = rows[i] as string[] | undefined;
           if (!row || !row[ci.name]) continue;
           const nm = String(row[ci.name]).trim();
           if (!nm) continue;
           const payKind = ci.kind >= 0 ? String(row[ci.kind] || "").trim() : "";
-          if (payKind.includes("소급")) retroCount += 1;
+          if (payKind.includes("소급")) {
+            retroCount += 1;
+            retroChildSet.add(nm);
+            retroByChild[nm] = (retroByChild[nm] ?? 0) + 1;
+          }
           (g[nm] = g[nm] || []).push({
             name: nm,
             birth: String(row[ci.birth] || ""),
@@ -305,10 +314,10 @@ export default function RecordClient({
         const names = Object.keys(g);
         const total = Object.values(g).reduce((a, b) => a + b.length, 0);
         setTherapist(ther);
-        const retroMsg = retroCount > 0
-          ? `<br/><span style="color:var(--danger); font-weight:700;">⚠ 소급결제 ${retroCount}건 있음 — 사유서 작성 확인</span>`
-          : "";
-        setUploadInfo(`✓ 불러오기 완료 · 치료사 ${ther || "-"} · 아동 ${names.length}명 · 총 ${total}건${retroMsg}`);
+        setUploadInfo(`✓ 불러오기 완료 · 치료사 ${ther || "-"} · 아동 ${names.length}명 · 총 ${total}건`);
+        setRetroChildren([...retroChildSet]);
+        setRetroByChild(retroByChild);
+        setRetroCount(retroCount);
         setGrouped(g);
         setCurChild(names[0] ?? null);
       } catch (err) {
@@ -416,7 +425,47 @@ export default function RecordClient({
           />
           {error && <div className="flash warn" style={{ marginTop: 12 }}>{error}</div>}
           {uploadInfo && (
-            <div className="tip" style={{ marginTop: 12 }} dangerouslySetInnerHTML={{ __html: uploadInfo }} />
+            <div className="tip" style={{ marginTop: 12 }}>
+              <div>{uploadInfo}</div>
+              {retroCount > 0 && (
+                <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+                  <div style={{ fontSize: 12.5, color: "var(--danger)", fontWeight: 700 }}>
+                    ⚠ 소급결제 {retroCount}건 — 사유서 작성 확인
+                  </div>
+                  {retroChildren.map((childName) => {
+                    const count = retroByChild[childName] ?? 0;
+                    return (
+                      <button
+                        key={childName}
+                        type="button"
+                        onClick={() => {
+                          setCurChild(childName);
+                          // 탭이 바뀌고 RecordSheet 가 렌더링된 뒤 첫 번째 소급 회기 카드로 스크롤
+                          setTimeout(() => {
+                            const el = document.querySelector('[data-retro="true"]');
+                            if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+                          }, 250);
+                        }}
+                        style={{
+                          display: "block",
+                          padding: "8px 12px",
+                          background: "var(--danger)",
+                          color: "#fff",
+                          border: "none",
+                          borderRadius: "var(--r-sm)",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          fontSize: 13,
+                          textAlign: "left",
+                        }}
+                      >
+                        → {childName} 소급결제 {count}건 — 클릭해서 바로 가기
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -855,7 +904,11 @@ function RecordSheet({
           const match = hasBoth && useD === payD;
           const isRetro = (s.payKind || "").includes("소급");
           return (
-            <div key={i} className={"result-row" + (match ? "" : hasBoth ? " mismatch" : "")}>
+            <div
+              key={i}
+              className={"result-row" + (match ? "" : hasBoth ? " mismatch" : "")}
+              data-retro={isRetro ? "true" : undefined}
+            >
               <div className="rr-head">
                 <span className="pill">제공일자 {useD ?? "?"}일</span>
                 <span className="pill">승인일자 {payD ?? "?"}일</span>
