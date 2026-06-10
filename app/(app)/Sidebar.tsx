@@ -69,7 +69,6 @@ const NAV_GROUPS: NavItem[][] = [
     { href: "/record",          label: "기록지",         icon: IC.doc,        tour: "rec"   },
     { href: "/export",          label: "일괄 다운로드",  icon: DOWNLOAD_ICON, tour: "exp"   },
     { href: "/approval-check",  label: "승인내역 점검",  icon: CHECK_ICON,    tour: "appr"  },
-    { href: "/tools",           label: "바로툴",         icon: WAVE_ICON,     tour: "tools" },
   ],
   [
     { href: "/timetable",       label: "내 시간표",      icon: GRID_ICON,     tour: "time"  },
@@ -105,9 +104,12 @@ function clearWorkCache() {
 
 export default function Sidebar({ user, isBetaAdmin = false }: { user: SessionUser; isBetaAdmin?: boolean }) {
   const pathname = usePathname();
-  // 베타 운영자에게만 운영 메뉴 추가 — 도움말(마지막 그룹) 바로 위에 끼워넣음
-  const groups: NavItem[][] = [...NAV_GROUPS];
+  // 그룹별 내부 배열까지 복사(원본 NAV_GROUPS 불변 유지)
+  const groups: NavItem[][] = NAV_GROUPS.map((g) => [...g]);
   if (isBetaAdmin) {
+    // 바로툴(준비중) — 운영 검증 단계라 운영자에게만. "승인내역 점검" 바로 아래.
+    groups[0].push({ href: "/tools", label: "바로툴", icon: WAVE_ICON, tour: "tools" });
+    // 운영 메뉴 — 도움말(마지막 그룹) 바로 위에 끼워넣음
     groups.splice(groups.length - 1, 0, [
       { href: "/admin/beta", label: "베타 운영", icon: BETA_GEAR_ICON },
     ]);
