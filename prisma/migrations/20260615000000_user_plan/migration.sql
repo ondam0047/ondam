@@ -1,0 +1,4 @@
+-- AlterTable: 바로툴 요금제 필드
+ALTER TABLE "User" ADD COLUMN "plan" TEXT NOT NULL DEFAULT 'trial';
+ALTER TABLE "User" ADD COLUMN "trialEndsAt" TIMESTAMP(3);
+ALTER TABLE "User" ADD COLUMN "betaLockIn" BOOLEAN NOT NULL DEFAULT false;

@@ -389,6 +389,11 @@ h1, h2, h3, h4, h5 { font-family: var(--font-display); font-weight: 700; margin:
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-card);
 }
+/* 바로툴 모듈 카드 — 사용 가능한 카드만 호버 강조 */
+.tool-card:hover {
+  border-color: var(--primary) !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+}
 .card-header {
   padding: 18px 22px 14px;
   display: flex;

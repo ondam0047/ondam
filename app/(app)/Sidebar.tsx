@@ -55,6 +55,8 @@ const HELP_ICON = "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M9.09 9a3 3 0 0 1 5
 
 const CHECK_ICON = "M9 12l2 2 4-4 M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z";
 const DOWNLOAD_ICON = "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3";
+// 바로툴(음성·학습 모듈) — 사운드 이퀄라이저 막대
+const WAVE_ICON = "M4 9v6 M8 5v14 M12 8v8 M16 4v16 M20 10v4";
 
 type NavItem = { href: string; label: string; icon: string; tour?: string };
 
@@ -67,6 +69,7 @@ const NAV_GROUPS: NavItem[][] = [
     { href: "/record",          label: "기록지",         icon: IC.doc,        tour: "rec"   },
     { href: "/export",          label: "일괄 다운로드",  icon: DOWNLOAD_ICON, tour: "exp"   },
     { href: "/approval-check",  label: "승인내역 점검",  icon: CHECK_ICON,    tour: "appr"  },
+    { href: "/tools",           label: "바로툴",         icon: WAVE_ICON,     tour: "tools" },
   ],
   [
     { href: "/timetable",       label: "내 시간표",      icon: GRID_ICON,     tour: "time"  },

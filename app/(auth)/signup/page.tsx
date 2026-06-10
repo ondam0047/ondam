@@ -72,6 +72,11 @@ async function signupSolo(formData: FormData) {
   const therapist = await prisma.therapist.create({
     data: { name, centerId: center.id, active: true },
   });
+  // 바로툴 요금제: 베타 기간(BETA_ACCESS_CODE 설정) 가입자는 무기한 개방(trialEndsAt=null)
+  // + 평생 가격 잠금 대상으로 표시. 정식 출시(코드 없음) 가입자는 가입일+30일 무료체험.
+  const isBeta = getBetaCode() !== null;
+  const trialEndsAt = isBeta ? null : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
   const user = await prisma.user.create({
     data: {
       email,
@@ -82,6 +87,9 @@ async function signupSolo(formData: FormData) {
       centerId: center.id,
       therapistId: therapist.id,
       therapistType,
+      plan: "trial",
+      trialEndsAt,
+      betaLockIn: isBeta,
     },
   });
   await createSession(user.id);

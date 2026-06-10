@@ -62,6 +62,12 @@ model User {
   active       Boolean  @default(true)
   // 치료사 종류 — 보건복지부 발달재활서비스 제공인력 분류 + 기타
   therapistType String?
+  // 바로툴(음성·학습 모듈) 요금제 — "trial"|"solo"|"pro"|"expired"
+  plan         String   @default("trial")
+  // 무료체험 만료. null = 베타(무기한 개방)
+  trialEndsAt  DateTime?
+  // 베타 참여자(평생 가격 잠금 대상)
+  betaLockIn   Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
