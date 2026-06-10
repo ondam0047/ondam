@@ -205,7 +205,7 @@ function substituteRecordXml(xml: string, p: RecordPayload): string {
 // 빈 원본 양식을 셀 좌표로 채운다. 회기 칸은 표준형과 동일하게 5칸 고정
 // (6회기부터 분할). 양식마다 결과표 칸 구성이 달라 result 매핑이 다르다.
 
-type CoordSpec = {
+export type CoordSpec = {
   org?: Coord;
   name?: Coord;
   birth?: Coord;
@@ -386,7 +386,7 @@ const DAEGU_SPEC: CoordSpec = {
   })),
 };
 
-const COORD_SPECS: Record<Exclude<RecordFormKey, "standard">, CoordSpec> = {
+export const COORD_SPECS: Record<Exclude<RecordFormKey, "standard">, CoordSpec> = {
   play: PLAY_SPEC,
   dongtan: DONGTAN_SPEC,
   namyangju: NAMYANGJU_SPEC,
