@@ -24,11 +24,11 @@ export type ToolModule = {
 export const TOOL_MODULES: ToolModule[] = [
   { key: "loudness",    no: 1, tier: "solo", status: "ready", href: "/tools/loudness",
     label: "실시간 음도·강도 시각화", desc: "목소리의 높낮이(음도)와 크기(강도)를 실시간 그래프로 보여줘요." },
-  { key: "spectrogram", no: 2, tier: "solo", status: "soon", href: "/tools/spectrogram",
+  { key: "spectrogram", no: 2, tier: "solo", status: "ready", href: "/tools/spectrogram",
     label: "/s/ 스펙트로그램", desc: "마찰음 /s/ 소리를 스펙트로그램으로 시각화해 변별 학습을 도와요." },
-  { key: "mpt",         no: 3, tier: "solo", status: "soon", href: "/tools/mpt",
+  { key: "mpt",         no: 3, tier: "solo", status: "ready", href: "/tools/mpt",
     label: "MPT 측정", desc: "최대발성지속시간(MPT)을 3회 측정·기록해요." },
-  { key: "daf",         no: 4, tier: "solo", status: "soon", href: "/tools/daf",
+  { key: "daf",         no: 4, tier: "solo", status: "ready", href: "/tools/daf",
     label: "DAF 훈련 보조", desc: "지연 청각 피드백(50–500ms)으로 말하기 속도 연습을 보조해요." },
 
   { key: "speech-rate", no: 5, tier: "pro", status: "ready", href: "/tools/speech-rate",
