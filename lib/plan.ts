@@ -20,9 +20,9 @@ export type ToolModule = {
 };
 
 // 9개 모듈 카탈로그 — Solo 4종(#1~4) + Pro 5종(#5~9).
-// 현재 단계는 기반(Phase 0)만 — 모든 모듈 준비중(soon)으로 노출.
+// Phase 1: 음성 3종(음도강도·말속도·말속도조절) 사용 가능, 나머지는 준비중.
 export const TOOL_MODULES: ToolModule[] = [
-  { key: "loudness",    no: 1, tier: "solo", status: "soon", href: "/tools/loudness",
+  { key: "loudness",    no: 1, tier: "solo", status: "ready", href: "/tools/loudness",
     label: "실시간 음도·강도 시각화", desc: "목소리의 높낮이(음도)와 크기(강도)를 실시간 그래프로 보여줘요." },
   { key: "spectrogram", no: 2, tier: "solo", status: "soon", href: "/tools/spectrogram",
     label: "/s/ 스펙트로그램", desc: "마찰음 /s/ 소리를 스펙트로그램으로 시각화해 변별 학습을 도와요." },
@@ -31,11 +31,11 @@ export const TOOL_MODULES: ToolModule[] = [
   { key: "daf",         no: 4, tier: "solo", status: "soon", href: "/tools/daf",
     label: "DAF 훈련 보조", desc: "지연 청각 피드백(50–500ms)으로 말하기 속도 연습을 보조해요." },
 
-  { key: "speech-rate", no: 5, tier: "pro", status: "soon", href: "/tools/speech-rate",
+  { key: "speech-rate", no: 5, tier: "pro", status: "ready", href: "/tools/speech-rate",
     label: "말속도 측정", desc: "발화 구간을 잡아 초당 음절수(SPS)로 말속도를 측정해요." },
   { key: "fluency",     no: 6, tier: "pro", status: "soon", href: "/tools/fluency",
     label: "유창성 자가 모니터링", desc: "말의 흐름을 스스로 점검하고 기록으로 누적해요." },
-  { key: "pacing",      no: 7, tier: "pro", status: "soon", href: "/tools/pacing",
+  { key: "pacing",      no: 7, tier: "pro", status: "ready", href: "/tools/pacing",
     label: "말속도 조절 연습", desc: "메트로놈·페이싱 안내에 맞춰 말하기 속도를 조절하는 연습이에요." },
   { key: "articulation",no: 8, tier: "pro", status: "soon", href: "/tools/articulation",
     label: "조음 학습 자료 (바로조음)", desc: "조음 위치를 3D로 보며 익히는 학습 자료예요." },
