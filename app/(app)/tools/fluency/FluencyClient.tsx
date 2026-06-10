@@ -8,6 +8,7 @@ import {
 } from "@/lib/voice/transcriptTagger";
 import { countKoreanSyllables } from "@/lib/voice/syllables";
 import { downloadReport } from "@/lib/voice/report";
+import ToolMonitor from "../ToolMonitor";
 
 // 말 흐름 패턴 유형 — 자가 점검용 일반 설명 라벨(점수·등급 산출 없음)
 type PatternType = "I" | "UR" | "R1" | "R2";
@@ -1153,6 +1154,23 @@ export default function FluencyClient() {
               </div>
             </div>
           </div>
+
+          <ToolMonitor
+            module="fluency"
+            getMetrics={() =>
+              tags.length > 0
+                ? {
+                    total: tags.length,
+                    I: counts.I, UR: counts.UR, R1: counts.R1, R2: counts.R2,
+                    syllables: validSyll ? syllablesNum : 0,
+                    per100: validSyll && tags.length > 0 ? Number(ratioPer100.toFixed(1)) : 0,
+                  }
+                : null
+            }
+            renderSummary={(m) =>
+              `총 ${m.total ?? "-"}회 (간투사 ${m.I ?? 0}·반복 ${(Number(m.R1 ?? 0) + Number(m.R2 ?? 0))}·수정 ${m.UR ?? 0})${m.per100 ? ` · 100음절당 ${m.per100}` : ""}`
+            }
+          />
         </>
       )}
 

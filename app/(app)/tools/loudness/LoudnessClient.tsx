@@ -5,6 +5,7 @@ import { yinPitch } from "@/lib/voice/yin";
 import { freqToNoteName, semitonesBetween } from "@/lib/voice/noteUtils";
 import { decodeAudioFile } from "@/lib/voice/audioFile";
 import { downloadReport } from "@/lib/voice/report";
+import ToolMonitor from "../ToolMonitor";
 
 const DURATION_OPTIONS = [15, 30, 45, 60] as const;
 type Duration = (typeof DURATION_OPTIONS)[number];
@@ -453,6 +454,18 @@ export default function LoudnessClient() {
           <button className="btn btn-primary" onClick={downloadPitchReport}>📄 리포트 다운로드</button>
           <span style={{ fontSize: 12, color: "var(--text-mute)" }}>HTML 리포트로 저장 → 열어서 인쇄/PDF 가능</span>
         </div>
+      )}
+
+      {!isRecording && samples.length > 0 && (
+        <ToolMonitor
+          module="loudness"
+          getMetrics={() =>
+            pitchStats.total
+              ? { meanF0: Number(pitchStats.mean.toFixed(1)), meanDb: Number(dbStats.mean.toFixed(1)), rangeSt: Number(pitchStats.rangeSemitones.toFixed(1)) }
+              : null
+          }
+          renderSummary={(m) => `평균 ${m.meanF0 ?? "-"}Hz · ${m.meanDb ?? "-"}dB · 음역 ${m.rangeSt ?? "-"}st`}
+        />
       )}
     </div>
   );

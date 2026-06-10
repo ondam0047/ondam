@@ -141,6 +141,23 @@ model Child {
   center     Center?   @relation(fields: [centerId], references: [id])
 
   services   ChildService[]
+  toolSessions ToolSession[]
+}
+
+// 바로툴(음성·학습 모듈) 대상자별 측정 세션 — 지속 모니터링용.
+model ToolSession {
+  id          Int      @id @default(autoincrement())
+  childId     Int
+  child       Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+  centerId    Int?
+  therapistId Int?
+  module      String   // 모듈 키: loudness|spectrogram|mpt|speech-rate|fluency|pacing
+  metrics     String   // 요약 지표 JSON
+  note        String?
+  createdAt   DateTime @default(now())
+
+  @@index([childId, module])
+  @@index([centerId])
 }
 
 model ChildService {

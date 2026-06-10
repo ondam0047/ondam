@@ -151,6 +151,23 @@ model Child {
   center     Center?   @relation(fields: [centerId], references: [id])
 
   services   ChildService[]
+  toolSessions ToolSession[]
+}
+
+// 바로툴(음성·학습 모듈) 대상자별 측정 세션 — 지속 모니터링용.
+model ToolSession {
+  id          Int      @id @default(autoincrement())
+  childId     Int
+  child       Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+  centerId    Int?
+  therapistId Int?
+  module      String
+  metrics     String
+  note        String?
+  createdAt   DateTime @default(now())
+
+  @@index([childId, module])
+  @@index([centerId])
 }
 
 // ChildService = 한 아동이 받는 한 서비스. (아동 × 서비스 종류 × 치료사)

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useKoreanASR } from "@/lib/voice/useKoreanASR";
 import { decodeAudioFile } from "@/lib/voice/audioFile";
 import { downloadReport } from "@/lib/voice/report";
+import ToolMonitor from "../ToolMonitor";
 
 // ───────────────────────── 말속도 분석 (VAD 기반 쉼 자동 분할) ─────────────────────────
 type Segment = {
@@ -1057,6 +1058,18 @@ export default function SpeechRateClient() {
             )}
           </div>
         </div>
+      )}
+
+      {phase === "done" && result && (
+        <ToolMonitor
+          module="speech-rate"
+          getMetrics={() =>
+            validSyllables
+              ? { sps: Number(overallSPS.toFixed(2)), artSps: Number(articulationSPS.toFixed(2)), dur: Number(result.totalDuration.toFixed(2)), syllables: syllablesNum }
+              : null
+          }
+          renderSummary={(m) => `${m.sps ?? "-"} SPS · ${m.dur ?? "-"}초${m.syllables ? ` · ${m.syllables}음절` : ""}`}
+        />
       )}
 
       <details

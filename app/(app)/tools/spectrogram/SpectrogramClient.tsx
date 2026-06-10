@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { analyzeSibilantSpectrum } from "@/lib/voice/spectralMoments";
 import { downloadReport } from "@/lib/voice/report";
+import ToolMonitor from "../ToolMonitor";
 
 // 스펙트럼 중심 구간·조음 정보
 // 근거: Jongman/Wayland/Wong (2000) JASA, Shadle (1991), Kong & Edwards (2016), Park (2008)
@@ -324,6 +325,17 @@ export default function SpectrogramClient() {
           </p>
         </div>
       </div>
+
+      {stats.samples > 0 && (
+        <ToolMonitor
+          module="spectrogram"
+          getMetrics={() => {
+            const inTarget = targetId === "s" ? stats.inS : targetId === "sh" ? stats.inSh : stats.inPal;
+            return { centroid: Math.round(meanCentroid), targetPct: Number(((inTarget / stats.samples) * 100).toFixed(1)), target: target.label };
+          }}
+          renderSummary={(m) => `중심 ${m.centroid ?? "-"}Hz · 목표 체류 ${m.targetPct ?? "-"}%`}
+        />
+      )}
     </div>
   );
 }

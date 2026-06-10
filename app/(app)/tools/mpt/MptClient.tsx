@@ -5,6 +5,7 @@ import { decodeAudioFile } from "@/lib/voice/audioFile";
 import { yinPitch } from "@/lib/voice/yin";
 import { freqToNoteName } from "@/lib/voice/noteUtils";
 import { downloadReport } from "@/lib/voice/report";
+import ToolMonitor from "../ToolMonitor";
 
 const WAVE_CAPACITY = 260;
 const VOICE_THRESHOLD = 0.008;
@@ -407,6 +408,12 @@ export default function MptClient() {
           )}
         </div>
       </div>
+
+      <ToolMonitor
+        module="mpt"
+        getMetrics={() => (trials.length ? { best: Number(maxVal.toFixed(2)), avg: Number(mean.toFixed(2)), count: trials.length } : null)}
+        renderSummary={(m) => `평균 ${m.avg ?? "-"}초 · 최고 ${m.best ?? "-"}초 (${m.count ?? "-"}회)`}
+      />
 
       <details className="card" style={{ padding: 0 }}>
         <summary style={{ cursor: "pointer", fontSize: 14, fontWeight: 600, color: "var(--text-soft)", padding: "14px 18px" }}>참고 정상 범위 + 근거</summary>
