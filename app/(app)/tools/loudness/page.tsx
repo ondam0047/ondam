@@ -7,8 +7,8 @@ export default function LoudnessPage() {
   return (
     <>
       <ToolHeader
-        title="실시간 음도·강도 시각화"
-        subtitle="마이크로 들어오는 목소리의 높낮이(음도)와 크기(강도)를 실시간으로 보여줘요. 대상자에게 시각적 피드백을 줄 때 활용하세요."
+        title="실시간 음도·강도"
+        subtitle="마이크에 발성하거나 녹음 파일을 올리면 기본주파수(F0)와 음성강도(dB)가 두 시계열 그래프에 동시에 표시돼요. 그래프의 가로 막대를 끌어 목표 음역대·강도 구간을 정하고, 그 안에 머문 비율을 확인할 수 있어요."
       />
       <LoudnessClient />
     </>
