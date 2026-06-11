@@ -29,6 +29,45 @@ export type Cell = {
 };
 export type Grid = Cell[][]; // [tableIndex][cell]
 
+// 월 달력 격자 기하 — 요일 헤더 아래 (숫자행, 내용행) 쌍이 주(週)마다 반복.
+export type ScheduleCalendar = {
+  table: number;
+  headerRow: number;
+  leftmostDow: number; // 맨 왼쪽 요일의 요일번호(일0~토6)
+  cols: Array<{ dow: number; startCol: number; span: number }>; // 열 순서대로
+  weeks: Array<{ numberRow: number; contentRow: number }>;       // 위→아래
+};
+
+const WD: Record<string, number> = { 일: 0, 월: 1, 화: 2, 수: 3, 목: 4, 금: 5, 토: 6 };
+
+// 달력 표 탐지 — 한 행에 단일 요일글자 셀이 4개 이상이면 그 표를 달력으로 본다.
+export function detectScheduleCalendar(tbls: Grid, candidates: number[]): ScheduleCalendar | null {
+  for (const ti of candidates) {
+    const t = tbls[ti];
+    if (!t) continue;
+    const rows = [...new Set(t.map((c) => c.r))].sort((a, b) => a - b);
+    for (const hr of rows) {
+      const wd = t.filter((c) => c.r === hr && c.norm.length === 1 && WD[c.norm] !== undefined).sort((a, b) => a.c - b.c);
+      if (wd.length < 4) continue;
+      const cols = wd.map((c) => ({ dow: WD[c.norm], startCol: c.c, span: c.cs }));
+      const leftmostDow = cols[0].dow;
+      const bodyRows = rows.filter((r) => r > hr);
+      const weeks: Array<{ numberRow: number; contentRow: number }> = [];
+      const span0 = cols[0].span;
+      const c0 = cols[0].startCol;
+      for (let i = 0; i + 1 < bodyRows.length; i += 2) {
+        const ra = bodyRows[i], rb = bodyRows[i + 1];
+        const aCell = t.find((c) => c.r === ra && c.c === c0);
+        const aIsContent = span0 > 1 && aCell != null && aCell.cs === span0; // 병합된 쪽이 내용행
+        weeks.push(aIsContent ? { numberRow: rb, contentRow: ra } : { numberRow: ra, contentRow: rb });
+      }
+      if (weeks.length === 0) continue;
+      return { table: ti, headerRow: hr, leftmostDow, cols, weeks };
+    }
+  }
+  return null;
+}
+
 export type ResolvedSpec = {
   org?: Coord; name?: Coord; birth?: Coord; serviceArea?: Coord;
   date: Coord[]; start: Coord[]; end: Coord[];
@@ -46,6 +85,8 @@ export type ResolvedSpec = {
   detail?: Array<{ date?: Coord; apprDate?: Coord; apprNum?: Coord; result?: Coord }>;
   // 일정표(서식9) 라벨 칸 — 통합양식의 일정표 영역. 1단계는 라벨 필드만(격자 본문 제외).
   schedule?: Array<{ role: string; coord: Coord }>;
+  // 일정표 월 달력 격자(2단계) — 날짜 숫자 + 회기 시간 본문 채움용 기하 정보.
+  scheduleCalendar?: ScheduleCalendar;
   // 셀프 보정으로 사용자가 직접 지정한 칸(역할 중복 허용 — 같은 값을 여러 칸에 채움).
   manual?: Array<{ role: string; table: number; row: number; col: number }>;
 };
@@ -129,6 +170,11 @@ export function resolveForm(xml: string): ResolveOutput {
     }
   }
   if (sched.length) spec.schedule = sched;
+
+  // 일정표 월 달력 격자(2단계) — 일정표 영역(통합양식) 또는 전체(단독)에서 탐지.
+  const calCandidates = schedTables.length ? schedTables : tbls.map((_, i) => i);
+  const cal = detectScheduleCalendar(tbls, calCandidates);
+  if (cal) spec.scheduleCalendar = cal;
 
   // HEADER
   const headerLabels: Record<string, RegExp> = { org: /제공기관명/, serviceArea: /제공영역/, name: /성명/, birth: /생년월일/ };
@@ -294,6 +340,13 @@ export function resolveForm(xml: string): ResolveOutput {
     mark(row.date, "별지일자"); mark(row.apprDate, "별지승인일"); mark(row.apprNum, "별지승인번호"); mark(row.result, "별지결과");
   });
   spec.schedule?.forEach((s) => mark(s.coord, `일정·${s.role}`));
+  if (spec.scheduleCalendar) {
+    const cal = spec.scheduleCalendar;
+    for (const w of cal.weeks) for (const col of cal.cols) {
+      mark([cal.table, w.numberRow, col.startCol] as Coord, "달력·날짜");
+      mark([cal.table, w.contentRow, col.startCol] as Coord, "달력·일정");
+    }
+  }
 
   return { spec, coverage, grid: tbls };
 }
@@ -339,6 +392,7 @@ export function applyOverrides(
 
 // 샘플(더미) 채움 — 미리보기 안전망. spec 의 각 좌표에 보기용 값을 넣는다.
 import type { CellEdit } from "@/lib/record-fill";
+import { buildCalendarEdits } from "@/lib/schedule-calendar";
 export function buildSampleEdits(spec: ResolvedSpec): CellEdit[] {
   const edits: CellEdit[] = [];
   const put = (coord: Coord | undefined, value: string) => {
@@ -381,6 +435,12 @@ export function buildSampleEdits(spec: ResolvedSpec): CellEdit[] {
     단가: "60,000", 횟수: "월 8회", 총금액: "480,000", 본인부담금: "48,000",
   };
   spec.schedule?.forEach((s) => put(s.coord, schedDummy[s.role] ?? "샘플"));
+
+  // 달력 샘플 — 2026년 6월에 더미 회기일(3·7·12·18·24)을 배치해 미리보기로 검증.
+  if (spec.scheduleCalendar) {
+    const sampleSessions = days.map((d) => ({ day: Number(d), time: "10:00~10:50" }));
+    edits.push(...buildCalendarEdits(spec.scheduleCalendar, 2026, 6, sampleSessions));
+  }
 
   // 셀프 보정 칸 — 역할별 더미값. 회기 행 역할은 날짜 열에 걸쳐 채움.
   const roleDummy: Record<string, string> = {

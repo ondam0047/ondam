@@ -5,6 +5,7 @@ import { readSection0, patchSection0 } from "@/lib/hwpx";
 import { fillCells, type CellEdit, type Coord } from "@/lib/record-fill";
 import { removeTableColumns, removeTableRows } from "@/lib/record-trim";
 import type { ResolvedSpec } from "@/lib/record-resolver";
+import { buildCalendarEdits, type CalSession } from "@/lib/schedule-calendar";
 import type { RecordPayload, RecordSessionDetail } from "@/lib/record-hwpx";
 
 const num = (s?: string) => Number(String(s ?? "").replace(/[^0-9.-]/g, "")) || 0;
@@ -142,6 +143,7 @@ export function generateRecordFromForm(
   payload: RecordPayload,
   therapistName: string,
   schedExtra?: Record<string, string>,
+  year?: number,
 ): Buffer[] {
   const spec = JSON.parse(specJson) as ResolvedSpec;
   const baseXml = readSection0(template);
@@ -158,6 +160,15 @@ export function generateRecordFromForm(
     schedExtra,
   };
 
+  // 통합 양식 달력 — 회기 날짜("M/D")→해당 월 일자, 시간=시작~종료. 전체 회기 기준(분할 무관).
+  const yr = year ?? new Date().getFullYear();
+  const calSessions: CalSession[] = all.map((s) => {
+    const m = /(\d+)\s*[/.\-]\s*(\d+)/.exec(s.date ?? "");
+    const day = m ? Number(m[2]) : 0;
+    const time = [s.startTime, s.endTime].filter(Boolean).join("~");
+    return { day, time };
+  }).filter((s) => s.day > 0);
+
   return chunks.map((sessionChunk) => {
     let xml = baseXml;
     if (spec.dateTable != null && spec.extraSessionCols?.length) {
@@ -166,7 +177,11 @@ export function generateRecordFromForm(
     if (spec.resultTable != null && spec.extraResultRows?.length) {
       xml = removeTableRows(xml, spec.resultTable, spec.extraResultRows);
     }
-    xml = fillCells(xml, buildRecordEdits(spec, { ...data, sessions: sessionChunk }));
+    const edits = buildRecordEdits(spec, { ...data, sessions: sessionChunk });
+    if (spec.scheduleCalendar && payload.month) {
+      edits.push(...buildCalendarEdits(spec.scheduleCalendar, yr, payload.month, calSessions));
+    }
+    xml = fillCells(xml, edits);
     // 제목의 "( N월 )" 채우기 (빈 양식은 "(  월)" 처럼 비어 있음)
     if (payload.month) xml = xml.replace(/(기록지\s*\(\s*)\d*(\s*월)/, `$1${payload.month}$2`);
     return patchSection0(template, xml);

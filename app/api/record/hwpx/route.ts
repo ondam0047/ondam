@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
       });
     }
     try {
-      sheets = generateRecordFromForm(Buffer.from(rf.template), rf.spec, p, p.therapist ?? "", schedExtra);
+      sheets = generateRecordFromForm(Buffer.from(rf.template), rf.spec, p, p.therapist ?? "", schedExtra, p.year);
     } catch {
       return Response.json({ error: "양식에 데이터를 채우는 중 문제가 생겼어요." }, { status: 500 });
     }

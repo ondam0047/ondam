@@ -5,6 +5,7 @@
 import { readSection0, patchSection0 } from "@/lib/hwpx";
 import { fillCells, type CellEdit, type Coord } from "@/lib/record-fill";
 import type { ResolvedSpec } from "@/lib/record-resolver";
+import { buildCalendarEdits } from "@/lib/schedule-calendar";
 import type { SchedulePayload } from "@/lib/schedule-hwpx";
 
 const won = (n: number) => (Number(n) || 0).toLocaleString("ko-KR");
@@ -53,6 +54,15 @@ export function generateScheduleFromForm(
   spec.manual?.forEach((m) => {
     if (scalarVal[m.role] !== undefined) put([m.table, m.row, m.col] as Coord, scalarVal[m.role]);
   });
+
+  // 월 달력 격자 — 날짜 + 회기 시간 본문
+  if (spec.scheduleCalendar && p.year && p.month) {
+    const cal = buildCalendarEdits(
+      spec.scheduleCalendar, p.year, p.month,
+      (p.sessions ?? []).map((s) => ({ day: s.day, time: s.time })),
+    );
+    edits.push(...cal);
+  }
 
   xml = fillCells(xml, edits);
   // 제목 "( N월 )"
