@@ -3,13 +3,10 @@ import { getCurrentUser } from "@/lib/auth";
 import { readSection0 } from "@/lib/hwpx";
 import { resolveForm } from "@/lib/record-resolver";
 
-const OP = (process.env.BETA_ADMIN_EMAIL ?? "yj2000102@gmail.com").toLowerCase();
-
 // 업로드한 .hwpx 기록지 양식을 자동매핑 → 커버리지 + 격자(미리보기용) + spec.
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
-  if (user.email.toLowerCase() !== OP) return Response.json({ error: "forbidden" }, { status: 403 });
 
   const form = await req.formData();
   const file = form.get("file");

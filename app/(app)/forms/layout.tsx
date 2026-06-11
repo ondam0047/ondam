@@ -1,11 +1,7 @@
-import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 
-// 기록지 양식 매핑 — 운영 검증 단계, 베타 운영 계정 전용.
-const OP = (process.env.BETA_ADMIN_EMAIL ?? "yj2000102@gmail.com").toLowerCase();
-
+// 기록지·일정표 양식 매핑 — 모든 사용자가 본인 양식을 올려 매핑/저장.
 export default async function FormsLayout({ children }: { children: React.ReactNode }) {
-  const user = await requireUser();
-  if (user.email.toLowerCase() !== OP) redirect("/dashboard");
+  await requireUser();
   return <>{children}</>;
 }

@@ -74,6 +74,7 @@ const NAV_GROUPS: NavItem[][] = [
     { href: "/timetable",       label: "내 시간표",      icon: GRID_ICON,     tour: "time"  },
     { href: "/children",        label: "내 아동",        icon: IC.user,       tour: "child" },
     { href: "/center",          label: "내 설정",        icon: COG_ICON,      tour: "set"   },
+    { href: "/forms",           label: "양식 매핑",      icon: IC.doc },
   ],
   [
     { href: "/guide",           label: "도움말",         icon: HELP_ICON,     tour: "help"  },
@@ -111,7 +112,6 @@ export default function Sidebar({ user, isBetaAdmin = false }: { user: SessionUs
     groups[0].push({ href: "/tools", label: "바로툴", icon: WAVE_ICON, tour: "tools" });
     // 운영 메뉴 — 도움말(마지막 그룹) 바로 위에 끼워넣음
     groups.splice(groups.length - 1, 0, [
-      { href: "/forms", label: "양식 매핑", icon: IC.doc },
       { href: "/admin/beta", label: "베타 운영", icon: BETA_GEAR_ICON },
     ]);
   }

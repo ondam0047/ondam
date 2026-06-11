@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/db";
 import { requireRole, getEffectiveTherapistId } from "@/lib/auth";
 import { THERAPIST_TYPES } from "@/lib/constants";
+import Link from "next/link";
 import { updateCenter } from "./actions";
 import SlotsEditor from "./SlotsEditor";
-import RecordFormField from "./RecordFormField";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +22,7 @@ export default async function CenterPage({
       where: { id: centerId },
       select: {
         name: true, address: true, phone: true, serviceTypes: true,
-        slots: true, defaultUnit: true, recordForm: true,
+        slots: true, defaultUnit: true,
       },
     }),
     prisma.user.findUnique({ where: { id: me.id }, select: { name: true, therapistType: true } }),
@@ -114,7 +114,6 @@ export default async function CenterPage({
                   새 아동 등록·일정표의 회당 단가에 자동 채워져요. 일정표에서 회기마다 수정 가능.
                 </div>
               </div>
-              <RecordFormField defaultValue={center.recordForm ?? "standard"} />
               <div className="field" style={{ gridColumn: "1 / -1" }}>
                 <label>회기 시간대 <span className="sub-mute">(시작·종료를 골라 추가하세요)</span></label>
                 <SlotsEditor initial={center.slots} />
@@ -127,6 +126,22 @@ export default async function CenterPage({
             <div className="divider" />
             <button className="btn btn-primary" type="submit">저장</button>
           </form>
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="card-header">
+          <h2>기록지·일정표 양식</h2>
+        </div>
+        <div className="card-body">
+          <p className="sub-mute" style={{ marginTop: 0 }}>
+            우리 센터 기록지·일정표(.hwpx)를 올리면 칸을 자동 인식해 매핑하고, 저장해두면
+            일정표·기록지 출력과 일괄 다운로드에서 그 양식 그대로 채워서 받을 수 있어요.
+            센터마다 양식이 다르면 여러 개 저장해두고 골라 쓰면 됩니다.
+          </p>
+          <Link href="/forms" className="btn btn-primary" style={{ marginTop: 12 }}>
+            양식 매핑 열기
+          </Link>
         </div>
       </div>
 

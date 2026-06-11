@@ -4,14 +4,12 @@ import { getCurrentUser } from "@/lib/auth";
 import { readSection0 } from "@/lib/hwpx";
 import { resolveForm, applyOverrides } from "@/lib/record-resolver";
 
-const OP = (process.env.BETA_ADMIN_EMAIL ?? "yj2000102@gmail.com").toLowerCase();
 const KINDS = new Set(["record", "schedule"]);
 
 // 내 저장 양식 목록(기록지/일정표 각각 다수)
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
-  if (user.email.toLowerCase() !== OP) return Response.json({ error: "forbidden" }, { status: 403 });
   const forms = await prisma.recordForm.findMany({
     where: { ownerUserId: user.id },
     orderBy: [{ kind: "asc" }, { createdAt: "asc" }],
@@ -24,7 +22,6 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
-  if (user.email.toLowerCase() !== OP) return Response.json({ error: "forbidden" }, { status: 403 });
 
   const form = await req.formData();
   const file = form.get("file");

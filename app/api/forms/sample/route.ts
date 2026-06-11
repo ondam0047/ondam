@@ -10,13 +10,10 @@ function parseOverrides(v: FormDataEntryValue | null) {
   try { return JSON.parse(v) as Array<{ table: number; row: number; col: number; role: string }>; } catch { return []; }
 }
 
-const OP = (process.env.BETA_ADMIN_EMAIL ?? "yj2000102@gmail.com").toLowerCase();
-
 // 업로드한 양식에 더미 샘플 데이터를 채워 .hwpx 로 돌려줌 — 미리보기 안전망.
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
-  if (user.email.toLowerCase() !== OP) return Response.json({ error: "forbidden" }, { status: 403 });
 
   const form = await req.formData();
   const file = form.get("file");
