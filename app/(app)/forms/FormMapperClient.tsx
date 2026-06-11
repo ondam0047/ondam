@@ -25,7 +25,7 @@ export default function FormMapperClient() {
   const [savingForm, setSavingForm] = useState(false);
   // 셀프 보정: 칸 클릭으로 역할 지정/해제. key="t,r,c" → 역할(빈문자열=해제)
   const [overrides, setOverrides] = useState<Record<string, string>>({});
-  const [picker, setPicker] = useState<{ t: number; r: number; c: number; text: string } | null>(null);
+  const [picker, setPicker] = useState<{ t: number; r: number; c: number; text: string; x: number; y: number } | null>(null);
 
   const loadSaved = useCallback(() => {
     fetch("/api/forms/saved").then((r) => (r.ok ? r.json() : { forms: [] })).then((d) => setSaved(d.forms ?? [])).catch(() => {});
@@ -257,28 +257,47 @@ export default function FormMapperClient() {
           <div className="card">
             <div className="card-body" style={{ display: "grid", gap: 16, overflowX: "auto" }}>
               <p style={{ margin: 0, fontSize: 12.5, color: "var(--text-mute)" }}>
-                양식 표 미리보기 — <span style={{ background: "var(--primary-soft)", color: "var(--primary)", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>색칠된 칸</span>이 자동 인식된 입력 위치예요. <b>칸을 클릭</b>하면 역할을 직접 고칠 수 있어요(기관명·이름·생년월일 등).
+                양식 표 미리보기 — <span style={{ background: "var(--primary-soft)", color: "var(--primary)", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>색칠된 칸</span>이 자동 인식된 입력 위치예요. <b>칸을 클릭</b>하면 그 자리에서 역할을 고칠 수 있어요.
               </p>
-              {picker && (
-                <div style={{ position: "sticky", top: 0, zIndex: 5, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, padding: "8px 10px", borderRadius: 10, background: "var(--primary-soft)", border: "1px solid var(--primary)" }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: "var(--primary)" }}>선택: “{picker.text || "(빈칸)"}” →</span>
-                  {ASSIGN_ROLES.map((role) => (
-                    <button key={role} className="btn btn-sm" onClick={() => assignRole(role)}>{role}</button>
-                  ))}
-                  <button className="btn btn-sm" onClick={() => assignRole("")} style={{ color: "#8A2F1C" }}>역할 비우기</button>
-                  <button className="btn btn-sm" onClick={() => setPicker(null)}>취소</button>
-                </div>
-              )}
-              {result.grid.map((cells, ti) => (
-                <div key={ti}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-soft)", marginBottom: 4 }}>표 {ti + 1}</div>
-                  <TableView
-                    cells={cells}
-                    roleOf={(cell) => effRole(ti, cell)}
-                    onCell={(r, c, text) => setPicker({ t: ti, r, c, text })}
-                  />
-                </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-start" }}>
+                {result.grid.map((cells, ti) => (
+                  <div key={ti} style={{ flex: "0 1 auto", maxWidth: "100%" }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-soft)", marginBottom: 4 }}>표 {ti + 1}</div>
+                    <TableView
+                      cells={cells}
+                      roleOf={(cell) => effRole(ti, cell)}
+                      onCell={(r, c, text, x, y) => setPicker({ t: ti, r, c, text, x, y })}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* 칸 클릭 시 그 자리에 뜨는 역할 선택 팝오버 */}
+      {picker && (
+        <>
+          <div onClick={() => setPicker(null)} style={{ position: "fixed", inset: 0, zIndex: 50 }} />
+          <div style={{
+            position: "fixed", zIndex: 51,
+            left: Math.min(picker.x + 6, (typeof window !== "undefined" ? window.innerWidth : 1200) - 216),
+            top: Math.min(picker.y + 6, (typeof window !== "undefined" ? window.innerHeight : 800) - 150),
+            width: 208, background: "var(--surface)", border: "1px solid var(--primary)",
+            borderRadius: 10, boxShadow: "0 6px 20px rgba(0,0,0,0.18)", padding: 10, display: "grid", gap: 8,
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-soft)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              “{picker.text || "(빈칸)"}” 역할 지정
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {ASSIGN_ROLES.map((role) => (
+                <button key={role} className="btn btn-sm" onClick={() => assignRole(role)}>{role}</button>
               ))}
+            </div>
+            <div style={{ display: "flex", gap: 6, borderTop: "1px solid var(--border)", paddingTop: 8 }}>
+              <button className="btn btn-sm" onClick={() => assignRole("")} style={{ color: "#8A2F1C" }}>역할 비우기</button>
+              <button className="btn btn-sm" onClick={() => setPicker(null)}>취소</button>
             </div>
           </div>
         </>
@@ -290,7 +309,7 @@ export default function FormMapperClient() {
 function TableView({ cells, roleOf, onCell }: {
   cells: Cell[];
   roleOf: (cell: Cell) => string | null;
-  onCell: (r: number, c: number, text: string) => void;
+  onCell: (r: number, c: number, text: string, x: number, y: number) => void;
 }) {
   if (cells.length === 0) return null;
   const maxR = Math.max(...cells.map((c) => c.r + c.rs));
@@ -312,7 +331,7 @@ function TableView({ cells, roleOf, onCell }: {
         const hl = !!role;
         tds.push(
           <td key={c} colSpan={cell.cs} rowSpan={cell.rs}
-            onClick={() => onCell(cell.r, cell.c, cell.text)}
+            onClick={(e) => onCell(cell.r, cell.c, cell.text, e.clientX, e.clientY)}
             title="클릭해서 역할 지정/해제"
             style={{
               border: "1px solid var(--border)", padding: "3px 5px", fontSize: 11, verticalAlign: "top",
