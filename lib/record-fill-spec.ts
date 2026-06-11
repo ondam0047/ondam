@@ -162,6 +162,8 @@ export function generateRecordFromForm(
       xml = removeTableRows(xml, spec.resultTable, spec.extraResultRows);
     }
     xml = fillCells(xml, buildRecordEdits(spec, { ...data, sessions: sessionChunk }));
+    // 제목의 "( N월 )" 채우기 (빈 양식은 "(  월)" 처럼 비어 있음)
+    if (payload.month) xml = xml.replace(/(기록지\s*\(\s*)\d*(\s*월)/, `$1${payload.month}$2`);
     return patchSection0(template, xml);
   });
 }
