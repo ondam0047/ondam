@@ -34,6 +34,7 @@ export type ResolvedSpec = {
   date: Coord[]; start: Coord[]; end: Coord[];
   voucher: Coord[]; extra: Coord[]; amount: Coord[];
   voucherAmount?: Coord[]; copayAmount?: Coord[];
+  serviceName?: Coord; // 본표 서비스 종류 칸("( )재활") — 치료사 종류 기반 채움
   serviceBlocks?: Array<{ start: Coord[]; end: Coord[] }>;
   result: Array<{ date?: Coord; time?: Coord; apprDate?: Coord; apprNum?: Coord; status?: Coord; result?: Coord }>;
   // 별지(2페이지) 상세 결과표 — 회기별 세로 블록(서비스제공일자·승인일자·승인번호·결과 narrative).
@@ -96,8 +97,14 @@ export function resolveForm(xml: string): ResolveOutput {
 
   // 일정표 라벨 칸(1단계) — 라벨→오른쪽(헤더형) / 라벨→아래(열헤더형)
   const sched: Array<{ role: string; coord: Coord }> = [];
-  const seenS = new Set<string>();
-  const pushS = (role: string, coord: Coord | undefined) => { if (coord && !seenS.has(role)) { seenS.add(role); sched.push({ role, coord }); } };
+  const seenS = new Set<string>(); // 좌표 기준 중복제거 — 같은 역할이 여러 표(제공현황·비용)에 있어도 모두 잡음
+  const pushS = (role: string, coord: Coord | undefined) => {
+    if (!coord) return;
+    const key = `${coord[0]},${coord[1]},${coord[2]}`;
+    if (seenS.has(key)) return;
+    seenS.add(key);
+    sched.push({ role, coord });
+  };
   const S_RIGHT: Array<[string, RegExp]> = [["관리번호", /관리번호/], ["작성일자", /작성일자/], ["대상자명", /^성명$/], ["제공자", /서비스제공자$/]];
   const S_BELOW: Array<[string, RegExp]> = [["제공자명", /서비스제공자명|^제공자명$/], ["전화", /^전화$/], ["담당", /^담당$/], ["서비스종류", /서비스종류/], ["주기", /^주기$/], ["제공일", /^제공일$/], ["단가", /단가/], ["횟수", /^횟수$/], ["총금액", /총서비스가격|^총금액$/], ["본인부담금", /본인부담금/]];
   for (const ti of schedTables) {
@@ -153,6 +160,12 @@ export function resolveForm(xml: string): ResolveOutput {
     spec.start = valsAt(startRows[0]); spec.end = valsAt(endRows[0]);
   } else if (startRows.length === 1) {
     spec.start = valsAt(startRows[0]); if (endRows[0] != null) spec.end = valsAt(endRows[0]);
+  }
+  // 본표 서비스 종류 칸 — 시작시간 줄 맨 왼쪽 칸("( )재활"). 단일 서비스 양식만.
+  if (startRows.length === 1) {
+    const sr = startRows[0];
+    const svc = dtab.filter((c) => c.c === 0 && c.r <= sr && c.r + c.rs > sr)[0];
+    if (svc) spec.serviceName = [dt, svc.r, 0] as Coord;
   }
   const extraRow = labelRows(/추가구매/)[0];
   if (extraRow != null) {
@@ -250,6 +263,7 @@ export function resolveForm(xml: string): ResolveOutput {
     if (cell && !cell.role) cell.role = role;
   };
   (["org", "name", "birth", "serviceArea"] as const).forEach((k) => mark(spec[k], ROLE[k]));
+  mark(spec.serviceName, "서비스종류");
   (["date", "start", "end", "voucher", "extra", "amount", "voucherAmount", "copayAmount"] as const).forEach((k) => {
     const arr = spec[k]; if (Array.isArray(arr)) arr.forEach((co) => mark(co, ROLE[k]));
   });
@@ -277,6 +291,7 @@ export function buildSampleEdits(spec: ResolvedSpec): CellEdit[] {
   put(spec.name, "홍길동");
   put(spec.birth, "2018-03-15");
   put(spec.serviceArea, "언어재활");
+  put(spec.serviceName, "언어재활");
   const days = ["3", "7", "12", "18", "24"];
   spec.date.forEach((co, i) => put(co, `6/${days[i] ?? i + 1}`));
   spec.start.forEach((co) => put(co, "10:00"));
