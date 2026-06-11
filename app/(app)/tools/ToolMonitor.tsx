@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { trendSvg } from "@/lib/voice/report";
 
 type Child = { id: number; name: string; birthDate: string | null };
@@ -17,12 +17,14 @@ export default function ToolMonitor({
   module,
   getMetrics,
   renderSummary,
+  renderRowChart,
   trend,
   onContext,
 }: {
   module: string;
   getMetrics: () => Record<string, number | string> | null;
   renderSummary: (m: Record<string, unknown>) => string;
+  renderRowChart?: (m: Record<string, unknown>) => ReactNode;
   trend?: Series;
   onContext?: (ctx: { subject: string | null; clinician: string; chartSvg: string }) => void;
 }) {
@@ -155,12 +157,15 @@ export default function ToolMonitor({
                 ) : (
                   <div style={{ display: "grid", gap: 6 }}>
                     {[...sessions].reverse().map((s) => (
-                      <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface-2)", padding: "8px 12px" }}>
-                        <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-                          <span style={{ fontSize: 12, color: "var(--text-mute)", fontVariantNumeric: "tabular-nums" }}>{fmtDate(s.createdAt)}</span>
-                          <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>{renderSummary(s.metrics)}</span>
+                      <div key={s.id} style={{ display: "grid", gap: 6, borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface-2)", padding: "8px 12px" }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                          <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+                            <span style={{ fontSize: 12, color: "var(--text-mute)", fontVariantNumeric: "tabular-nums" }}>{fmtDate(s.createdAt)}</span>
+                            <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>{renderSummary(s.metrics)}</span>
+                          </div>
+                          <button onClick={() => remove(s.id)} style={{ background: "none", border: "none", fontSize: 12, color: "var(--text-mute)", cursor: "pointer", flexShrink: 0 }}>삭제</button>
                         </div>
-                        <button onClick={() => remove(s.id)} style={{ background: "none", border: "none", fontSize: 12, color: "var(--text-mute)", cursor: "pointer" }}>삭제</button>
+                        {renderRowChart && renderRowChart(s.metrics)}
                       </div>
                     ))}
                   </div>

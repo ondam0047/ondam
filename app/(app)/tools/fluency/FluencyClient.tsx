@@ -53,7 +53,8 @@ const EXAMPLE_TRANSCRIPT =
 type TagSource = "manual" | "transcript";
 type Tag = {
   id: number;
-  time: number;
+  time: number; // 점 표시이거나 구간의 시작(sec)
+  end?: number; // 구간 표시일 때 끝(sec)
   type: PatternType;
   emphasized: boolean; // 사용자가 특별히 표시한 항목
   source: TagSource;
@@ -302,13 +303,14 @@ export default function FluencyClient() {
     return () => cancelAnimationFrame(raf);
   }, [playing]);
 
-  const addTagAt = useCallback((type: PatternType, time: number) => {
+  const addTagAt = useCallback((type: PatternType, time: number, end?: number) => {
     setTags((prev) =>
       [
         ...prev,
         {
           id: tagIdRef.current++,
           time,
+          ...(end != null ? { end } : {}),
           type,
           emphasized: false,
           source: "manual" as TagSource,
@@ -318,10 +320,12 @@ export default function FluencyClient() {
     );
   }, []);
 
-  // 파형 클릭: 그 위치로 이동 + (유형 선택 상태면) 그 위치에 패턴 표시
-  const handleWaveformClick = useCallback((t: number) => {
-    seek(t);
-    if (activeType) addTagAt(activeType, t);
+  // 파형 클릭/드래그: 시작 위치로 이동 + (유형 선택 상태면) 그 지점(클릭) 또는 구간(드래그)에 패턴 표시
+  const handleWaveformCommit = useCallback((start: number, end: number | null) => {
+    seek(start);
+    if (!activeType) return;
+    if (end != null && end - start >= 0.08) addTagAt(activeType, start, end);
+    else addTagAt(activeType, start);
   }, [seek, activeType, addTagAt]);
 
   // 키보드: 1-6 태그, space 재생/정지
@@ -462,7 +466,7 @@ export default function FluencyClient() {
                   rows: tags.map((t) => {
                     const meta = TYPES.find((m) => m.id === t.type);
                     return {
-                      label: `${t.time.toFixed(2)}s`,
+                      label: t.end != null ? `${t.time.toFixed(2)}–${t.end.toFixed(2)}s` : `${t.time.toFixed(2)}s`,
                       value: `${meta?.label ?? t.type}${t.emphasized ? " (강조)" : ""}`,
                       ref: t.note ?? SOURCE_LABEL[t.source],
                     };
@@ -697,7 +701,7 @@ export default function FluencyClient() {
                     duration={duration}
                     cursorTime={cursorTime}
                     tags={tags}
-                    onPick={handleWaveformClick}
+                    onCommit={handleWaveformCommit}
                     activeHex={activeType ? (TYPES.find((t) => t.id === activeType)?.hex ?? null) : null}
                   />
                 </div>
@@ -759,10 +763,10 @@ export default function FluencyClient() {
               >
                 {activeType ? (
                   <>
-                    <b>{TYPES.find((t) => t.id === activeType)?.label}</b> 선택됨 — {audioUrl && peaks.length > 0 ? "파형에서 표시할 위치를 클릭하세요" : "재생 중 키로 현재 위치에 표시하세요"}. (유형을 다시 누르면 해제)
+                    <b>{TYPES.find((t) => t.id === activeType)?.label}</b> 선택됨 — {audioUrl && peaks.length > 0 ? "파형을 클릭(한 지점)하거나 드래그(구간)해 표시하세요" : "재생 중 키로 현재 위치에 표시하세요"}. (유형을 다시 누르면 해제)
                   </>
                 ) : (
-                  <>위 유형을 하나 고른 뒤 {audioUrl && peaks.length > 0 ? "파형을 클릭하면 그 위치에" : "재생 중 키 1–6 으로 현재 위치에"} 표시가 추가돼요.</>
+                  <>위 유형을 하나 고른 뒤 {audioUrl && peaks.length > 0 ? "파형을 클릭(지점)하거나 드래그(구간)하면" : "재생 중 키 1–6 으로 현재 위치에"} 표시가 추가돼요.</>
                 )}
               </div>
             </div>
@@ -871,7 +875,7 @@ export default function FluencyClient() {
                                   fontSize: 13,
                                 }}
                               >
-                                {tag.time.toFixed(2)}s
+                                {tag.end != null ? `${tag.time.toFixed(2)}–${tag.end.toFixed(2)}s` : `${tag.time.toFixed(2)}s`}
                               </button>
                             </td>
                             <td style={{ padding: "6px 8px 6px 0" }}>
@@ -1256,6 +1260,14 @@ export default function FluencyClient() {
             renderSummary={(m) =>
               `총 ${m.total ?? "-"}회 (간투사 ${m.I ?? 0}·반복 ${(Number(m.R1 ?? 0) + Number(m.R2 ?? 0))}·수정 ${m.UR ?? 0}·연장 ${m.P ?? 0}·막힘 ${m.B ?? 0})${m.per100 ? ` · 100음절당 ${m.per100}` : ""}`
             }
+            renderRowChart={(m) => {
+              const total = Number(m.total) || 0;
+              if (total <= 0) return null;
+              const segs = TYPES.map((t) => ({ label: t.label, count: Number(m[t.id]) || 0, color: t.hex }))
+                .filter((s) => s.count > 0)
+                .map((s) => ({ ...s, pct: (s.count / total) * 100 }));
+              return <TypeBar segs={segs} />;
+            }}
             trend={{ key: "total", label: "비유창 표시 수", unit: "회" }}
             onContext={setSubj}
           />
@@ -1329,26 +1341,56 @@ export default function FluencyClient() {
   );
 }
 
+// 모니터링 세션별 비유창 유형 분포 막대
+function TypeBar({ segs }: { segs: { label: string; count: number; color: string; pct: number }[] }) {
+  return (
+    <div style={{ display: "grid", gap: 4 }}>
+      <div style={{ display: "flex", height: 16, borderRadius: 6, overflow: "hidden", background: "var(--surface)", border: "1px solid var(--border)" }}>
+        {segs.map((s) => (
+          <div
+            key={s.label}
+            title={`${s.label} ${s.count}회`}
+            style={{ width: `${s.pct}%`, background: s.color, display: "flex", alignItems: "center", justifyContent: "center", minWidth: 0 }}
+          >
+            {s.pct >= 14 && <span style={{ fontSize: 9.5, fontWeight: 700, color: "#fff" }}>{s.count}</span>}
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", fontSize: 10.5, color: "var(--text-soft)" }}>
+        {segs.map((s) => (
+          <span key={s.label} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <span style={{ width: 9, height: 9, borderRadius: 2, background: s.color, display: "inline-block" }} />
+            {s.label} {s.count}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const WAVE_H = 76;
 
-// 파형 + 패턴 마커 + 재생 커서. 클릭 위치(초)를 onPick 으로 전달.
+// 파형 + 패턴 마커(점/구간) + 재생 커서. 클릭=지점, 드래그=구간 → onCommit(start, end|null).
 function FluencyWaveform({
   peaks,
   duration,
   cursorTime,
   tags,
-  onPick,
+  onCommit,
   activeHex,
 }: {
   peaks: number[];
   duration: number;
   cursorTime: number;
   tags: Tag[];
-  onPick: (t: number) => void;
+  onCommit: (start: number, end: number | null) => void;
   activeHex: string | null;
 }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const dragStartRef = useRef<number | null>(null);
+  const liveRef = useRef<{ a: number; b: number } | null>(null);
+  const [live, setLive] = useState<{ a: number; b: number } | null>(null);
 
   useEffect(() => {
     const wrap = wrapRef.current;
@@ -1384,13 +1426,60 @@ function FluencyWaveform({
     return () => ro.disconnect();
   }, [peaks]);
 
-  const handleClick = (clientX: number) => {
+  const timeAt = (clientX: number): number => {
     const wrap = wrapRef.current;
-    if (!wrap || duration <= 0) return;
+    if (!wrap || duration <= 0) return 0;
     const rect = wrap.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    onPick(ratio * duration);
+    return ratio * duration;
   };
+
+  const beginDrag = (clientX: number) => {
+    if (duration <= 0) return;
+    const t = timeAt(clientX);
+    dragStartRef.current = t;
+    liveRef.current = { a: t, b: t };
+    setLive({ a: t, b: t });
+  };
+
+  // 드래그 추적 + 종료(window 리스너 — 파형 밖에서 떼도 인식)
+  useEffect(() => {
+    const move = (clientX: number) => {
+      if (dragStartRef.current == null) return;
+      const r = { a: dragStartRef.current, b: timeAt(clientX) };
+      liveRef.current = r;
+      setLive(r);
+    };
+    const onMouseMove = (e: MouseEvent) => move(e.clientX);
+    const onTouchMove = (e: TouchEvent) => {
+      if (dragStartRef.current != null && e.touches[0]) { e.preventDefault(); move(e.touches[0].clientX); }
+    };
+    const onUp = () => {
+      const s = dragStartRef.current;
+      const r = liveRef.current;
+      dragStartRef.current = null;
+      liveRef.current = null;
+      setLive(null);
+      if (s == null || !r) return;
+      const a = Math.min(r.a, r.b);
+      const b = Math.max(r.a, r.b);
+      if (b - a < 0.08) onCommit(s, null);
+      else onCommit(a, b);
+    };
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onUp);
+    window.addEventListener("touchmove", onTouchMove, { passive: false });
+    window.addEventListener("touchend", onUp);
+    window.addEventListener("touchcancel", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchend", onUp);
+      window.removeEventListener("touchcancel", onUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [duration, onCommit]);
 
   const pct = (t: number) => (duration > 0 ? Math.max(0, Math.min(100, (t / duration) * 100)) : 0);
 
@@ -1398,8 +1487,8 @@ function FluencyWaveform({
     <div>
       <div
         ref={wrapRef}
-        onMouseDown={(e) => handleClick(e.clientX)}
-        onTouchStart={(e) => { if (e.touches[0]) handleClick(e.touches[0].clientX); }}
+        onMouseDown={(e) => { e.preventDefault(); beginDrag(e.clientX); }}
+        onTouchStart={(e) => { if (e.touches[0]) beginDrag(e.touches[0].clientX); }}
         style={{
           position: "relative",
           width: "100%",
@@ -1414,8 +1503,34 @@ function FluencyWaveform({
         }}
       >
         <canvas ref={canvasRef} style={{ display: "block" }} />
-        {/* 태그 마커 */}
-        {duration > 0 && tags.map((tag) => {
+
+        {/* 구간 태그 (음영) */}
+        {duration > 0 && tags.filter((t) => t.end != null).map((tag) => {
+          const hex = TYPES.find((t) => t.id === tag.type)?.hex ?? "#666";
+          const l = pct(tag.time);
+          const w = Math.max(0.5, pct(tag.end as number) - l);
+          return (
+            <div
+              key={tag.id}
+              style={{
+                position: "absolute",
+                top: 0,
+                bottom: 0,
+                left: `${l}%`,
+                width: `${w}%`,
+                background: hex,
+                opacity: tag.reviewed ? 0.26 : 0.16,
+                borderLeft: `2px solid ${hex}`,
+                borderRight: `2px solid ${hex}`,
+                pointerEvents: "none",
+                zIndex: 2,
+              }}
+            />
+          );
+        })}
+
+        {/* 점 태그 (세로선 + ▼) */}
+        {duration > 0 && tags.filter((t) => t.end == null).map((tag) => {
           const hex = TYPES.find((t) => t.id === tag.type)?.hex ?? "#666";
           return (
             <div
@@ -1449,6 +1564,25 @@ function FluencyWaveform({
             </div>
           );
         })}
+
+        {/* 드래그 중 선택 영역 */}
+        {live && Math.abs(live.b - live.a) > 0.001 && (
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              bottom: 0,
+              left: `${pct(Math.min(live.a, live.b))}%`,
+              width: `${Math.max(0, pct(Math.max(live.a, live.b)) - pct(Math.min(live.a, live.b)))}%`,
+              background: activeHex ?? "var(--primary)",
+              opacity: 0.22,
+              border: `1.5px solid ${activeHex ?? "var(--primary)"}`,
+              pointerEvents: "none",
+              zIndex: 4,
+            }}
+          />
+        )}
+
         {/* 재생 커서 */}
         <div
           style={{
@@ -1466,7 +1600,7 @@ function FluencyWaveform({
         />
       </div>
       <p style={{ margin: "6px 0 0", fontSize: 11.5, color: "var(--text-mute)", lineHeight: 1.6 }}>
-        파형을 클릭하면 그 위치로 이동해요{activeHex ? " · 유형이 선택돼 있어 클릭하면 그 자리에 표시가 추가돼요" : ""}. 표시는 색 막대(▼)로 나타나요.
+        클릭=그 지점으로 이동{activeHex ? "·표시" : ""}, 드래그=구간 선택{activeHex ? "·구간 표시" : ""}. 점은 ▼, 구간은 색 음영으로 나타나요.
       </p>
     </div>
   );
