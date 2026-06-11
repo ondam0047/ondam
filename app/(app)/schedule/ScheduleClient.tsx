@@ -109,6 +109,15 @@ export default function ScheduleClient({
   const [downloadingHwpx, setDownloadingHwpx] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
+  // 저장한 우리 센터 일정표 양식 — 있으면 출력 양식 선택
+  const [savedForms, setSavedForms] = useState<Array<{ id: number; name: string }>>([]);
+  const [outFormId, setOutFormId] = useState<number | "">("");
+  useEffect(() => {
+    fetch("/api/forms/saved")
+      .then((r) => (r.ok ? r.json() : { forms: [] }))
+      .then((d) => setSavedForms((d.forms ?? []).filter((f: { kind: string }) => f.kind === "schedule")))
+      .catch(() => {});
+  }, []);
 
   // 저장된 일정표 목록 (선택된 아동 기준으로 fetch)
   type SavedRow = {
@@ -584,6 +593,7 @@ export default function ScheduleClient({
         costUnit, costSelf, costTotal,
         cycle,
         target,
+        formId: outFormId || undefined,
         sessions: days.map((d) => ({
           day: d,
           weekday: WEEK[new Date(genY, genM - 1, d).getDay()],
@@ -977,6 +987,17 @@ export default function ScheduleClient({
                 <span className="sub-mute">저장하려면 위에서 "저장된 아동 불러오기"로 선택해주세요.</span>
               )}
               <span style={{ flex: 1 }} />
+              {savedForms.length > 0 && (
+                <select
+                  value={outFormId}
+                  onChange={(e) => setOutFormId(e.target.value ? Number(e.target.value) : "")}
+                  title="출력에 사용할 일정표 양식"
+                  style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", fontSize: 13, color: "var(--text)" }}
+                >
+                  <option value="">기본 양식</option>
+                  {savedForms.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+                </select>
+              )}
               <button className="btn btn-primary" onClick={downloadHwpx} disabled={downloadingHwpx}>
                 {downloadingHwpx ? "생성 중..." : "한글파일(.hwpx) 다운로드"}
               </button>
