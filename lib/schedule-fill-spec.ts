@@ -1,5 +1,5 @@
 // 저장된 일정표 양식(RecordForm kind=schedule)의 spec + 실데이터 → 채워진 .hwpx.
-// 1단계: 라벨 칸(관리번호·대상자명·제공자·치료사·서비스종류·단가·본인부담·주기·제공일 등).
+// 1단계: 라벨 칸(관리번호·대상자명·제공자·서비스종류·단가·본인부담·주기·제공일 등).
 // (요일×슬롯 주간 격자 본문은 다음 단계)
 
 import { readSection0, patchSection0 } from "@/lib/hwpx";
@@ -18,12 +18,12 @@ export function generateScheduleFromForm(
   let xml = readSection0(template);
 
   const weekdays = [...new Set((p.sessions ?? []).map((s) => s.weekday).filter(Boolean))].join("·");
-  // 일정표 라벨 역할 → 실데이터
+  // 일정표 라벨 역할 → 실데이터. (서비스 제공자명 = 기관명, 담당 = 치료사)
   const roleVal: Record<string, string> = {
     관리번호: p.mgmtNumber ?? "",
     대상자명: p.childName ?? "",
     제공자: p.pvOrg ?? "",
-    제공자명: p.therapist ?? "",
+    제공자명: p.pvOrg ?? "", // 서비스 제공자명 = 기관명
     담당: p.pvCharge || p.therapist || "",
     작성일자: p.writeDate ?? "",
     서비스종류: p.serviceType || p.pvType || "",

@@ -96,7 +96,7 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
   const today = new Date();
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
   const schedVal: Record<string, string> = {
-    대상자명: d.childName, 제공자: d.org, 제공자명: d.therapistName, 담당: d.therapistName,
+    대상자명: d.childName, 제공자: d.org, 제공자명: d.org, 담당: d.therapistName,
     서비스종류: d.serviceType, 작성일자: todayStr,
   };
   spec.schedule?.forEach((s) => { if (schedVal[s.role] !== undefined) put(s.coord, schedVal[s.role]); });

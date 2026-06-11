@@ -10,7 +10,7 @@ export const SCHEDULE_FIELD_SOURCE: Record<string, string> = {
   관리번호: "child.mgmtNumber",
   대상자명: "child.name",
   제공자: "center.name",
-  제공자명: "therapist.name", // 서비스 제공자명 = 치료사 이름
+  제공자명: "center.name", // 서비스 제공자명 = 기관명
   작성일자: "today",
   전화: "center.phone",
   담당: "therapist.name",
@@ -377,7 +377,7 @@ export function buildSampleEdits(spec: ResolvedSpec): CellEdit[] {
   });
   const schedDummy: Record<string, string> = {
     관리번호: "바-2026-001", 작성일자: "2026-06-01", 대상자명: "홍길동", 제공자: "○○발달센터",
-    제공자명: "김치료", 전화: "02-000-0000", 담당: "김치료", 서비스종류: "언어재활", 주기: "주 2회", 제공일: "화·목",
+    제공자명: "○○발달센터", 전화: "02-000-0000", 담당: "김치료", 서비스종류: "언어재활", 주기: "주 2회", 제공일: "화·목",
     단가: "60,000", 횟수: "월 8회", 총금액: "480,000", 본인부담금: "48,000",
   };
   spec.schedule?.forEach((s) => put(s.coord, schedDummy[s.role] ?? "샘플"));
