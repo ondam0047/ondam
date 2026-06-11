@@ -2,10 +2,11 @@
 // 1단계: 라벨 칸(관리번호·대상자명·제공자·서비스종류·단가·본인부담·주기·제공일 등).
 // (요일×슬롯 주간 격자 본문은 다음 단계)
 
-import { readSection0, patchSection0 } from "@/lib/hwpx";
+import { readSection0, readHeader, patchSection0, patchFiles } from "@/lib/hwpx";
 import { fillCells, type CellEdit, type Coord } from "@/lib/record-fill";
 import { detectCalendarFromXml, type ResolvedSpec } from "@/lib/record-resolver";
 import { buildCalendarEdits } from "@/lib/schedule-calendar";
+import { getCellRunCharPr, addClonedCharPr } from "@/lib/hwpx-charpr";
 import type { SchedulePayload } from "@/lib/schedule-hwpx";
 
 const won = (n: number) => (Number(n) || 0).toLocaleString("ko-KR");
@@ -57,15 +58,29 @@ export function generateScheduleFromForm(
 
   // 월 달력 격자 — 날짜 + 회기 시간 본문 (저장 spec 에 없으면 템플릿에서 재탐지)
   const cal = spec.scheduleCalendar ?? detectCalendarFromXml(xml);
+  let header: string | null = null;
   if (cal && p.year && p.month) {
+    // 빨간날(일요일·공휴일) 색상 — 평일 날짜 칸의 글자속성을 복제해 빨강 charPr 생성.
+    let redCharPr: number | undefined;
+    const wkCol = cal.cols.find((c) => c.dow !== 0) ?? cal.cols[0];
+    const baseNum = getCellRunCharPr(xml, cal.table, cal.weeks[0].numberRow, wkCol.startCol);
+    if (baseNum != null) {
+      header = readHeader(template);
+      const r = addClonedCharPr(header, baseNum, { textColor: "#FF0000" });
+      if (r) { header = r.xml; redCharPr = r.id; }
+    }
+    const holidays = (p.holidays ?? []).map((h) => h.day);
     edits.push(...buildCalendarEdits(
       cal, p.year, p.month,
       (p.sessions ?? []).map((s) => ({ day: s.day, time: s.time })),
+      { redCharPr, holidays },
     ));
   }
 
   xml = fillCells(xml, edits);
   // 제목 "( N월 )"
   if (p.month) xml = xml.replace(/(일정표\s*\(\s*)\d*(\s*월)/, `$1${p.month}$2`);
-  return patchSection0(template, xml);
+  return header
+    ? patchFiles(template, { "Contents/section0.xml": xml, "Contents/header.xml": header })
+    : patchSection0(template, xml);
 }

@@ -135,12 +135,34 @@ export function patchSection0(templateBuf: Buffer, newSectionXml: string): Buffe
 }
 
 export function readSection0(templateBuf: Buffer): string {
+  return readEntryText(templateBuf, "Contents/section0.xml");
+}
+
+export function readHeader(templateBuf: Buffer): string {
+  return readEntryText(templateBuf, "Contents/header.xml");
+}
+
+export function readEntryText(templateBuf: Buffer, name: string): string {
   const entries = parseZipEntries(templateBuf);
-  const sec = entries.find((e) => e.name === "Contents/section0.xml");
-  if (!sec) throw new Error("section0.xml not found in template");
-  return sec.method === 8
-    ? inflateRawSync(sec.compressedData).toString("utf8")
-    : sec.compressedData.toString("utf8");
+  const e = entries.find((x) => x.name === name);
+  if (!e) throw new Error(`${name} not found in template`);
+  return e.method === 8 ? inflateRawSync(e.compressedData).toString("utf8") : e.compressedData.toString("utf8");
+}
+
+// 여러 내부 파일(예: section0 + header)을 한 번에 교체해 .hwpx 출력.
+export function patchFiles(templateBuf: Buffer, files: Record<string, string>): Buffer {
+  const entries = parseZipEntries(templateBuf);
+  for (const [name, xml] of Object.entries(files)) {
+    const e = entries.find((x) => x.name === name);
+    if (!e) throw new Error(`${name} not found in template`);
+    const buf = Buffer.from(xml, "utf8");
+    e.compressedData = deflateRawSync(buf, { level: 9 });
+    e.compressedSize = e.compressedData.length;
+    e.uncompressedSize = buf.length;
+    e.crc = crc32(buf);
+    e.method = 8;
+  }
+  return buildZip(entries);
 }
 
 export function xmlEscape(s: string): string {

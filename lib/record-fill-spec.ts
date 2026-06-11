@@ -1,11 +1,12 @@
 // 저장된 양식(RecordForm)의 ResolvedSpec + 실제 기록지 데이터 → 채워진 .hwpx 생성.
 // 자동매핑/보정 결과(spec)를 따라 실데이터를 셀에 써넣는다. 5칸/5행 물리 정리 적용.
 
-import { readSection0, patchSection0 } from "@/lib/hwpx";
+import { readSection0, readHeader, patchSection0, patchFiles } from "@/lib/hwpx";
 import { fillCells, type CellEdit, type Coord } from "@/lib/record-fill";
 import { removeTableColumns, removeTableRows } from "@/lib/record-trim";
 import { detectCalendarFromXml, type ResolvedSpec } from "@/lib/record-resolver";
 import { buildCalendarEdits, type CalSession } from "@/lib/schedule-calendar";
+import { getCellRunCharPr, addClonedCharPr } from "@/lib/hwpx-charpr";
 import type { RecordPayload, RecordSessionDetail } from "@/lib/record-hwpx";
 
 const num = (s?: string) => Number(String(s ?? "").replace(/[^0-9.-]/g, "")) || 0;
@@ -171,6 +172,25 @@ export function generateRecordFromForm(
   // 저장 spec 에 달력이 없으면(구버전) 템플릿에서 재탐지
   const cal = spec.scheduleCalendar ?? detectCalendarFromXml(baseXml);
 
+  // 통합 양식 달력: 시간 한 줄(글자크기 6pt) + 빨간날 색상용 charPr 를 header 에 주입(1회).
+  let header: string | null = null;
+  let timeCharPr: number | undefined;
+  let redCharPr: number | undefined;
+  if (cal && payload.month) {
+    header = readHeader(template);
+    const conBase = getCellRunCharPr(baseXml, cal.table, cal.weeks[0].contentRow, cal.cols[0].startCol);
+    if (conBase != null) {
+      const r = addClonedCharPr(header, conBase, { height: 600 }); // 6pt → 시간 한 줄
+      if (r) { header = r.xml; timeCharPr = r.id; }
+    }
+    const wkCol = cal.cols.find((c) => c.dow !== 0) ?? cal.cols[0];
+    const numBase = getCellRunCharPr(baseXml, cal.table, cal.weeks[0].numberRow, wkCol.startCol);
+    if (numBase != null) {
+      const r = addClonedCharPr(header, numBase, { textColor: "#FF0000" });
+      if (r) { header = r.xml; redCharPr = r.id; }
+    }
+  }
+
   return chunks.map((sessionChunk) => {
     let xml = baseXml;
     if (spec.dateTable != null && spec.extraSessionCols?.length) {
@@ -181,11 +201,13 @@ export function generateRecordFromForm(
     }
     const edits = buildRecordEdits(spec, { ...data, sessions: sessionChunk });
     if (cal && payload.month) {
-      edits.push(...buildCalendarEdits(cal, yr, payload.month, calSessions));
+      edits.push(...buildCalendarEdits(cal, yr, payload.month, calSessions, { timeCharPr, redCharPr }));
     }
     xml = fillCells(xml, edits);
     // 제목의 "( N월 )" 채우기 (빈 양식은 "(  월)" 처럼 비어 있음)
     if (payload.month) xml = xml.replace(/(기록지\s*\(\s*)\d*(\s*월)/, `$1${payload.month}$2`);
-    return patchSection0(template, xml);
+    return header
+      ? patchFiles(template, { "Contents/section0.xml": xml, "Contents/header.xml": header })
+      : patchSection0(template, xml);
   });
 }

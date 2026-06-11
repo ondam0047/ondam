@@ -13,7 +13,8 @@ import { xmlEscape } from "@/lib/hwpx";
 // [표 index, rowAddr, colAddr, 단락 index(기본 0)]
 export type Coord = [table: number, row: number, col: number, p?: number];
 
-export type CellEdit = { table: number; row: number; col: number; p?: number; value: string };
+// charPr: 지정 시 해당 단락 run 의 charPrIDRef 를 교체(빨간날 색·시간 글자크기용).
+export type CellEdit = { table: number; row: number; col: number; p?: number; value: string; charPr?: number };
 
 const TBL_OPEN = "<hp:tbl";
 const TBL_CLOSE = "</hp:tbl>";
@@ -63,9 +64,10 @@ function findParagraph(cellXml: string, pIndex: number): [number, number] | null
 // 한 단락(<hp:p>)의 글자를 value 로 교체. 기존 <hp:t> 는 모두 지우고
 // 첫 <hp:run> 에 새 글자를 넣는다. value 가 빈 문자열이면 셀을 비운다.
 // linesegarray(줄 위치 캐시)는 제거해서 한글이 새로 계산하도록 한다.
-function setParagraphText(pXml: string, value: string): string {
+function setParagraphText(pXml: string, value: string, charPr?: number): string {
   let p = pXml.replace(/<hp:linesegarray>[\s\S]*?<\/hp:linesegarray>/g, "");
   p = p.replace(/<hp:t>[\s\S]*?<\/hp:t>/g, "");
+  if (charPr !== undefined) p = p.replace(/(<hp:run\s+charPrIDRef=")\d+(")/, `$1${charPr}$2`);
   if (value === "") return p;
   const esc = xmlEscape(value);
   const runIdx = p.indexOf("<hp:run");
@@ -89,7 +91,7 @@ function applyEdit(xml: string, e: CellEdit): string {
   let cell = tbl.slice(c[0], c[1]);
   const pr = findParagraph(cell, e.p ?? 0);
   if (!pr) return xml;
-  const newPara = setParagraphText(cell.slice(pr[0], pr[1]), e.value);
+  const newPara = setParagraphText(cell.slice(pr[0], pr[1]), e.value, e.charPr);
   cell = cell.slice(0, pr[0]) + newPara + cell.slice(pr[1]);
   tbl = tbl.slice(0, c[0]) + cell + tbl.slice(c[1]);
   return xml.slice(0, t[0]) + tbl + xml.slice(t[1]);
