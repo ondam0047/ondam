@@ -73,3 +73,63 @@ export function removeTableColumns(xml: string, tableIndex: number, removeCols: 
 
   return xml.slice(0, t[0]) + outTbl + xml.slice(t[1]);
 }
+
+// 표에서 행(<hp:tr>) 삭제 — 결과표를 5행으로 정리.
+// 삭제 행의 <hp:tr> 제거 + 아래 행 rowAddr 감소 + 행 가로지르는 병합셀 rowSpan 축소
+// + 표 rowCnt·전체 높이 보정. (결과 데이터 행은 병합 없는 단순 셀 가정)
+export function removeTableRows(xml: string, tableIndex: number, removeRows: number[]): string {
+  if (!removeRows || removeRows.length === 0) return xml;
+  const R = new Set(removeRows);
+  const t = findNthTable(xml, tableIndex);
+  if (!t) return xml;
+  const tbl = xml.slice(t[0], t[1]);
+
+  // 행 높이(rowSpan=1 셀 기준)
+  const rowH: Record<number, number> = {};
+  for (const cm of tbl.matchAll(/<hp:tc\b[\s\S]*?<\/hp:tc>/g)) {
+    const cell = cm[0];
+    const ad = cell.match(/<hp:cellAddr colAddr="\d+" rowAddr="(\d+)"/);
+    const sp = cell.match(/<hp:cellSpan colSpan="\d+" rowSpan="(\d+)"/);
+    const h = cell.match(/<hp:cellSz width="\d+" height="(\d+)"/);
+    if (ad && h) {
+      const row = +ad[1];
+      const rspan = sp ? +sp[1] : 1;
+      if (rspan === 1 && rowH[row] === undefined) rowH[row] = +h[1];
+    }
+  }
+  const removedHeight = removeRows.reduce((s, r) => s + (rowH[r] ?? 0), 0);
+
+  // <hp:tr> 단위 처리 — 각 행의 rowAddr 는 그 행 셀들의 rowAddr
+  const newTbl = tbl.replace(/<hp:tr\b[\s\S]*?<\/hp:tr>/g, (tr) => {
+    const ad = tr.match(/<hp:cellAddr colAddr="\d+" rowAddr="(\d+)"/);
+    if (!ad) return tr; // 셀 없는 행은 그대로
+    const rowAddr = +ad[1];
+    if (R.has(rowAddr)) return ""; // 행 삭제
+    const shift = removeRows.filter((r) => r < rowAddr).length;
+    let out = tr;
+    if (shift > 0) {
+      // 이 행 모든 셀의 rowAddr 감소
+      out = out.replace(/(<hp:cellAddr colAddr="\d+" rowAddr=")(\d+)(")/g, (_m, p1, p2, p3) => `${p1}${+p2 - shift}${p3}`);
+    }
+    // 이 행에서 시작해 삭제 행을 가로지르는 rowSpan 축소
+    out = out.replace(/<hp:tc\b[\s\S]*?<\/hp:tc>/g, (cell) => {
+      const a2 = cell.match(/<hp:cellAddr colAddr="\d+" rowAddr="(\d+)"/);
+      const sp = cell.match(/<hp:cellSpan colSpan="\d+" rowSpan="(\d+)"/);
+      if (!a2 || !sp) return cell;
+      const rspan = +sp[1];
+      if (rspan <= 1) return cell;
+      const rStart = rowAddr; // (shift 전 기준으로 within 계산)
+      const within = removeRows.filter((r) => r >= rStart && r < rStart + rspan).length;
+      if (within === 0) return cell;
+      const subH = removeRows.filter((r) => r >= rStart && r < rStart + rspan).reduce((s, r) => s + (rowH[r] ?? 0), 0);
+      return cell
+        .replace(/(<hp:cellSpan colSpan="\d+" rowSpan=")\d+(")/, `$1${rspan - within}$2`)
+        .replace(/(<hp:cellSz width="\d+" height=")(\d+)(")/, (_m, p1, p2, p3) => `${p1}${+p2 - subH}${p3}`);
+    });
+    return out;
+  });
+
+  let outTbl = newTbl.replace(/(<hp:tbl\b[^>]*\browCnt=")(\d+)(")/, (_m, p1, p2, p3) => `${p1}${+p2 - R.size}${p3}`);
+  outTbl = outTbl.replace(/(<hp:sz width="\d+" height=")(\d+)(")/, (_m, p1, p2, p3) => `${p1}${+p2 - removedHeight}${p3}`);
+  return xml.slice(0, t[0]) + outTbl + xml.slice(t[1]);
+}

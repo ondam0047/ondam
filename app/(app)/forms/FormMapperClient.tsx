@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 type Cell = { r: number; c: number; cs: number; rs: number; text: string; role: string | null };
-type Spec = { schedule?: Array<{ role: string }>; detail?: unknown[]; extraSessionCols?: number[] };
+type Spec = { schedule?: Array<{ role: string }>; detail?: unknown[]; extraSessionCols?: number[]; extraResultRows?: number[] };
 type AnalyzeResult = { coverage: Record<string, boolean>; grid: Cell[][]; spec?: Spec };
 
 const FIELD_LABEL: Record<string, string> = {
@@ -79,10 +79,10 @@ export default function FormMapperClient() {
                 {downloading ? "생성 중…" : "샘플로 채워 받기 (.hwpx)"}
               </button>
             )}
-            {result && (result.spec?.extraSessionCols?.length ?? 0) > 0 && (
+            {result && ((result.spec?.extraSessionCols?.length ?? 0) > 0 || (result.spec?.extraResultRows?.length ?? 0) > 0) && (
               <button className="btn" onClick={() => downloadSample(true)} disabled={downloading}
-                title="회기 칸이 5칸을 넘는 양식에서 초과 열을 제거해 5칸으로 정리(실험)">
-                {downloading ? "생성 중…" : `5칸으로 정리해서 받기 (초과 ${result.spec?.extraSessionCols?.length}칸 제거)`}
+                title="회기 칸·결과표 행이 5개를 넘는 양식에서 초과분을 제거해 5칸/5행으로 정리(실험)">
+                {downloading ? "생성 중…" : `5칸으로 정리해서 받기${(result.spec?.extraSessionCols?.length ?? 0) > 0 ? ` (회기 ${result.spec?.extraSessionCols?.length}칸↓)` : ""}${(result.spec?.extraResultRows?.length ?? 0) > 0 ? ` (결과 ${result.spec?.extraResultRows?.length}행↓)` : ""}`}
               </button>
             )}
           </div>

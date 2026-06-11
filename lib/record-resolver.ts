@@ -37,6 +37,8 @@ export type ResolvedSpec = {
   serviceName?: Coord; // 본표 서비스 종류 칸("( )재활") — 치료사 종류 기반 채움
   dateTable?: number;          // 회기(날짜축) 표 인덱스
   extraSessionCols?: number[]; // 5칸 초과 회기 열(날짜축에서 6번째 이후, 누계 제외) — 5칸 정리용
+  resultTable?: number;        // 결과표(상태 및 결과 기록) 표 인덱스
+  extraResultRows?: number[];  // 5행 초과 결과 데이터 행(빈 행 6번째 이후, footer 제외) — 5행 정리용
   serviceBlocks?: Array<{ start: Coord[]; end: Coord[] }>;
   result: Array<{ date?: Coord; time?: Coord; apprDate?: Coord; apprNum?: Coord; status?: Coord; result?: Coord }>;
   // 별지(2페이지) 상세 결과표 — 회기별 세로 블록(서비스제공일자·승인일자·승인번호·결과 narrative).
@@ -215,6 +217,10 @@ export function resolveForm(xml: string): ResolveOutput {
           return o;
         });
         resultTi = ti;
+        spec.resultTable = ti;
+        // 5행 정리용: 헤더 뒤 '빈' 데이터 행(셀이 모두 비었거나 / : · 만) 중 6번째 이후. footer(라벨 행)는 제외.
+        const emptyRows = rows.filter((rr) => rr > r && rowCells(tbls[ti], rr).every((cc) => !cc.norm || /^[/:·]+$/.test(cc.norm)));
+        if (emptyRows.length > 5) spec.extraResultRows = emptyRows.slice(5);
         break;
       }
     }

@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { readSection0, patchSection0 } from "@/lib/hwpx";
 import { fillCells } from "@/lib/record-fill";
 import { resolveForm, buildSampleEdits } from "@/lib/record-resolver";
-import { removeTableColumns } from "@/lib/record-trim";
+import { removeTableColumns, removeTableRows } from "@/lib/record-trim";
 
 const OP = (process.env.BETA_ADMIN_EMAIL ?? "yj2000102@gmail.com").toLowerCase();
 
@@ -30,6 +30,9 @@ export async function POST(req: NextRequest) {
   const trim = new URL(req.url).searchParams.get("trim") === "1";
   if (trim && spec.dateTable != null && spec.extraSessionCols?.length) {
     xml = removeTableColumns(xml, spec.dateTable, spec.extraSessionCols);
+  }
+  if (trim && spec.resultTable != null && spec.extraResultRows?.length) {
+    xml = removeTableRows(xml, spec.resultTable, spec.extraResultRows);
   }
   const filled = fillCells(xml, buildSampleEdits(spec));
   const out = patchSection0(srcBuf, filled);
