@@ -10,11 +10,17 @@ import {
   type RecordPayload,
 } from "@/lib/record-hwpx";
 import { generateRecordFromForm } from "@/lib/record-fill-spec";
+import { buildSchedExtra } from "@/lib/record-sched-enrich";
 
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
-  const p = (await req.json()) as RecordPayload & { formId?: number; therapist?: string };
+  const p = (await req.json()) as RecordPayload & {
+    formId?: number;
+    therapist?: string;
+    childServiceId?: number;
+    year?: number;
+  };
 
   const baseName = `${safeFileName(p.childName)}_${String(p.month).padStart(2, "0")}월_기록지`;
   let sheets: Buffer[];
@@ -26,8 +32,23 @@ export async function POST(req: NextRequest) {
       select: { template: true, spec: true },
     });
     if (!rf) return Response.json({ error: "저장된 양식을 찾을 수 없어요." }, { status: 404 });
+    // 통합 양식(일정표+기록지 한 장)이면 일정표 라벨 데이터를 서버에서 보강.
+    let schedExtra: Record<string, string> | undefined;
+    let hasSchedule = false;
     try {
-      sheets = generateRecordFromForm(Buffer.from(rf.template), rf.spec, p, p.therapist ?? "");
+      hasSchedule = Array.isArray(JSON.parse(rf.spec)?.schedule) && JSON.parse(rf.spec).schedule.length > 0;
+    } catch { hasSchedule = false; }
+    if (hasSchedule) {
+      schedExtra = await buildSchedExtra({
+        user,
+        childServiceId: p.childServiceId,
+        year: p.year,
+        month: Number(p.month) || new Date().getMonth() + 1,
+        sessionDates: (p.sessions ?? []).map((s) => s.date ?? ""),
+      });
+    }
+    try {
+      sheets = generateRecordFromForm(Buffer.from(rf.template), rf.spec, p, p.therapist ?? "", schedExtra);
     } catch {
       return Response.json({ error: "양식에 데이터를 채우는 중 문제가 생겼어요." }, { status: 500 });
     }

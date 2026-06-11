@@ -17,6 +17,8 @@ type FillData = {
   serviceType: string;
   therapistName: string;
   sessions: RecordSessionDetail[];
+  // 통합 양식: 일정표 라벨 보강(역할→값). 단가·본인부담·관리번호·제공일·횟수 등.
+  schedExtra?: Record<string, string>;
 };
 
 function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
@@ -98,6 +100,7 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
   const schedVal: Record<string, string> = {
     대상자명: d.childName, 제공자: d.org, 제공자명: d.org, 담당: d.therapistName,
     서비스종류: d.serviceType, 작성일자: todayStr,
+    ...(d.schedExtra ?? {}), // 단가·본인부담·관리번호·제공일·횟수·전화 등(통합 양식 보강)
   };
   spec.schedule?.forEach((s) => { if (schedVal[s.role] !== undefined) put(s.coord, schedVal[s.role]); });
 
@@ -138,6 +141,7 @@ export function generateRecordFromForm(
   specJson: string,
   payload: RecordPayload,
   therapistName: string,
+  schedExtra?: Record<string, string>,
 ): Buffer[] {
   const spec = JSON.parse(specJson) as ResolvedSpec;
   const baseXml = readSection0(template);
@@ -151,6 +155,7 @@ export function generateRecordFromForm(
     childBirth: payload.childBirth ?? "",
     serviceType: payload.serviceType ?? "",
     therapistName: therapistName ?? "",
+    schedExtra,
   };
 
   return chunks.map((sessionChunk) => {

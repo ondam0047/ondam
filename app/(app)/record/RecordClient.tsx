@@ -794,6 +794,8 @@ function RecordSheet({
         serviceType: matchedService?.serviceType,
         formId: outFormId || undefined,
         therapist,
+        childServiceId: childServiceId || undefined, // 통합 양식 일정표 보강용
+        year,
       };
       const res = await fetch("/api/record/hwpx", {
         method: "POST",
