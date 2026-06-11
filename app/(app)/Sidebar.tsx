@@ -111,6 +111,7 @@ export default function Sidebar({ user, isBetaAdmin = false }: { user: SessionUs
     groups[0].push({ href: "/tools", label: "바로툴", icon: WAVE_ICON, tour: "tools" });
     // 운영 메뉴 — 도움말(마지막 그룹) 바로 위에 끼워넣음
     groups.splice(groups.length - 1, 0, [
+      { href: "/forms", label: "양식 매핑", icon: IC.doc },
       { href: "/admin/beta", label: "베타 운영", icon: BETA_GEAR_ICON },
     ]);
   }
