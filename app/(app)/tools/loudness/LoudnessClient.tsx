@@ -103,7 +103,7 @@ export default function LoudnessClient() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [dragging, setDragging] = useState<{ chart: "pitch" | "intensity"; bound: "low" | "high" } | null>(null);
   const [presetId, setPresetId] = useState("custom");
-  const [subj, setSubj] = useState<{ subject: string | null; clinician: string }>({ subject: null, clinician: "" });
+  const [subj, setSubj] = useState<{ subject: string | null; clinician: string; chartSvg?: string }>({ subject: null, clinician: "" });
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -317,6 +317,7 @@ export default function LoudnessClient() {
       title: "음도·강도 분석 리포트",
       subtitle: `${fileDuration > 0 ? `파일: ${fileName ?? ""} · ` : "마이크 녹음 · "}길이 ${dur.toFixed(1)}초`,
       meta: { subject: subj.subject ?? undefined, clinician: subj.clinician || undefined },
+      chartSvg: subj.chartSvg,
       sections: [
         {
           heading: "음도 (기본주파수 F0)",
@@ -468,7 +469,7 @@ export default function LoudnessClient() {
           }
           renderSummary={(m) => `평균 ${m.meanF0 ?? "-"}Hz · ${m.meanDb ?? "-"}dB · 음역 ${m.rangeSt ?? "-"}st`}
           trend={{ key: "meanF0", label: "평균 음도", unit: "Hz" }}
-          onSubject={(subject, clinician) => setSubj({ subject, clinician })}
+          onContext={setSubj}
         />
       )}
     </div>

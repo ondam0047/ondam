@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { trendSvg } from "@/lib/voice/report";
 
 type Child = { id: number; name: string; birthDate: string | null };
 type SavedSession = {
@@ -17,13 +18,13 @@ export default function ToolMonitor({
   getMetrics,
   renderSummary,
   trend,
-  onSubject,
+  onContext,
 }: {
   module: string;
   getMetrics: () => Record<string, number | string> | null;
   renderSummary: (m: Record<string, unknown>) => string;
   trend?: Series;
-  onSubject?: (subject: string | null, clinician: string) => void;
+  onContext?: (ctx: { subject: string | null; clinician: string; chartSvg: string }) => void;
 }) {
   const [children, setChildren] = useState<Child[] | null>(null);
   const [therapist, setTherapist] = useState("");
@@ -41,7 +42,6 @@ export default function ToolMonitor({
         if (!alive) return;
         setChildren(d.children ?? []);
         setTherapist(d.therapist ?? "");
-        onSubject?.(null, d.therapist ?? "");
       })
       .catch(() => { if (alive) setChildren([]); });
     return () => { alive = false; };
@@ -60,10 +60,19 @@ export default function ToolMonitor({
   useEffect(() => {
     if (childId != null) loadSessions(childId);
     else setSessions([]);
-    const name = children?.find((c) => c.id === childId)?.name ?? null;
-    onSubject?.(name, therapist);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [childId, loadSessions]);
+
+  // 선택 대상자·치료사·최근5회 그래프 SVG 를 모듈(리포트)로 전달
+  useEffect(() => {
+    const name = children?.find((c) => c.id === childId)?.name ?? null;
+    let chartSvg = "";
+    if (trend && childId != null && sessions.length >= 2) {
+      const points = sessions.map((s) => ({ t: s.createdAt, v: Number(s.metrics[trend.key]) }));
+      chartSvg = trendSvg(points, trend);
+    }
+    onContext?.({ subject: name, clinician: therapist, chartSvg });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [childId, sessions, therapist, children]);
 
   const save = useCallback(async () => {
     if (childId == null) { setMsg("먼저 대상자를 선택하세요."); return; }

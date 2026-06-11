@@ -28,6 +28,45 @@ function esc(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+// 리포트 임베드용 자체 완결 SVG 추이 그래프 (최근 5회). 색은 하드코딩(리포트엔 CSS 변수 없음).
+export function trendSvg(
+  points: { t: string; v: number }[],
+  series: { label: string; unit?: string },
+): string {
+  const pts = points.filter((p) => isFinite(p.v)).slice(-5);
+  if (pts.length < 2) return "";
+  const W = 520, H = 188;
+  const PAD = { top: 30, right: 20, bottom: 34, left: 52 };
+  const innerW = W - PAD.left - PAD.right;
+  const innerH = H - PAD.top - PAD.bottom;
+  const vals = pts.map((p) => p.v);
+  let min = Math.min(...vals);
+  let max = Math.max(...vals);
+  if (min === max) { min -= 1; max += 1; }
+  const pad = (max - min) * 0.15;
+  min -= pad; max += pad;
+  const x = (i: number) => PAD.left + (i / (pts.length - 1)) * innerW;
+  const y = (v: number) => PAD.top + innerH * (1 - (v - min) / (max - min));
+  const path = pts.map((p, i) => `${i ? "L" : "M"} ${x(i).toFixed(1)} ${y(p.v).toFixed(1)}`).join(" ");
+  const fmt = (iso: string) => {
+    const d = new Date(iso);
+    return `${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
+  };
+  const grid = [max, (max + min) / 2, min]
+    .map((gv, i) => {
+      const gy = PAD.top + (innerH * i) / 2;
+      return `<line x1="${PAD.left}" x2="${W - PAD.right}" y1="${gy.toFixed(1)}" y2="${gy.toFixed(1)}" stroke="#E2DAC8" stroke-dasharray="3 3"/><text x="${PAD.left - 6}" y="${(gy + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="#7A7A66">${gv.toFixed(1)}</text>`;
+    })
+    .join("");
+  const dots = pts
+    .map((p, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="3.5" fill="#5A6E3D" stroke="#fff" stroke-width="1.5"/><text x="${x(i).toFixed(1)}" y="${(y(p.v) - 9).toFixed(1)}" text-anchor="middle" font-size="10" fill="#3D4A2A">${p.v}</text>`)
+    .join("");
+  const xlabels = pts
+    .map((p, i) => `<text x="${x(i).toFixed(1)}" y="${H - 12}" text-anchor="middle" font-size="10" fill="#7A7A66">${fmt(p.t)}</text>`)
+    .join("");
+  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><text x="${PAD.left}" y="18" font-size="12" font-weight="700" fill="#3D4A2A">${esc(series.label)} 추이${series.unit ? ` (${series.unit})` : ""} — 최근 ${pts.length}회</text>${grid}<path d="${path}" fill="none" stroke="#5A6E3D" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>${dots}${xlabels}</svg>`;
+}
+
 const DISCLAIMER =
   "본 자료는 「의료기기법」의 적용을 받지 않는 학습·연습·시각화 보조 자료이며, 의료 진단·치료를 제공·대체하지 않습니다.";
 

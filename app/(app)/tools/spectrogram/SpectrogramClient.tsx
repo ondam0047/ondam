@@ -57,7 +57,7 @@ export default function SpectrogramClient() {
   const [stats, setStats] = useState<Stats>(emptyStats);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [targetId, setTargetId] = useState<TargetId>("s");
-  const [subj, setSubj] = useState<{ subject: string | null; clinician: string }>({ subject: null, clinician: "" });
+  const [subj, setSubj] = useState<{ subject: string | null; clinician: string; chartSvg?: string }>({ subject: null, clinician: "" });
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -169,6 +169,7 @@ export default function SpectrogramClient() {
       title: "/s/ 스펙트럼 중심 분석 리포트",
       subtitle: `목표 음소: ${target.label} · 누적 ${stats.samples} 샘플`,
       meta: { subject: subj.subject ?? undefined, clinician: subj.clinician || undefined },
+      chartSvg: subj.chartSvg,
       sections: [
         { heading: "측정 요약", rows: [
           { label: "평균 스펙트럼 중심", value: `${meanCentroid.toFixed(0)} Hz` },
@@ -337,7 +338,7 @@ export default function SpectrogramClient() {
           }}
           renderSummary={(m) => `중심 ${m.centroid ?? "-"}Hz · 목표 체류 ${m.targetPct ?? "-"}%`}
           trend={{ key: "centroid", label: "스펙트럼 중심", unit: "Hz" }}
-          onSubject={(subject, clinician) => setSubj({ subject, clinician })}
+          onContext={setSubj}
         />
       )}
     </div>

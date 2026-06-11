@@ -85,7 +85,7 @@ export default function FluencyClient() {
   const [name, setName] = useState("");
   const [taskName, setTaskName] = useState("자유 말하기");
   const [notes, setNotes] = useState("");
-  const [subj, setSubj] = useState<{ subject: string | null; clinician: string }>({ subject: null, clinician: "" });
+  const [subj, setSubj] = useState<{ subject: string | null; clinician: string; chartSvg?: string }>({ subject: null, clinician: "" });
 
   const asr = useKoreanASR();
   const tagIdRef = useRef(1);
@@ -373,6 +373,7 @@ export default function FluencyClient() {
           subject: subj.subject ?? (name.trim() || undefined),
           clinician: subj.clinician || undefined,
         },
+        chartSvg: subj.chartSvg,
         sections: [
           {
             heading: "패턴 빈도",
@@ -1176,7 +1177,7 @@ export default function FluencyClient() {
               `총 ${m.total ?? "-"}회 (간투사 ${m.I ?? 0}·반복 ${(Number(m.R1 ?? 0) + Number(m.R2 ?? 0))}·수정 ${m.UR ?? 0})${m.per100 ? ` · 100음절당 ${m.per100}` : ""}`
             }
             trend={{ key: "total", label: "비유창 표시 수", unit: "회" }}
-            onSubject={(subject, clinician) => setSubj({ subject, clinician })}
+            onContext={setSubj}
           />
         </>
       )}
