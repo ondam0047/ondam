@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 type Cell = { r: number; c: number; cs: number; rs: number; text: string; role: string | null };
 type Spec = { schedule?: Array<{ role: string }>; detail?: unknown[]; extraSessionCols?: number[]; extraResultRows?: number[] };
@@ -18,6 +18,16 @@ export default function FormMapperClient() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  // 저장된 양식(사용자별 다수)
+  const [saved, setSaved] = useState<Array<{ id: number; kind: string; name: string }>>([]);
+  const [formName, setFormName] = useState("");
+  const [kind, setKind] = useState<"record" | "schedule">("record");
+  const [savingForm, setSavingForm] = useState(false);
+
+  const loadSaved = useCallback(() => {
+    fetch("/api/forms/saved").then((r) => (r.ok ? r.json() : { forms: [] })).then((d) => setSaved(d.forms ?? [])).catch(() => {});
+  }, []);
+  useEffect(() => { loadSaved(); }, [loadSaved]);
 
   async function analyze() {
     if (!file) return;
@@ -29,6 +39,9 @@ export default function FormMapperClient() {
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "분석 실패");
       setResult(d);
+      const hasRecord = d.coverage && (d.coverage.date || d.coverage.result);
+      setKind(hasRecord ? "record" : (d.spec?.schedule?.length ? "schedule" : "record"));
+      if (file && !formName) setFormName(file.name.replace(/\.hwpx$/i, ""));
     } catch (e) {
       setError(e instanceof Error ? e.message : "분석 중 문제가 생겼어요.");
     } finally {
@@ -58,10 +71,65 @@ export default function FormMapperClient() {
     }
   }
 
+  async function saveForm() {
+    if (!file || !formName.trim()) { setError("파일과 이름을 확인하세요."); return; }
+    setSavingForm(true); setError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("name", formName.trim());
+      fd.append("kind", kind);
+      const r = await fetch("/api/forms/saved", { method: "POST", body: fd });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || "저장 실패");
+      setFormName("");
+      loadSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "저장 중 문제가 생겼어요.");
+    } finally {
+      setSavingForm(false);
+    }
+  }
+
+  async function deleteForm(id: number) {
+    await fetch(`/api/forms/saved?id=${id}`, { method: "DELETE" }).catch(() => {});
+    loadSaved();
+  }
+
+  const KIND_LABEL: Record<string, string> = { record: "기록지", schedule: "일정표" };
+  const recordForms = saved.filter((f) => f.kind === "record");
+  const scheduleForms = saved.filter((f) => f.kind === "schedule");
   const missing = result ? Object.entries(result.coverage).filter(([, v]) => !v).map(([k]) => FIELD_LABEL[k] ?? k) : [];
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
+      {/* 저장된 양식(기록지/일정표 각각 다수) */}
+      <div className="card">
+        <div className="card-body" style={{ display: "grid", gap: 12 }}>
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>저장된 양식</h3>
+          {(["record", "schedule"] as const).map((k) => {
+            const list = k === "record" ? recordForms : scheduleForms;
+            return (
+              <div key={k}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-soft)", marginBottom: 4 }}>{KIND_LABEL[k]} ({list.length})</div>
+                {list.length === 0 ? (
+                  <p style={{ margin: 0, fontSize: 12.5, color: "var(--text-mute)" }}>저장된 {KIND_LABEL[k]}가 없어요. 아래에서 양식을 올려 저장하세요. (센터마다 다르면 여러 개 저장)</p>
+                ) : (
+                  <div style={{ display: "grid", gap: 6 }}>
+                    {list.map((f) => (
+                      <div key={f.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface-2)", padding: "8px 12px" }}>
+                        <span style={{ fontSize: 14, fontWeight: 600 }}>{f.name}</span>
+                        <button onClick={() => deleteForm(f.id)} style={{ background: "none", border: "none", fontSize: 12, color: "var(--text-mute)", cursor: "pointer" }}>삭제</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="card">
         <div className="card-body" style={{ display: "grid", gap: 14 }}>
           <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
@@ -101,6 +169,22 @@ export default function FormMapperClient() {
 
       {result && (
         <>
+          <div className="card">
+            <div className="card-body" style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+              <span style={{ fontSize: 14, fontWeight: 700 }}>이 양식 저장:</span>
+              <select value={kind} onChange={(e) => setKind(e.target.value as "record" | "schedule")}
+                style={{ padding: "8px 10px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface)", fontSize: 14, color: "var(--text)" }}>
+                <option value="record">기록지</option>
+                <option value="schedule">일정표</option>
+              </select>
+              <input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="양식 이름 (예: A센터 기록지)"
+                style={{ flex: 1, minWidth: 180, padding: "8px 12px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface)", fontSize: 14, color: "var(--text)" }} />
+              <button className="btn btn-primary" onClick={saveForm} disabled={savingForm || !formName.trim()}>
+                {savingForm ? "저장 중…" : "저장"}
+              </button>
+            </div>
+          </div>
+
           <div className="card">
             <div className="card-body" style={{ display: "grid", gap: 10 }}>
               <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>인식 결과</h3>

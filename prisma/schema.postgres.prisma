@@ -72,6 +72,7 @@ model User {
   schedules    Schedule[] @relation("ScheduleCreatedBy")
   records      Record[]   @relation("RecordCreatedBy")
   passwordResets PasswordReset[]
+  recordForms    RecordForm[]
 }
 
 model PasswordReset {
@@ -158,6 +159,21 @@ model ToolSession {
 
   @@index([childId, module])
   @@index([centerId])
+}
+
+// 업로드한 센터 기록지/일정표 양식 — 프리랜서는 센터마다 달라 사용자별 다수 저장.
+model RecordForm {
+  id          Int      @id @default(autoincrement())
+  ownerUserId Int
+  ownerUser   User     @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  kind        String   // "record"(기록지) | "schedule"(일정표)
+  name        String
+  template    Bytes    // 업로드한 빈 .hwpx 원본
+  spec        String   // 자동매핑 + 보정 결과(JSON)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([ownerUserId, kind])
 }
 
 model ChildService {
