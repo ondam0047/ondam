@@ -131,7 +131,7 @@ export default async function CenterPage({
 
       <div className="card">
         <div className="card-header">
-          <h2>기록지·일정표 양식</h2>
+          <h2>우리 센터 기록지·일정표 양식 저장</h2>
         </div>
         <div className="card-body">
           <p className="sub-mute" style={{ marginTop: 0 }}>
@@ -140,7 +140,7 @@ export default async function CenterPage({
             센터마다 양식이 다르면 여러 개 저장해두고 골라 쓰면 됩니다.
           </p>
           <Link href="/forms" className="btn btn-primary" style={{ marginTop: 12 }}>
-            양식 매핑 열기
+            우리 센터 양식 저장하기
           </Link>
         </div>
       </div>

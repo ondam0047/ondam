@@ -74,7 +74,7 @@ const NAV_GROUPS: NavItem[][] = [
     { href: "/timetable",       label: "내 시간표",      icon: GRID_ICON,     tour: "time"  },
     { href: "/children",        label: "내 아동",        icon: IC.user,       tour: "child" },
     { href: "/center",          label: "내 설정",        icon: COG_ICON,      tour: "set"   },
-    { href: "/forms",           label: "양식 매핑",      icon: IC.doc },
+    { href: "/forms",           label: "우리 센터 양식", icon: IC.doc },
   ],
   [
     { href: "/guide",           label: "도움말",         icon: HELP_ICON,     tour: "help"  },
