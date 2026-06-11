@@ -107,6 +107,9 @@ async function TherapistDashboard({ user, centerId, year: y, month: m, todayDay,
       </div>
 
       <StartChecklist hasChild={data.hasChild} hasSchedule={data.hasSchedule} hasRecord={data.hasRecord} />
+      {data.hasChild && data.hasSchedule && data.hasRecord && (
+        <MonthFocusBanner month={m} unwrittenCount={data.unwrittenCount} totalSessions={data.totalSessionsThisMonth} />
+      )}
 
       <MyStats data={data} />
 
@@ -153,7 +156,8 @@ function StartChecklist({ hasChild, hasSchedule, hasRecord }: { hasChild: boolea
         <div className="sub-mute" style={{ fontSize: 12, marginBottom: 12 }}>
           처음이세요? 먼저{" "}
           <Link href="/center" style={{ color: "var(--primary)", fontWeight: 700 }}>내 설정</Link>
-          에서 센터·회기 시간대를 확인하고, 아래 순서대로 따라오시면 첫 기록지까지 끝나요.
+          에서 센터·회기 시간대를 확인하고, 아래 순서대로 따라오시면 첫 기록지까지 끝나요.{" "}
+          <a href="/api/record/sample" style={{ color: "var(--primary)", fontWeight: 700 }}>📄 샘플 기록지 먼저 보기</a>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {steps.map((s, i) => {
@@ -192,6 +196,30 @@ function StartChecklist({ hasChild, hasSchedule, hasRecord }: { hasChild: boolea
       </div>
     </div>
   );
+}
+
+// ─── 이번 달 행동 배너 (온보딩 끝난 사용자 홈) ────────────────────────────
+// 지표판 대신 "지금 할 일"을 맨 위에. 이번 달 일정 없음 → 일정 만들기 /
+// 미작성 있음 → 이어서 작성 / 다 됨 → 일괄 다운로드.
+function MonthFocusBanner({ month, unwrittenCount, totalSessions }: { month: number; unwrittenCount: number; totalSessions: number }) {
+  const wrap = (accent: string, title: React.ReactNode, desc: string, href: string, cta: string, primary = true) => (
+    <div className="card" style={{ borderColor: accent }}>
+      <div className="card-body" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 800 }}>{title}</div>
+          <div className="sub-mute" style={{ fontSize: 13 }}>{desc}</div>
+        </div>
+        <Link className={primary ? "btn btn-primary" : "btn"} href={href} style={{ padding: "10px 18px", fontWeight: 700, whiteSpace: "nowrap" }}>{cta}</Link>
+      </div>
+    </div>
+  );
+  if (totalSessions === 0) {
+    return wrap("var(--primary)", `${month}월 일정을 만들어 시작하세요`, "회기 일정을 짜두면 기록지가 자동으로 채워져요.", "/schedule", "일정표 만들기");
+  }
+  if (unwrittenCount > 0) {
+    return wrap("var(--danger)", <>이번 달 기록지 <span style={{ color: "var(--danger)" }}>{unwrittenCount}명</span> 작성 남음</>, `${month}월 회기 중 아직 기록지가 없는 아동이에요.`, "/record", "이어서 작성");
+  }
+  return wrap("var(--success)", "이번 달 기록지 모두 작성 완료 🎉", `${month}월 작업이 끝났어요. 여러 명을 한 번에 내려받을 수 있어요.`, "/export", "일괄 다운로드", false);
 }
 
 // ─── 데이터 로딩 헬퍼 ────────────────────────────────────────────────────

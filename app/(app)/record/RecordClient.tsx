@@ -383,6 +383,7 @@ export default function RecordClient({
           <h2>기록지 작성</h2>
           <p>엑셀 없이 미리 작성하거나, 월말 엑셀을 받은 후 일괄 자동완성 — 둘 다 가능합니다.</p>
         </div>
+        <a className="btn" href="/export" style={{ whiteSpace: "nowrap" }}>여러 명 한꺼번에 받기 →</a>
       </div>
 
       {/* 직접 시작 — 엑셀 없이 */}
