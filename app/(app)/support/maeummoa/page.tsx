@@ -4,11 +4,11 @@ import MaeummoaForm from "./MaeummoaForm";
 
 export const dynamic = "force-dynamic";
 
-const BETA_EMAIL = (process.env.BETA_ADMIN_EMAIL ?? "yj2000102@gmail.com").toLowerCase();
+const OWNER_EMAIL = "yj2000102@gmail.com"; // 기타지원사업 전용 운영자 계정
 
 export default async function MaeummoaPage() {
   const user = await requireUser();
-  if (user.email.toLowerCase() !== BETA_EMAIL) redirect("/dashboard");
+  if (user.email.toLowerCase() !== OWNER_EMAIL) redirect("/dashboard");
 
   return <MaeummoaForm therapist={user.name} place={user.centerName ?? ""} />;
 }

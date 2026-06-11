@@ -111,12 +111,14 @@ export default function Sidebar({ user, isBetaAdmin = false }: { user: SessionUs
   if (isBetaAdmin) {
     // 바로툴(준비중) — 운영 검증 단계라 운영자에게만. "승인내역 점검" 바로 아래.
     groups[0].push({ href: "/tools", label: "바로툴", icon: WAVE_ICON, tour: "tools" });
-    // 기타지원사업 — 바로툴 바로 아래(별개 탭). 운영자 전용.
-    groups[0].push({ href: "/support", label: "기타지원사업", icon: SUPPORT_ICON });
     // 운영 메뉴 — 도움말(마지막 그룹) 바로 위에 끼워넣음
     groups.splice(groups.length - 1, 0, [
       { href: "/admin/beta", label: "베타 운영", icon: BETA_GEAR_ICON },
     ]);
+  }
+  // 기타지원사업 — yj2000102 운영자 계정에만. 바로툴(있으면) 바로 아래.
+  if (user.email.toLowerCase() === "yj2000102@gmail.com") {
+    groups[0].push({ href: "/support", label: "기타지원사업", icon: SUPPORT_ICON });
   }
   const initial = user.name.charAt(0) || "?";
 

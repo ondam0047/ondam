@@ -7,12 +7,12 @@ import {
   type MaeummoaPayload,
 } from "@/lib/support-maeummoa-hwpx";
 
-const BETA_EMAIL = (process.env.BETA_ADMIN_EMAIL ?? "yj2000102@gmail.com").toLowerCase();
+const OWNER_EMAIL = "yj2000102@gmail.com"; // 기타지원사업 전용 운영자 계정
 
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
-  if (user.email.toLowerCase() !== BETA_EMAIL) {
+  if (user.email.toLowerCase() !== OWNER_EMAIL) {
     return Response.json({ error: "forbidden" }, { status: 403 });
   }
 
