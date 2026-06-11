@@ -4,6 +4,25 @@
 
 import type { Coord } from "@/lib/record-fill";
 
+// 일정표 라벨 칸의 데이터 출처 — 실제 채움(출력 연동) 단계에서 사용.
+// 사용자 규칙: 서비스 제공자명 = 치료사 이름, 서비스 종류 = 치료사 종류(therapistType) 기반.
+export const SCHEDULE_FIELD_SOURCE: Record<string, string> = {
+  관리번호: "child.mgmtNumber",
+  대상자명: "child.name",
+  제공자: "center.name",
+  제공자명: "therapist.name", // 서비스 제공자명 = 치료사 이름
+  작성일자: "today",
+  전화: "center.phone",
+  담당: "therapist.name",
+  서비스종류: "THERAPIST_TO_SERVICE[therapistType]", // 치료사 종류 기반 (lib/constants)
+  주기: "schedule.weekly",
+  제공일: "schedule.days",
+  단가: "childService.defaultUnit",
+  횟수: "schedule.count",
+  총금액: "computed(단가×횟수)",
+  본인부담금: "childService.monthlyCopay",
+};
+
 export type Cell = {
   r: number; c: number; cs: number; rs: number; p: number;
   text: string; norm: string; role?: string;
@@ -80,7 +99,7 @@ export function resolveForm(xml: string): ResolveOutput {
   const seenS = new Set<string>();
   const pushS = (role: string, coord: Coord | undefined) => { if (coord && !seenS.has(role)) { seenS.add(role); sched.push({ role, coord }); } };
   const S_RIGHT: Array<[string, RegExp]> = [["관리번호", /관리번호/], ["작성일자", /작성일자/], ["대상자명", /^성명$/], ["제공자", /서비스제공자$/]];
-  const S_BELOW: Array<[string, RegExp]> = [["전화", /^전화$/], ["담당", /^담당$/], ["서비스종류", /서비스종류/], ["주기", /^주기$/], ["제공일", /^제공일$/], ["단가", /단가/], ["횟수", /^횟수$/], ["총금액", /총서비스가격|^총금액$/], ["본인부담금", /본인부담금/]];
+  const S_BELOW: Array<[string, RegExp]> = [["제공자명", /서비스제공자명|^제공자명$/], ["전화", /^전화$/], ["담당", /^담당$/], ["서비스종류", /서비스종류/], ["주기", /^주기$/], ["제공일", /^제공일$/], ["단가", /단가/], ["횟수", /^횟수$/], ["총금액", /총서비스가격|^총금액$/], ["본인부담금", /본인부담금/]];
   for (const ti of schedTables) {
     const t = tbls[ti];
     for (const cell of t) {
@@ -284,7 +303,7 @@ export function buildSampleEdits(spec: ResolvedSpec): CellEdit[] {
   });
   const schedDummy: Record<string, string> = {
     관리번호: "바-2026-001", 작성일자: "2026-06-01", 대상자명: "홍길동", 제공자: "○○발달센터",
-    전화: "02-000-0000", 담당: "홍길동", 서비스종류: "언어재활", 주기: "주 2회", 제공일: "화·목",
+    제공자명: "김치료", 전화: "02-000-0000", 담당: "김치료", 서비스종류: "언어재활", 주기: "주 2회", 제공일: "화·목",
     단가: "60,000", 횟수: "월 8회", 총금액: "480,000", 본인부담금: "48,000",
   };
   spec.schedule?.forEach((s) => put(s.coord, schedDummy[s.role] ?? "샘플"));
