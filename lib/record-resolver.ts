@@ -19,6 +19,8 @@ export type ResolvedSpec = {
   result: Array<{ date?: Coord; time?: Coord; apprDate?: Coord; apprNum?: Coord; status?: Coord; result?: Coord }>;
   // 별지(2페이지) 상세 결과표 — 회기별 세로 블록(서비스제공일자·승인일자·승인번호·결과 narrative).
   detail?: Array<{ date?: Coord; apprDate?: Coord; apprNum?: Coord; result?: Coord }>;
+  // 일정표(서식9) 라벨 칸 — 통합양식의 일정표 영역. 1단계는 라벨 필드만(격자 본문 제외).
+  schedule?: Array<{ role: string; coord: Coord }>;
 };
 
 export type ResolveOutput = {
@@ -61,11 +63,39 @@ export function resolveForm(xml: string): ResolveOutput {
   const spec: ResolvedSpec = { date: [], start: [], end: [], voucher: [], extra: [], amount: [], result: [] };
 
   // 일정표(서식9) + 기록지(서식11)가 한 파일에 합쳐진 양식 대응:
-  // '제공기관명'(서식11 고유)이 처음 나오는 표부터를 기록지 영역으로 보고, 그 이전(일정표)은 무시.
-  let recordStart = 0;
+  // '제공기관명'(서식11 고유)이 처음 나오는 표부터를 기록지 영역으로 보고, 그 이전(일정표)은 별도 처리.
+  let recordStartIdx = -1;
   for (let ti = 0; ti < tbls.length; ti++) {
-    if (tbls[ti].some((c) => /제공기관명/.test(c.norm))) { recordStart = ti; break; }
+    if (tbls[ti].some((c) => /제공기관명/.test(c.norm))) { recordStartIdx = ti; break; }
   }
+  const recordStart = recordStartIdx >= 0 ? recordStartIdx : 0;
+  // 일정표 영역: 통합양식이면 기록지 앞쪽 표들, 기록지가 없으면(일정표 단독) 전체.
+  const schedTables: number[] =
+    recordStartIdx > 0 ? Array.from({ length: recordStartIdx }, (_, i) => i)
+    : recordStartIdx === -1 ? tbls.map((_, i) => i)
+    : [];
+
+  // 일정표 라벨 칸(1단계) — 라벨→오른쪽(헤더형) / 라벨→아래(열헤더형)
+  const sched: Array<{ role: string; coord: Coord }> = [];
+  const seenS = new Set<string>();
+  const pushS = (role: string, coord: Coord | undefined) => { if (coord && !seenS.has(role)) { seenS.add(role); sched.push({ role, coord }); } };
+  const S_RIGHT: Array<[string, RegExp]> = [["관리번호", /관리번호/], ["작성일자", /작성일자/], ["대상자명", /^성명$/], ["제공자", /서비스제공자$/]];
+  const S_BELOW: Array<[string, RegExp]> = [["전화", /^전화$/], ["담당", /^담당$/], ["서비스종류", /서비스종류/], ["주기", /^주기$/], ["제공일", /^제공일$/], ["단가", /단가/], ["횟수", /^횟수$/], ["총금액", /총서비스가격|^총금액$/], ["본인부담금", /본인부담금/]];
+  for (const ti of schedTables) {
+    const t = tbls[ti];
+    for (const cell of t) {
+      if (isNote(cell.text) || cell.norm.length > 14) continue;
+      for (const [role, re] of S_RIGHT) if (re.test(cell.norm)) {
+        const v = t.find((x) => x.r === cell.r && x.c === cell.c + cell.cs);
+        pushS(role, v ? ([ti, v.r, v.c] as Coord) : undefined);
+      }
+      for (const [role, re] of S_BELOW) if (re.test(cell.norm)) {
+        const v = t.find((x) => x.r === cell.r + 1 && x.c === cell.c);
+        pushS(role, v ? ([ti, v.r, v.c] as Coord) : undefined);
+      }
+    }
+  }
+  if (sched.length) spec.schedule = sched;
 
   // HEADER
   const headerLabels: Record<string, RegExp> = { org: /제공기관명/, serviceArea: /제공영역/, name: /성명/, birth: /생년월일/ };
@@ -211,6 +241,7 @@ export function resolveForm(xml: string): ResolveOutput {
   spec.detail?.forEach((row) => {
     mark(row.date, "별지일자"); mark(row.apprDate, "별지승인일"); mark(row.apprNum, "별지승인번호"); mark(row.result, "별지결과");
   });
+  spec.schedule?.forEach((s) => mark(s.coord, `일정·${s.role}`));
 
   return { spec, coverage, grid: tbls };
 }
@@ -251,5 +282,11 @@ export function buildSampleEdits(spec: ResolvedSpec): CellEdit[] {
     put(row.apprNum, "5008000000");
     put(row.result, "회기 목표 수행, 적극 참여함");
   });
+  const schedDummy: Record<string, string> = {
+    관리번호: "바-2026-001", 작성일자: "2026-06-01", 대상자명: "홍길동", 제공자: "○○발달센터",
+    전화: "02-000-0000", 담당: "홍길동", 서비스종류: "언어재활", 주기: "주 2회", 제공일: "화·목",
+    단가: "60,000", 횟수: "월 8회", 총금액: "480,000", 본인부담금: "48,000",
+  };
+  spec.schedule?.forEach((s) => put(s.coord, schedDummy[s.role] ?? "샘플"));
   return edits;
 }

@@ -3,7 +3,8 @@
 import { useState } from "react";
 
 type Cell = { r: number; c: number; cs: number; rs: number; text: string; role: string | null };
-type AnalyzeResult = { coverage: Record<string, boolean>; grid: Cell[][] };
+type Spec = { schedule?: Array<{ role: string }>; detail?: unknown[] };
+type AnalyzeResult = { coverage: Record<string, boolean>; grid: Cell[][]; spec?: Spec };
 
 const FIELD_LABEL: Record<string, string> = {
   org: "기관명", name: "이름", birth: "생년월일", date: "날짜",
@@ -107,6 +108,14 @@ export default function FormMapperClient() {
                   </span>
                 ))}
               </div>
+              {result.spec?.detail && result.spec.detail.length > 0 && (
+                <p style={{ margin: 0, fontSize: 13, color: "var(--primary)" }}>＋ 별지(상세 결과표) {result.spec.detail.length}회분 인식</p>
+              )}
+              {result.spec?.schedule && result.spec.schedule.length > 0 && (
+                <p style={{ margin: 0, fontSize: 13, color: "var(--primary)" }}>
+                  ＋ 일정표 라벨 칸 {result.spec.schedule.length}개 인식 ({result.spec.schedule.map((s) => s.role).join(", ")})
+                </p>
+              )}
               {missing.length > 0 ? (
                 <p style={{ margin: 0, fontSize: 13, color: "#8A6422" }}>
                   ⚠ 못 찾은 칸: {missing.join(", ")} — 이 양식은 자동 인식이 일부 안 됐어요. 샘플로 확인 후 보정이 필요합니다.
