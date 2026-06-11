@@ -264,14 +264,20 @@ export default function FormMapperClient() {
       )}
 
       {/* 칸 클릭 시 그 자리에 뜨는 역할 선택 팝오버 */}
-      {picker && (
+      {picker && (() => {
+        const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
+        const vh = typeof window !== "undefined" ? window.innerHeight : 800;
+        const below = picker.y < vh * 0.55; // 위쪽 클릭이면 아래로, 아래쪽 클릭이면 위로 펼침
+        const left = Math.max(8, Math.min(picker.x + 6, vw - 248));
+        const vpos: React.CSSProperties = below
+          ? { top: Math.min(picker.y + 6, vh - 60) }
+          : { bottom: Math.max(8, vh - picker.y + 6) };
+        return (
         <>
           <div onClick={() => setPicker(null)} style={{ position: "fixed", inset: 0, zIndex: 50 }} />
           <div style={{
-            position: "fixed", zIndex: 51,
-            left: Math.max(8, Math.min(picker.x + 6, (typeof window !== "undefined" ? window.innerWidth : 1200) - 248)),
-            top: Math.max(8, Math.min(picker.y + 6, (typeof window !== "undefined" ? window.innerHeight : 800) - 280)),
-            width: 240, maxHeight: "80vh", overflowY: "auto",
+            position: "fixed", zIndex: 51, left, ...vpos,
+            width: 240, maxHeight: "75vh", overflowY: "auto",
             background: "var(--surface)", border: "1px solid var(--primary)",
             borderRadius: 10, boxShadow: "0 6px 20px rgba(0,0,0,0.18)", padding: 10, display: "grid", gap: 8,
           }}>
@@ -296,7 +302,8 @@ export default function FormMapperClient() {
             </div>
           </div>
         </>
-      )}
+        );
+      })()}
     </div>
   );
 }
