@@ -34,6 +34,7 @@ export type ResolvedSpec = {
   date: Coord[]; start: Coord[]; end: Coord[];
   voucher: Coord[]; extra: Coord[]; amount: Coord[];
   voucherAmount?: Coord[]; copayAmount?: Coord[];
+  therapist?: Coord[]; // 담당재활사 행 × 날짜 열 — 치료사 이름 자동 채움
   serviceName?: Coord; // 본표 서비스 종류 칸("( )재활") — 치료사 종류 기반 채움
   dateTable?: number;          // 회기(날짜축) 표 인덱스
   extraSessionCols?: number[]; // 5칸 초과 회기 열(날짜축에서 6번째 이후, 누계 제외) — 5칸 정리용
@@ -170,6 +171,11 @@ export function resolveForm(xml: string): ResolveOutput {
   } else if (startRows.length === 1) {
     spec.start = valsAt(startRows[0]); if (endRows[0] != null) spec.end = valsAt(endRows[0]);
   }
+  // 담당재활사 행 × 날짜 열 → 치료사 이름 자동 채움(다서비스 양식은 블록마다 행이 여러 개)
+  const therapistRows = labelRows(/담당재활사/);
+  if (therapistRows.length > 0 && dcols.length > 0) {
+    spec.therapist = therapistRows.flatMap((r) => valsAt(r));
+  }
   // 본표 서비스 종류 칸 — 시작시간 줄 맨 왼쪽 칸("( )재활"). 단일 서비스 양식만.
   if (startRows.length === 1) {
     const sr = startRows[0];
@@ -266,7 +272,7 @@ export function resolveForm(xml: string): ResolveOutput {
   const ROLE: Record<string, string> = {
     org: "기관명", name: "대상자이름", birth: "생년월일", serviceArea: "제공영역",
     date: "날짜", start: "시작", end: "종료", voucher: "바우처(분)", extra: "추가구매",
-    amount: "금액", voucherAmount: "바우처액", copayAmount: "자부담",
+    amount: "금액", voucherAmount: "바우처액", copayAmount: "자부담", therapist: "치료사이름",
     rdate: "결과일자", apprDate: "승인일자", apprNum: "승인번호", time: "시간", status: "상태", result: "결과",
   };
   const mark = (coord: Coord | undefined, role: string) => {
@@ -277,7 +283,7 @@ export function resolveForm(xml: string): ResolveOutput {
   };
   (["org", "name", "birth", "serviceArea"] as const).forEach((k) => mark(spec[k], ROLE[k]));
   mark(spec.serviceName, "서비스종류");
-  (["date", "start", "end", "voucher", "extra", "amount", "voucherAmount", "copayAmount"] as const).forEach((k) => {
+  (["date", "start", "end", "voucher", "extra", "amount", "voucherAmount", "copayAmount", "therapist"] as const).forEach((k) => {
     const arr = spec[k]; if (Array.isArray(arr)) arr.forEach((co) => mark(co, ROLE[k]));
   });
   spec.result.forEach((row) => {
@@ -348,6 +354,7 @@ export function buildSampleEdits(spec: ResolvedSpec): CellEdit[] {
   spec.date.forEach((co, i) => put(co, `6/${days[i] ?? i + 1}`));
   spec.start.forEach((co) => put(co, "10:00"));
   spec.end.forEach((co) => put(co, "10:50"));
+  (spec.therapist ?? []).forEach((co) => put(co, "김치료"));
   spec.serviceBlocks?.forEach((blk) => { blk.start.forEach((co) => put(co, "10:00")); blk.end.forEach((co) => put(co, "10:50")); });
   spec.voucher.forEach((co) => put(co, "50"));
   spec.extra.forEach((co) => put(co, "0"));
