@@ -27,8 +27,8 @@ const DB_MIN = 30;
 const DB_MAX = 100;
 const DB_OFFSET = 80; // dBFS → dB SPL 추정 오프셋(캘리브레이션 없이)
 const CHART_WIDTH = 900;
-const CHART_H = 440;
-const PADDING = { top: 24, right: 80, bottom: 44, left: 80 };
+const CHART_H = 360;
+const PADDING = { top: 22, right: 80, bottom: 40, left: 80 };
 const GAP_THRESHOLD_SEC = 0.15;
 
 const PITCH_COLOR = "#2563EB";
@@ -65,18 +65,18 @@ function linScale(min: number, max: number, height: number): Scale {
     },
   };
 }
-function timeToX(t: number, duration: number): number {
-  const innerWidth = CHART_WIDTH - PADDING.left - PADDING.right;
-  return PADDING.left + innerWidth * (t / duration);
+function timeToX(t: number, duration: number, width: number, padX: number): number {
+  const innerWidth = width - padX * 2;
+  return padX + innerWidth * (duration > 0 ? t / duration : 0);
 }
-function buildPath(samples: Sample[], key: "f0" | "db", toY: (v: number) => number, duration: number): string {
+function buildPath(samples: Sample[], key: "f0" | "db", toY: (v: number) => number, duration: number, width: number, padX: number): string {
   const parts: string[] = [];
   let lastT = -1;
   let lastValid = false;
   for (const s of samples) {
     const v = s[key];
     if (v == null) { lastValid = false; continue; }
-    const x = timeToX(s.t, duration);
+    const x = timeToX(s.t, duration, width, padX);
     const y = toY(v);
     if (!lastValid || s.t - lastT > GAP_THRESHOLD_SEC) parts.push(`M ${x.toFixed(2)} ${y.toFixed(2)}`);
     else parts.push(`L ${x.toFixed(2)} ${y.toFixed(2)}`);
@@ -116,7 +116,9 @@ export default function LoudnessClient() {
     mq.addEventListener("change", apply);
     return () => mq.removeEventListener("change", apply);
   }, []);
-  const chartH = isMobile ? 300 : CHART_H;
+  const chartH = isMobile ? 224 : CHART_H;
+  const chartW = isMobile ? 384 : CHART_WIDTH;
+  const padX = isMobile ? 42 : PADDING.left;
 
   // 둘 다 꺼지지 않도록 — 마지막 하나는 끌 수 없음
   const togglePitch = useCallback(() => setShowPitch((v) => (v && !showDb ? v : !v)), [showDb]);
@@ -361,8 +363,8 @@ export default function LoudnessClient() {
   }, [samples, fileDuration, fileName, duration, pitchStats, dbStats, lowerBound, upperBound, dbLower, dbUpper, subj]);
 
   const effDur = fileDuration > 0 ? fileDuration : duration;
-  const pitchPath = useMemo(() => buildPath(samples, "f0", pitchScale.toY, effDur), [samples, pitchScale, effDur]);
-  const dbPath = useMemo(() => buildPath(samples, "db", dbScale.toY, effDur), [samples, dbScale, effDur]);
+  const pitchPath = useMemo(() => buildPath(samples, "f0", pitchScale.toY, effDur, chartW, padX), [samples, pitchScale, effDur, chartW, padX]);
+  const dbPath = useMemo(() => buildPath(samples, "db", dbScale.toY, effDur, chartW, padX), [samples, dbScale, effDur, chartW, padX]);
   const gridTimes = useMemo(() => {
     const step = effDur <= 15 ? 3 : effDur <= 30 ? 5 : effDur <= 60 ? 10 : 20;
     const out: number[] = [];
@@ -445,7 +447,7 @@ export default function LoudnessClient() {
 
       {/* 음도(F0) + 강도(dB) 통합 차트 */}
       <DualTrackChart
-        height={chartH} mobile={isMobile} showPitch={showPitch} showDb={showDb}
+        height={chartH} width={chartW} padX={padX} mobile={isMobile} showPitch={showPitch} showDb={showDb}
         duration={effDur} elapsed={elapsed} isRecording={isRecording}
         pitchScale={pitchScale} dbScale={dbScale}
         pitchGrid={[60, 80, 100, 150, 200, 300, 400]} dbGrid={[40, 50, 60, 70, 80, 90]}
@@ -509,11 +511,11 @@ export default function LoudnessClient() {
 }
 
 function DualTrackChart({
-  height, mobile, showPitch, showDb, duration, elapsed, isRecording, pitchScale, dbScale, pitchGrid, dbGrid, gridTimes,
+  height, width, padX, mobile, showPitch, showDb, duration, elapsed, isRecording, pitchScale, dbScale, pitchGrid, dbGrid, gridTimes,
   pitchPath, dbPath, currentF0, currentDb, pitchLower, pitchUpper, dbLower, dbUpper,
   dragging, onDragStart, onDragValue, onDragEnd,
 }: {
-  height: number; mobile: boolean; showPitch: boolean; showDb: boolean;
+  height: number; width: number; padX: number; mobile: boolean; showPitch: boolean; showDb: boolean;
   duration: number; elapsed: number; isRecording: boolean;
   pitchScale: Scale; dbScale: Scale; pitchGrid: number[]; dbGrid: number[]; gridTimes: number[];
   pitchPath: string; dbPath: string; currentF0: number | null; currentDb: number | null;
@@ -523,8 +525,15 @@ function DualTrackChart({
   onDragValue: (v: number) => void; onDragEnd: () => void;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
-  const innerW = CHART_WIDTH - PADDING.left - PADDING.right;
+  const left = padX;
+  const right = width - padX;
+  const innerW = right - left;
   const plotBottom = height - PADDING.bottom;
+  const labelFs = mobile ? 10 : 12;
+  // 모바일 정밀도용 격자는 솎아서 표시
+  const shownPitchGrid = mobile ? pitchGrid.filter((v) => [60, 100, 200, 300, 400].includes(v)) : pitchGrid;
+  const shownDbGrid = mobile ? dbGrid.filter((v) => [40, 60, 80].includes(v)) : dbGrid;
+  const tx = (t: number) => timeToX(t, duration, width, padX);
 
   const moveFromClientY = useCallback((clientY: number) => {
     if (!dragging || !svgRef.current) return;
@@ -541,9 +550,9 @@ function DualTrackChart({
   const dLowerY = dbScale.toY(dbLower);
 
   return (
-    <div className="card" style={{ overflowX: "auto" }}>
+    <div className="card">
       <div className="card-body">
-        <div style={{ marginBottom: 8, display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px 20px", fontSize: 12 }}>
+        <div style={{ marginBottom: 8, display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px 16px", fontSize: 12 }}>
           {showPitch && (
             <span style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 600, color: PITCH_COLOR }}>
               <span style={{ display: "inline-block", height: 10, width: 16, borderRadius: 3, background: PITCH_COLOR }} /> 음도 F0 (Hz · 좌축)
@@ -558,62 +567,62 @@ function DualTrackChart({
             막대를 끌어 목표 구간 설정{showPitch && showDb ? " (좌=음역, 우=강도)" : ""}
           </span>
         </div>
-        <div style={{ minWidth: mobile ? 480 : 680 }}>
-          <svg ref={svgRef} viewBox={`0 0 ${CHART_WIDTH} ${height}`} style={{ width: "100%", touchAction: "none", userSelect: "none" }}
+        <div>
+          <svg ref={svgRef} viewBox={`0 0 ${width} ${height}`} style={{ width: "100%", display: "block", touchAction: "none", userSelect: "none" }}
             onMouseMove={(e) => moveFromClientY(e.clientY)} onMouseUp={onDragEnd} onMouseLeave={onDragEnd}
             onTouchMove={(e) => { if (!dragging) return; e.preventDefault(); const t = e.touches[0]; if (t) moveFromClientY(t.clientY); }}
             onTouchEnd={onDragEnd} onTouchCancel={onDragEnd}>
-            <rect x={PADDING.left} y={PADDING.top} width={innerW} height={plotBottom - PADDING.top} fill="#FBF8F1" />
-            {showPitch && <rect x={PADDING.left} y={pUpperY} width={innerW} height={Math.max(0, pLowerY - pUpperY)} fill={PITCH_COLOR} opacity={0.08} />}
-            {showDb && <rect x={PADDING.left} y={dUpperY} width={innerW} height={Math.max(0, dLowerY - dUpperY)} fill={DB_COLOR} opacity={0.08} />}
-            {showPitch && pitchGrid.map((v) => {
+            <rect x={left} y={PADDING.top} width={innerW} height={plotBottom - PADDING.top} fill="#FBF8F1" />
+            {showPitch && <rect x={left} y={pUpperY} width={innerW} height={Math.max(0, pLowerY - pUpperY)} fill={PITCH_COLOR} opacity={0.08} />}
+            {showDb && <rect x={left} y={dUpperY} width={innerW} height={Math.max(0, dLowerY - dUpperY)} fill={DB_COLOR} opacity={0.08} />}
+            {showPitch && shownPitchGrid.map((v) => {
               const y = pitchScale.toY(v);
               return (
                 <g key={`hz-${v}`}>
-                  <line x1={PADDING.left} x2={CHART_WIDTH - PADDING.right} y1={y} y2={y} stroke="#EBE5D6" strokeDasharray="3 3" />
-                  <text x={PADDING.left - 10} y={y + 4} textAnchor="end" fontSize={12} fill={PITCH_COLOR} fontWeight={500}>{v}</text>
+                  <line x1={left} x2={right} y1={y} y2={y} stroke="#EBE5D6" strokeDasharray="3 3" />
+                  <text x={left - 6} y={y + 4} textAnchor="end" fontSize={labelFs} fill={PITCH_COLOR} fontWeight={500}>{v}</text>
                 </g>
               );
             })}
-            {showDb && dbGrid.map((v) => {
+            {showDb && shownDbGrid.map((v) => {
               const y = dbScale.toY(v);
               return (
                 <g key={`db-${v}`}>
-                  <line x1={CHART_WIDTH - PADDING.right} x2={CHART_WIDTH - PADDING.right + 5} y1={y} y2={y} stroke={DB_COLOR} />
-                  <text x={CHART_WIDTH - PADDING.right + 10} y={y + 4} textAnchor="start" fontSize={12} fill={DB_COLOR} fontWeight={500}>{v}</text>
+                  <line x1={right} x2={right + 5} y1={y} y2={y} stroke={DB_COLOR} />
+                  <text x={right + 7} y={y + 4} textAnchor="start" fontSize={labelFs} fill={DB_COLOR} fontWeight={500}>{v}</text>
                 </g>
               );
             })}
             {gridTimes.map((t) => {
-              const x = timeToX(t, duration);
+              const x = tx(t);
               return (
                 <g key={`vt-${t}`}>
                   <line x1={x} x2={x} y1={PADDING.top} y2={plotBottom} stroke="#EBE5D6" strokeDasharray="3 3" />
-                  <text x={x} y={plotBottom + 18} textAnchor="middle" fontSize={13} fill="#5A5E4E" fontWeight={500}>{t}s</text>
+                  <text x={x} y={plotBottom + 16} textAnchor="middle" fontSize={mobile ? 11 : 13} fill="#5A5E4E" fontWeight={500}>{t}s</text>
                 </g>
               );
             })}
-            {showPitch && <line x1={PADDING.left} x2={PADDING.left} y1={PADDING.top} y2={plotBottom} stroke={PITCH_COLOR} strokeOpacity={0.5} />}
-            {showDb && <line x1={CHART_WIDTH - PADDING.right} x2={CHART_WIDTH - PADDING.right} y1={PADDING.top} y2={plotBottom} stroke={DB_COLOR} strokeOpacity={0.5} />}
-            <line x1={PADDING.left} x2={CHART_WIDTH - PADDING.right} y1={plotBottom} y2={plotBottom} stroke="#C9BC9C" />
-            {showPitch && <text x={22} y={height / 2} textAnchor="middle" fontSize={13} fill={PITCH_COLOR} fontWeight={600} transform={`rotate(-90 22 ${height / 2})`}>음도 (Hz)</text>}
-            {showDb && <text x={CHART_WIDTH - 18} y={height / 2} textAnchor="middle" fontSize={13} fill={DB_COLOR} fontWeight={600} transform={`rotate(90 ${CHART_WIDTH - 18} ${height / 2})`}>강도 (dB)</text>}
-            <text x={CHART_WIDTH / 2} y={height - 6} textAnchor="middle" fontSize={13} fill="#3D4A2A" fontWeight={500}>시간 (초)</text>
+            {showPitch && <line x1={left} x2={left} y1={PADDING.top} y2={plotBottom} stroke={PITCH_COLOR} strokeOpacity={0.5} />}
+            {showDb && <line x1={right} x2={right} y1={PADDING.top} y2={plotBottom} stroke={DB_COLOR} strokeOpacity={0.5} />}
+            <line x1={left} x2={right} y1={plotBottom} y2={plotBottom} stroke="#C9BC9C" />
+            {!mobile && showPitch && <text x={22} y={height / 2} textAnchor="middle" fontSize={13} fill={PITCH_COLOR} fontWeight={600} transform={`rotate(-90 22 ${height / 2})`}>음도 (Hz)</text>}
+            {!mobile && showDb && <text x={width - 18} y={height / 2} textAnchor="middle" fontSize={13} fill={DB_COLOR} fontWeight={600} transform={`rotate(90 ${width - 18} ${height / 2})`}>강도 (dB)</text>}
+            <text x={width / 2} y={height - 5} textAnchor="middle" fontSize={mobile ? 11 : 13} fill="#3D4A2A" fontWeight={500}>시간 (초)</text>
             {showDb && dbPath && <path d={dbPath} fill="none" stroke={DB_COLOR} strokeWidth={2.25} strokeLinejoin="round" strokeLinecap="round" />}
             {showPitch && pitchPath && <path d={pitchPath} fill="none" stroke={PITCH_COLOR} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />}
             {isRecording && (
-              <line x1={timeToX(elapsed, duration)} x2={timeToX(elapsed, duration)} y1={PADDING.top} y2={plotBottom} stroke="#94A38B" strokeWidth={1} />
+              <line x1={tx(elapsed)} x2={tx(elapsed)} y1={PADDING.top} y2={plotBottom} stroke="#94A38B" strokeWidth={1} />
             )}
             {showDb && currentDb !== null && isRecording && (
-              <circle cx={timeToX(elapsed, duration)} cy={dbScale.toY(currentDb)} r={5.5} fill={DB_COLOR} stroke="white" strokeWidth={2} />
+              <circle cx={tx(elapsed)} cy={dbScale.toY(currentDb)} r={5.5} fill={DB_COLOR} stroke="white" strokeWidth={2} />
             )}
             {showPitch && currentF0 !== null && isRecording && (
-              <circle cx={timeToX(elapsed, duration)} cy={pitchScale.toY(currentF0)} r={5.5} fill={PITCH_COLOR} stroke="white" strokeWidth={2} />
+              <circle cx={tx(elapsed)} cy={pitchScale.toY(currentF0)} r={5.5} fill={PITCH_COLOR} stroke="white" strokeWidth={2} />
             )}
-            {showPitch && <DualHandle y={pUpperY} value={pitchUpper} unit="Hz" color={PITCH_COLOR} side="left" onStart={() => onDragStart("pitch", "high")} />}
-            {showPitch && <DualHandle y={pLowerY} value={pitchLower} unit="Hz" color={PITCH_COLOR} side="left" onStart={() => onDragStart("pitch", "low")} />}
-            {showDb && <DualHandle y={dUpperY} value={dbUpper} unit="dB" color={DB_COLOR} side="right" onStart={() => onDragStart("intensity", "high")} />}
-            {showDb && <DualHandle y={dLowerY} value={dbLower} unit="dB" color={DB_COLOR} side="right" onStart={() => onDragStart("intensity", "low")} />}
+            {showPitch && <DualHandle y={pUpperY} value={pitchUpper} unit="Hz" color={PITCH_COLOR} side="left" width={width} padX={padX} mobile={mobile} onStart={() => onDragStart("pitch", "high")} />}
+            {showPitch && <DualHandle y={pLowerY} value={pitchLower} unit="Hz" color={PITCH_COLOR} side="left" width={width} padX={padX} mobile={mobile} onStart={() => onDragStart("pitch", "low")} />}
+            {showDb && <DualHandle y={dUpperY} value={dbUpper} unit="dB" color={DB_COLOR} side="right" width={width} padX={padX} mobile={mobile} onStart={() => onDragStart("intensity", "high")} />}
+            {showDb && <DualHandle y={dLowerY} value={dbLower} unit="dB" color={DB_COLOR} side="right" width={width} padX={padX} mobile={mobile} onStart={() => onDragStart("intensity", "low")} />}
           </svg>
         </div>
       </div>
@@ -621,20 +630,25 @@ function DualTrackChart({
   );
 }
 
-function DualHandle({ y, value, unit, color, side, onStart }: {
-  y: number; value: number; unit: string; color: string; side: "left" | "right"; onStart: () => void;
+function DualHandle({ y, value, unit, color, side, width, padX, mobile, onStart }: {
+  y: number; value: number; unit: string; color: string; side: "left" | "right";
+  width: number; padX: number; mobile: boolean; onStart: () => void;
 }) {
-  const boxW = 60;
-  const boxX = side === "left" ? PADDING.left - boxW - 4 : CHART_WIDTH - PADDING.right + 4;
+  const boxW = mobile ? 42 : 60;
+  const boxX = side === "left"
+    ? Math.max(1, padX - boxW - 2)
+    : Math.min(width - boxW - 1, width - padX + 2);
+  const left = padX;
+  const right = width - padX;
   const textX = boxX + boxW / 2;
   return (
     <g>
-      <line x1={PADDING.left} x2={CHART_WIDTH - PADDING.right} y1={y} y2={y} stroke={color} strokeWidth={1.5} strokeDasharray="6 4" pointerEvents="none" />
+      <line x1={left} x2={right} y1={y} y2={y} stroke={color} strokeWidth={1.5} strokeDasharray="6 4" pointerEvents="none" />
       <g style={{ cursor: "ns-resize" }}
         onMouseDown={(e) => { e.preventDefault(); onStart(); }}
         onTouchStart={(e) => { e.preventDefault(); onStart(); }}>
         <rect x={boxX} y={y - 11} width={boxW} height={22} fill={color} rx={5} />
-        <text x={textX} y={y + 4} textAnchor="middle" fontSize={12} fill="white" fontWeight={700}>{value.toFixed(0)} {unit}</text>
+        <text x={textX} y={y + 4} textAnchor="middle" fontSize={mobile ? 10 : 12} fill="white" fontWeight={700}>{value.toFixed(0)} {unit}</text>
       </g>
     </g>
   );

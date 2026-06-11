@@ -339,21 +339,63 @@ export default function SpectrogramClient() {
             const inTarget = targetId === "s" ? stats.inS : targetId === "sh" ? stats.inSh : stats.inPal;
             // 평균 스펙트럼 중심이 왜곡(1)·구개음화(2)·표준(3) 중 어디에 가까웠는지
             const zone = meanCentroid < TARGETS.sh.max ? 1 : meanCentroid < TARGETS.palatalized.max ? 2 : 3;
+            const pct = (n: number) => Number(((n / stats.samples) * 100).toFixed(1));
             return {
               centroid: Math.round(meanCentroid),
               targetPct: Number(((inTarget / stats.samples) * 100).toFixed(1)),
               target: target.label,
               zone,
+              pctSh: pct(stats.inSh),
+              pctPal: pct(stats.inPal),
+              pctS: pct(stats.inS),
             };
           }}
           renderSummary={(m) => {
             const zl = ZONE_LABELS[Number(m.zone)] ?? "-";
             return `근접 ${zl} · 중심 ${m.centroid ?? "-"}Hz · 목표 체류 ${m.targetPct ?? "-"}%`;
           }}
+          renderRowChart={(m) => (
+            <ZoneBar
+              segs={[
+                { label: "왜곡", pct: Number(m.pctSh) || 0, color: TARGETS.sh.color },
+                { label: "구개음화", pct: Number(m.pctPal) || 0, color: TARGETS.palatalized.color },
+                { label: "표준", pct: Number(m.pctS) || 0, color: TARGETS.s.color },
+              ]}
+            />
+          )}
           trend={{ key: "zone", label: "근접 구간", categories: ZONE_LABELS.slice(1) }}
           onContext={setSubj}
         />
       )}
+    </div>
+  );
+}
+
+// 모니터링 세션별 근접 분포 막대 (왜곡·구개음화·표준)
+function ZoneBar({ segs }: { segs: { label: string; pct: number; color: string }[] }) {
+  return (
+    <div style={{ display: "grid", gap: 4 }}>
+      <div style={{ display: "flex", height: 16, borderRadius: 6, overflow: "hidden", background: "var(--surface)", border: "1px solid var(--border)" }}>
+        {segs.map((s) =>
+          s.pct > 0 ? (
+            <div
+              key={s.label}
+              title={`${s.label} ${s.pct}%`}
+              style={{ width: `${s.pct}%`, background: s.color, display: "flex", alignItems: "center", justifyContent: "center", minWidth: 0 }}
+            >
+              {s.pct >= 12 && <span style={{ fontSize: 9.5, fontWeight: 700, color: "#fff" }}>{Math.round(s.pct)}%</span>}
+            </div>
+          ) : null,
+        )}
+      </div>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", fontSize: 10.5, color: "var(--text-soft)" }}>
+        {segs.map((s) => (
+          <span key={s.label} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <span style={{ width: 9, height: 9, borderRadius: 2, background: s.color, display: "inline-block" }} />
+            {s.label} {s.pct}%
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
