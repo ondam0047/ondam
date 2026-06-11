@@ -17,6 +17,8 @@ export type ResolvedSpec = {
   voucherAmount?: Coord[]; copayAmount?: Coord[];
   serviceBlocks?: Array<{ start: Coord[]; end: Coord[] }>;
   result: Array<{ date?: Coord; time?: Coord; apprDate?: Coord; apprNum?: Coord; status?: Coord; result?: Coord }>;
+  // 별지(2페이지) 상세 결과표 — 회기별 세로 블록(서비스제공일자·승인일자·승인번호·결과 narrative).
+  detail?: Array<{ date?: Coord; apprDate?: Coord; apprNum?: Coord; result?: Coord }>;
 };
 
 export type ResolveOutput = {
@@ -117,6 +119,7 @@ export function resolveForm(xml: string): ResolveOutput {
   }
 
   // RESULT 표
+  let resultTi = -1;
   const RES = [/제공일자|서비스일자|서비스제공일자/, /승인일자/, /승인번호/, /이용자.?상태|상태/, /서비스결과|결과/, /기타사항/, /^시간$/];
   for (let ti = 0; ti < tbls.length && spec.result.length === 0; ti++) {
     if (ti === dt) continue;
@@ -137,9 +140,37 @@ export function resolveForm(xml: string): ResolveOutput {
           for (const k of Object.keys(map)) { const cc = map[k]; if (cc != null) o[k] = [ti, rr, cc] as Coord; }
           return o;
         });
+        resultTi = ti;
         break;
       }
     }
+  }
+
+  // 별지(detail) 표 — '서비스제공일자' 라벨이 반복되는 세로 블록 표(예: 남양주 표4)
+  for (let ti = 0; ti < tbls.length && !spec.detail; ti++) {
+    if (ti === dt || ti === resultTi) continue;
+    const t = tbls[ti];
+    const dateLabel = /서비스.?제공.?일자|^제공일자$/;
+    const starts = [...new Set(t.filter((c) => dateLabel.test(c.norm) && c.norm.length <= 10).map((c) => c.r))].sort((a, b) => a - b);
+    if (starts.length < 2) continue;
+    const blockStarts = starts.slice(0, 5);
+    const valRight = (cell: Cell | undefined) => (cell ? ([ti, cell.r, cell.c + cell.cs] as Coord) : undefined);
+    spec.detail = blockStarts.map((br, i) => {
+      const next = blockStarts[i + 1] ?? Infinity;
+      const block = t.filter((c) => c.r >= br && c.r < next);
+      const dateLbl = block.find((c) => dateLabel.test(c.norm));
+      const valCol = dateLbl ? dateLbl.c + dateLbl.cs : 1;
+      const wide = t.filter((c) => c.r === br && c.c > valCol).sort((a, b) => b.c - a.c)[0]; // 결과 narrative
+      const o: { date?: Coord; apprDate?: Coord; apprNum?: Coord; result?: Coord } = {
+        date: [ti, br, valCol] as Coord,
+      };
+      if (wide) o.result = [ti, wide.r, wide.c] as Coord;
+      const ad = block.find((c) => /승인일자/.test(c.norm));
+      const an = block.find((c) => /승인번호/.test(c.norm));
+      if (ad) o.apprDate = valRight(ad);
+      if (an) o.apprNum = valRight(an);
+      return o;
+    });
   }
 
   // 커버리지
@@ -169,6 +200,9 @@ export function resolveForm(xml: string): ResolveOutput {
   spec.result.forEach((row) => {
     mark(row.date, ROLE.rdate); mark(row.apprDate, ROLE.apprDate); mark(row.apprNum, ROLE.apprNum);
     mark(row.time, ROLE.time); mark(row.status, ROLE.status); mark(row.result, ROLE.result);
+  });
+  spec.detail?.forEach((row) => {
+    mark(row.date, "별지일자"); mark(row.apprDate, "별지승인일"); mark(row.apprNum, "별지승인번호"); mark(row.result, "별지결과");
   });
 
   return { spec, coverage, grid: tbls };
@@ -202,6 +236,12 @@ export function buildSampleEdits(spec: ResolvedSpec): CellEdit[] {
     put(row.time, "10:00");
     put(row.apprNum, "5008000000");
     put(row.status, "양호");
+    put(row.result, "회기 목표 수행, 적극 참여함");
+  });
+  spec.detail?.forEach((row, i) => {
+    put(row.date, `6/${days[i] ?? i + 1}`);
+    put(row.apprDate, `6/${days[i] ?? i + 1}`);
+    put(row.apprNum, "5008000000");
     put(row.result, "회기 목표 수행, 적극 참여함");
   });
   return edits;
