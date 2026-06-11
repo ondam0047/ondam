@@ -4,7 +4,7 @@
 import { readSection0, patchSection0 } from "@/lib/hwpx";
 import { fillCells, type CellEdit, type Coord } from "@/lib/record-fill";
 import { removeTableColumns, removeTableRows } from "@/lib/record-trim";
-import type { ResolvedSpec } from "@/lib/record-resolver";
+import { detectCalendarFromXml, type ResolvedSpec } from "@/lib/record-resolver";
 import { buildCalendarEdits, type CalSession } from "@/lib/schedule-calendar";
 import type { RecordPayload, RecordSessionDetail } from "@/lib/record-hwpx";
 
@@ -168,6 +168,8 @@ export function generateRecordFromForm(
     const time = [s.startTime, s.endTime].filter(Boolean).join("~");
     return { day, time };
   }).filter((s) => s.day > 0);
+  // 저장 spec 에 달력이 없으면(구버전) 템플릿에서 재탐지
+  const cal = spec.scheduleCalendar ?? detectCalendarFromXml(baseXml);
 
   return chunks.map((sessionChunk) => {
     let xml = baseXml;
@@ -178,8 +180,8 @@ export function generateRecordFromForm(
       xml = removeTableRows(xml, spec.resultTable, spec.extraResultRows);
     }
     const edits = buildRecordEdits(spec, { ...data, sessions: sessionChunk });
-    if (spec.scheduleCalendar && payload.month) {
-      edits.push(...buildCalendarEdits(spec.scheduleCalendar, yr, payload.month, calSessions));
+    if (cal && payload.month) {
+      edits.push(...buildCalendarEdits(cal, yr, payload.month, calSessions));
     }
     xml = fillCells(xml, edits);
     // 제목의 "( N월 )" 채우기 (빈 양식은 "(  월)" 처럼 비어 있음)

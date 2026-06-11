@@ -68,6 +68,21 @@ export function detectScheduleCalendar(tbls: Grid, candidates: number[]): Schedu
   return null;
 }
 
+// 템플릿 XML 에서 달력을 직접 탐지 — 저장 spec 에 scheduleCalendar 가 없는(구버전) 양식 보완용.
+export function detectCalendarFromXml(xml: string): ScheduleCalendar | null {
+  const tbls = parseTables(xml);
+  let recordStartIdx = -1;
+  for (let ti = 0; ti < tbls.length; ti++) {
+    if (tbls[ti].some((c) => /제공기관명/.test(c.norm))) { recordStartIdx = ti; break; }
+  }
+  const schedTables: number[] =
+    recordStartIdx > 0 ? Array.from({ length: recordStartIdx }, (_, i) => i)
+    : recordStartIdx === -1 ? tbls.map((_, i) => i)
+    : [];
+  const cands = schedTables.length ? schedTables : tbls.map((_, i) => i);
+  return detectScheduleCalendar(tbls, cands);
+}
+
 export type ResolvedSpec = {
   org?: Coord; name?: Coord; birth?: Coord; serviceArea?: Coord;
   date: Coord[]; start: Coord[]; end: Coord[];
