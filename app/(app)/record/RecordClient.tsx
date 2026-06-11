@@ -614,6 +614,15 @@ function RecordSheet({
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
   const [loadedRecordId, setLoadedRecordId] = useState<number | null>(null);
+  // 저장한 우리 센터 양식 — 있으면 출력 양식 선택
+  const [savedForms, setSavedForms] = useState<Array<{ id: number; name: string }>>([]);
+  const [outFormId, setOutFormId] = useState<number | "">("");
+  useEffect(() => {
+    fetch("/api/forms/saved")
+      .then((r) => (r.ok ? r.json() : { forms: [] }))
+      .then((d) => setSavedForms((d.forms ?? []).filter((f: { kind: string }) => f.kind === "record")))
+      .catch(() => {});
+  }, []);
 
   const monthNumForLoad = typeof month === "number" ? month : parseInt(String(month)) || 0;
 
@@ -783,6 +792,8 @@ function RecordSheet({
         sessions: sessionsPayload,
         opinion,
         serviceType: matchedService?.serviceType,
+        formId: outFormId || undefined,
+        therapist,
       };
       const res = await fetch("/api/record/hwpx", {
         method: "POST",
@@ -1064,6 +1075,17 @@ function RecordSheet({
         <button className="btn" onClick={saveRecord} disabled={saving || !childServiceId}>
           {saving ? "저장 중..." : "현재 내용 저장"}
         </button>
+        {savedForms.length > 0 && (
+          <select
+            value={outFormId}
+            onChange={(e) => setOutFormId(e.target.value ? Number(e.target.value) : "")}
+            title="출력에 사용할 양식"
+            style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", fontSize: 13, color: "var(--text)" }}
+          >
+            <option value="">기본 양식</option>
+            {savedForms.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+          </select>
+        )}
         <button className="btn btn-primary" onClick={downloadHwpx} disabled={downloading}>
           {downloading ? "생성 중..." : "한글파일(.hwpx) 다운로드"}
         </button>
