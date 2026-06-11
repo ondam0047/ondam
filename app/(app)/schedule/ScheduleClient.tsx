@@ -419,6 +419,7 @@ export default function ScheduleClient({
     setGenY(s.year);
     setGenM(s.month);
     setWriteDate(s.writeDate ?? defaultWriteDate(s.year, s.month));
+    if (s.formId) setOutFormId(s.formId); // 저장 시 기억한 출력 양식 복원
     setLoadedScheduleId(id);
     setSavedMsg(`✓ ${s.year}년 ${s.month}월 일정표를 불러왔어요.`);
     requestAnimationFrame(() => {
@@ -442,6 +443,7 @@ export default function ScheduleClient({
         pvOrg, pvTel, pvCharge, pvType,
         costUnit, costSelf,
         writeDate,
+        formId: outFormId || undefined, // 출력 양식 기억(일괄 출력에 사용)
         sessions: days.map((d) => ({
           day: d, time: sessions[d].time, makeup: sessions[d].makeup,
         })),

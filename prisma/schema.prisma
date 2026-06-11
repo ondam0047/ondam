@@ -236,6 +236,7 @@ model Schedule {
   costUnit       String
   costSelf       String
   writeDate      String?
+  formId         Int?     // 저장 시 선택한 업로드 양식(RecordForm.id) — 일괄 출력에 사용
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -270,6 +271,7 @@ model Record {
   childName      String
   childBirth     String?
   opinion        String?
+  formId         Int?     // 저장 시 선택한 업로드 양식(RecordForm.id) — 일괄 출력에 사용
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

@@ -26,6 +26,7 @@ type Body = {
   childName: string;
   childBirth?: string;
   opinion?: string;
+  formId?: number; // 출력에 쓸 업로드 양식
   sessions: SessionInput[];
 };
 
@@ -47,12 +48,23 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "forbidden" }, { status: 403 });
   }
 
+  // 출력 양식: 내 소유의 record 양식만 기억(아니면 null)
+  let formId: number | null = null;
+  if (body.formId) {
+    const rf = await prisma.recordForm.findFirst({
+      where: { id: Number(body.formId), ownerUserId: user.id, kind: "record" },
+      select: { id: true },
+    });
+    formId = rf?.id ?? null;
+  }
+
   // 아동 성명·생년월일은 클라이언트 입력이 아니라 권한 검증된 DB 레코드에서 도출 (무결성)
   const meta = {
     org: body.org,
     childName: cs.child.name,
     childBirth: cs.child.birthDate || null,
     opinion: body.opinion || null,
+    formId,
   };
 
   const existing = await prisma.record.findUnique({

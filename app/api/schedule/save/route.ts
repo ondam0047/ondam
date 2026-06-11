@@ -17,6 +17,7 @@ type SaveBody = {
   costUnit: string;
   costSelf: string;
   writeDate?: string;
+  formId?: number; // 출력에 쓸 업로드 양식
   sessions: { day: number; time: string; makeup: boolean }[];
 };
 
@@ -37,6 +38,16 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "forbidden" }, { status: 403 });
   }
 
+  // 출력 양식: 내 소유의 schedule 양식만 기억(아니면 null)
+  let formId: number | null = null;
+  if (body.formId) {
+    const rf = await prisma.recordForm.findFirst({
+      where: { id: Number(body.formId), ownerUserId: user.id, kind: "schedule" },
+      select: { id: true },
+    });
+    formId = rf?.id ?? null;
+  }
+
   const meta = {
     therapist: body.therapist,
     serviceType: body.serviceType,
@@ -49,6 +60,7 @@ export async function POST(req: NextRequest) {
     costUnit: body.costUnit,
     costSelf: body.costSelf,
     writeDate: body.writeDate || null,
+    formId,
   };
 
   const existing = await prisma.schedule.findUnique({

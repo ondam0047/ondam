@@ -658,6 +658,7 @@ function RecordSheet({
         if (cancelled || !rec || !rec.id) return;
         setLoadedRecordId(rec.id);
         setOpinion(rec.opinion ?? "");
+        if (rec.formId) setOutFormId(rec.formId); // 저장 시 기억한 출력 양식 복원
         const sm = new Map<number, RecordSessionData>();
         for (const s of rec.sessions as RecordSessionData[]) sm.set(s.ordinal, s);
         setTimes((prev) => prev.map((t, i) => {
@@ -743,6 +744,7 @@ function RecordSheet({
             status: statuses[i] || undefined,
           };
         }),
+        formId: outFormId || undefined, // 출력 양식 기억(일괄 출력에 사용)
       };
       const res = await fetch("/api/record/save", {
         method: "POST",

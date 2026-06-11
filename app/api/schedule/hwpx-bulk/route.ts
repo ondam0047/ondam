@@ -9,6 +9,7 @@ import {
   type SchedulePayload,
 } from "@/lib/schedule-hwpx";
 import { bundleAsZip } from "@/lib/record-hwpx";
+import { generateScheduleFromForm } from "@/lib/schedule-fill-spec";
 
 // 한 사용자의 (연·월) 저장된 일정표를 한 번에 .hwpx 생성 → ZIP 으로.
 //   GET /api/schedule/hwpx-bulk?year=2026&month=2[&ids=1,2,3]
@@ -59,6 +60,17 @@ export async function GET(req: NextRequest) {
     return Response.json({ error: "템플릿 파일을 찾을 수 없어요." }, { status: 500 });
   }
 
+  // 저장된 업로드 양식(내 소유 schedule) 일괄 로드 — 각 일정의 formId 로 출력에 사용.
+  const formIds = [...new Set(schedules.map((s) => s.formId).filter((v): v is number => !!v))];
+  const formMap = new Map<number, { template: Buffer; spec: string }>();
+  if (formIds.length > 0) {
+    const forms = await prisma.recordForm.findMany({
+      where: { id: { in: formIds }, ownerUserId: user.id, kind: "schedule" },
+      select: { id: true, template: true, spec: true },
+    });
+    for (const f of forms) formMap.set(f.id, { template: Buffer.from(f.template), spec: f.spec });
+  }
+
   // 이 달 공휴일 자동 수집
   const dim = new Date(year, month, 0).getDate();
   const monthHolidays: { day: number; name: string }[] = [];
@@ -107,7 +119,10 @@ export async function GET(req: NextRequest) {
       holidays: monthHolidays,
     };
 
-    const out = buildScheduleHwpx(templateBuf, payload);
+    const savedForm = s.formId ? formMap.get(s.formId) : undefined;
+    const out = savedForm
+      ? generateScheduleFromForm(savedForm.template, savedForm.spec, payload)
+      : buildScheduleHwpx(templateBuf, payload);
     let baseName = `${safeFileName(child.name)}_${year}년${pad(month)}월_일정표`;
     // 동명이인 — 뒤에 _2, _3 같이
     let name = `${baseName}.hwpx`;
