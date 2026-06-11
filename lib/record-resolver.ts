@@ -60,9 +60,16 @@ export function resolveForm(xml: string): ResolveOutput {
   const tbls = parseTables(xml);
   const spec: ResolvedSpec = { date: [], start: [], end: [], voucher: [], extra: [], amount: [], result: [] };
 
+  // 일정표(서식9) + 기록지(서식11)가 한 파일에 합쳐진 양식 대응:
+  // '제공기관명'(서식11 고유)이 처음 나오는 표부터를 기록지 영역으로 보고, 그 이전(일정표)은 무시.
+  let recordStart = 0;
+  for (let ti = 0; ti < tbls.length; ti++) {
+    if (tbls[ti].some((c) => /제공기관명/.test(c.norm))) { recordStart = ti; break; }
+  }
+
   // HEADER
   const headerLabels: Record<string, RegExp> = { org: /제공기관명/, serviceArea: /제공영역/, name: /성명/, birth: /생년월일/ };
-  for (let ti = 0; ti < tbls.length; ti++) {
+  for (let ti = recordStart; ti < tbls.length; ti++) {
     for (const cell of tbls[ti]) {
       if (isNote(cell.text)) continue;
       for (const key of Object.keys(headerLabels)) {
@@ -77,7 +84,7 @@ export function resolveForm(xml: string): ResolveOutput {
 
   // DATE AXIS
   let dt = -1, drow = -1; let dcols: number[] = [];
-  for (let ti = 0; ti < tbls.length && dt < 0; ti++) {
+  for (let ti = recordStart; ti < tbls.length && dt < 0; ti++) {
     for (const cell of tbls[ti]) {
       if (cell.norm.includes("월일") && cell.norm.includes("내용")) {
         dt = ti; drow = cell.r;
@@ -121,7 +128,7 @@ export function resolveForm(xml: string): ResolveOutput {
   // RESULT 표
   let resultTi = -1;
   const RES = [/제공일자|서비스일자|서비스제공일자/, /승인일자/, /승인번호/, /이용자.?상태|상태/, /서비스결과|결과/, /기타사항/, /^시간$/];
-  for (let ti = 0; ti < tbls.length && spec.result.length === 0; ti++) {
+  for (let ti = recordStart; ti < tbls.length && spec.result.length === 0; ti++) {
     if (ti === dt) continue;
     const rows = [...new Set(tbls[ti].map((c) => c.r))].sort((a, b) => a - b);
     for (const r of rows) {
@@ -147,7 +154,7 @@ export function resolveForm(xml: string): ResolveOutput {
   }
 
   // 별지(detail) 표 — '서비스제공일자' 라벨이 반복되는 세로 블록 표(예: 남양주 표4)
-  for (let ti = 0; ti < tbls.length && !spec.detail; ti++) {
+  for (let ti = recordStart; ti < tbls.length && !spec.detail; ti++) {
     if (ti === dt || ti === resultTi) continue;
     const t = tbls[ti];
     const dateLabel = /서비스.?제공.?일자|^제공일자$/;
