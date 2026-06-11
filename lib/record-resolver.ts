@@ -45,6 +45,8 @@ export type ResolvedSpec = {
   detail?: Array<{ date?: Coord; apprDate?: Coord; apprNum?: Coord; result?: Coord }>;
   // 일정표(서식9) 라벨 칸 — 통합양식의 일정표 영역. 1단계는 라벨 필드만(격자 본문 제외).
   schedule?: Array<{ role: string; coord: Coord }>;
+  // 셀프 보정으로 사용자가 직접 지정한 칸(역할 중복 허용 — 같은 값을 여러 칸에 채움).
+  manual?: Array<{ role: string; table: number; row: number; col: number }>;
 };
 
 export type ResolveOutput = {
@@ -262,7 +264,7 @@ export function resolveForm(xml: string): ResolveOutput {
 
   // 격자에 역할(role) 주석 — 미리보기 뱃지용
   const ROLE: Record<string, string> = {
-    org: "기관명", name: "이름", birth: "생년월일", serviceArea: "제공영역",
+    org: "기관명", name: "대상자이름", birth: "생년월일", serviceArea: "제공영역",
     date: "날짜", start: "시작", end: "종료", voucher: "바우처(분)", extra: "추가구매",
     amount: "금액", voucherAmount: "바우처액", copayAmount: "자부담",
     rdate: "결과일자", apprDate: "승인일자", apprNum: "승인번호", time: "시간", status: "상태", result: "결과",
@@ -290,28 +292,42 @@ export function resolveForm(xml: string): ResolveOutput {
   return { spec, coverage, grid: tbls };
 }
 
-// 셀프 보정 — 사용자가 칸 클릭으로 지정한 스칼라 역할을 spec 에 덮어쓴다.
-// override.role: "기관명"|"이름"|"생년월일"|"제공영역"|"서비스종류" (빈 문자열 = 해당 칸 역할 해제)
+// 셀프 보정 — 사용자가 칸 클릭으로 지정한 역할. 역할은 같은 값이 여러 칸에 들어갈 수
+// 있으므로(예: 대상자이름이 일정표·기록지 두 군데) spec.manual 목록에 다중 보존한다.
+// 자동 인식이 틀린 칸은 "" (해제)로 제거.
 const OVERRIDE_FIELD: Record<string, "org" | "name" | "birth" | "serviceArea" | "serviceName"> = {
-  기관명: "org", 이름: "name", 생년월일: "birth", 제공영역: "serviceArea", 서비스종류: "serviceName",
+  기관명: "org", 대상자이름: "name", 생년월일: "birth", 제공영역: "serviceArea", 서비스종류: "serviceName",
 };
+const ARRAY_FIELDS: Array<"date" | "start" | "end" | "voucher" | "extra" | "amount"> = ["date", "start", "end", "voucher", "extra", "amount"];
+
 export function applyOverrides(
   spec: ResolvedSpec,
   overrides: Array<{ table: number; row: number; col: number; role: string }>,
 ): ResolvedSpec {
-  const sameCoord = (c: Coord | undefined, t: number, r: number, col: number) =>
+  const same = (c: Coord | undefined, t: number, r: number, col: number) =>
     !!c && c[0] === t && c[1] === r && c[2] === col;
+  const manual = [...(spec.manual ?? [])];
+  const idxOf = (t: number, r: number, c: number) => manual.findIndex((m) => m.table === t && m.row === r && m.col === c);
+
   for (const ov of overrides) {
     if (!ov.role) {
-      // 해제: 이 좌표를 가리키던 스칼라 필드 제거
+      // 해제: 보정 목록에서 제거 + 자동 인식(스칼라/배열)에서도 제거
+      const i = idxOf(ov.table, ov.row, ov.col);
+      if (i >= 0) manual.splice(i, 1);
       for (const f of Object.values(OVERRIDE_FIELD)) {
-        if (sameCoord(spec[f], ov.table, ov.row, ov.col)) spec[f] = undefined;
+        if (same(spec[f], ov.table, ov.row, ov.col)) spec[f] = undefined;
+      }
+      for (const af of ARRAY_FIELDS) {
+        if (spec[af].some((c) => same(c, ov.table, ov.row, ov.col))) spec[af] = [];
       }
     } else {
-      const f = OVERRIDE_FIELD[ov.role];
-      if (f) spec[f] = [ov.table, ov.row, ov.col] as Coord;
+      // 지정: 보정 목록에 추가(같은 칸은 교체, 같은 역할은 여러 칸 허용)
+      const entry = { role: ov.role, table: ov.table, row: ov.row, col: ov.col };
+      const i = idxOf(ov.table, ov.row, ov.col);
+      if (i >= 0) manual[i] = entry; else manual.push(entry);
     }
   }
+  spec.manual = manual;
   return spec;
 }
 
@@ -358,5 +374,21 @@ export function buildSampleEdits(spec: ResolvedSpec): CellEdit[] {
     단가: "60,000", 횟수: "월 8회", 총금액: "480,000", 본인부담금: "48,000",
   };
   spec.schedule?.forEach((s) => put(s.coord, schedDummy[s.role] ?? "샘플"));
+
+  // 셀프 보정 칸 — 역할별 더미값. 회기 행 역할은 날짜 열에 걸쳐 채움.
+  const roleDummy: Record<string, string> = {
+    기관명: "○○발달센터", 대상자이름: "홍길동", 생년월일: "2018-03-15", 제공영역: "언어재활",
+    서비스종류: "언어재활", 치료사이름: "김치료",
+    시작: "10:00", 종료: "10:50", "바우처(분)": "50", 추가구매: "0", 금액: "55,000",
+  };
+  const ROW_ROLES = new Set(["날짜", "시작", "종료", "바우처(분)", "추가구매", "금액"]);
+  const dCols = spec.date.map((d) => d[2]);
+  for (const m of spec.manual ?? []) {
+    if (ROW_ROLES.has(m.role) && dCols.length > 0) {
+      dCols.forEach((col, i) => put([m.table, m.row, col] as Coord, m.role === "날짜" ? `6/${days[i] ?? i + 1}` : roleDummy[m.role] ?? "샘플"));
+    } else {
+      put([m.table, m.row, m.col] as Coord, roleDummy[m.role] ?? "샘플");
+    }
+  }
   return edits;
 }

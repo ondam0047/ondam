@@ -101,8 +101,9 @@ export default function FormMapperClient() {
     loadSaved();
   }
 
-  // 셀프 보정 — 지정 가능 역할(스칼라)
-  const ASSIGN_ROLES = ["기관명", "이름", "생년월일", "제공영역", "서비스종류"];
+  // 셀프 보정 — 지정 가능 역할. 같은 역할을 여러 칸에 지정 가능(예: 대상자이름이 여러 군데).
+  const SCALAR_ROLES = ["기관명", "대상자이름", "치료사이름", "생년월일", "제공영역", "서비스종류"];
+  const ROW_ROLES = ["날짜", "시작", "종료", "바우처(분)", "추가구매", "금액"];
   const effRole = (ti: number, cell: Cell): string | null => {
     const k = `${ti},${cell.r},${cell.c}`;
     return k in overrides ? (overrides[k] || null) : cell.role;
@@ -110,21 +111,7 @@ export default function FormMapperClient() {
   function assignRole(role: string) {
     if (!picker) return;
     const K = `${picker.t},${picker.r},${picker.c}`;
-    const next = { ...overrides };
-    if (role) {
-      next[K] = role;
-      // 같은 역할을 가진 다른 칸은 해제(스칼라는 1칸만)
-      result?.grid.forEach((cells, ti) =>
-        cells.forEach((c) => {
-          const k2 = `${ti},${c.r},${c.c}`;
-          const cur = k2 in next ? next[k2] : c.role;
-          if (k2 !== K && cur === role) next[k2] = "";
-        }),
-      );
-    } else {
-      next[K] = "";
-    }
-    setOverrides(next);
+    setOverrides({ ...overrides, [K]: role }); // role "" = 해제. 중복제거 안 함(다중 허용)
     setPicker(null);
   }
   const overridesArray = Object.entries(overrides).map(([k, role]) => {
@@ -282,16 +269,24 @@ export default function FormMapperClient() {
           <div onClick={() => setPicker(null)} style={{ position: "fixed", inset: 0, zIndex: 50 }} />
           <div style={{
             position: "fixed", zIndex: 51,
-            left: Math.min(picker.x + 6, (typeof window !== "undefined" ? window.innerWidth : 1200) - 216),
-            top: Math.min(picker.y + 6, (typeof window !== "undefined" ? window.innerHeight : 800) - 150),
-            width: 208, background: "var(--surface)", border: "1px solid var(--primary)",
+            left: Math.max(8, Math.min(picker.x + 6, (typeof window !== "undefined" ? window.innerWidth : 1200) - 248)),
+            top: Math.max(8, Math.min(picker.y + 6, (typeof window !== "undefined" ? window.innerHeight : 800) - 280)),
+            width: 240, maxHeight: "80vh", overflowY: "auto",
+            background: "var(--surface)", border: "1px solid var(--primary)",
             borderRadius: 10, boxShadow: "0 6px 20px rgba(0,0,0,0.18)", padding: 10, display: "grid", gap: 8,
           }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-soft)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               “{picker.text || "(빈칸)"}” 역할 지정
             </div>
+            <div style={{ fontSize: 11, color: "var(--text-mute)" }}>기본</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {ASSIGN_ROLES.map((role) => (
+              {SCALAR_ROLES.map((role) => (
+                <button key={role} className="btn btn-sm" onClick={() => assignRole(role)}>{role}</button>
+              ))}
+            </div>
+            <div style={{ fontSize: 11, color: "var(--text-mute)" }}>회기 행 (클릭한 줄을 날짜 칸들에 적용)</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {ROW_ROLES.map((role) => (
                 <button key={role} className="btn btn-sm" onClick={() => assignRole(role)}>{role}</button>
               ))}
             </div>
