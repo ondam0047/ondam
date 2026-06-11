@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { readSection0 } from "@/lib/hwpx";
-import { resolveForm } from "@/lib/record-resolver";
+import { resolveForm, applyOverrides } from "@/lib/record-resolver";
 
 const OP = (process.env.BETA_ADMIN_EMAIL ?? "yj2000102@gmail.com").toLowerCase();
 const KINDS = new Set(["record", "schedule"]);
@@ -30,7 +30,6 @@ export async function POST(req: NextRequest) {
   const file = form.get("file");
   const name = String(form.get("name") ?? "").trim();
   const kind = String(form.get("kind") ?? "");
-  const specOverride = form.get("spec"); // 보정된 spec(JSON) — 있으면 우선
   if (!(file instanceof Blob)) return Response.json({ error: "no file" }, { status: 400 });
   if (!name) return Response.json({ error: "이름을 입력하세요." }, { status: 400 });
   if (!KINDS.has(kind)) return Response.json({ error: "종류(기록지/일정표)를 선택하세요." }, { status: 400 });
@@ -39,9 +38,12 @@ export async function POST(req: NextRequest) {
   let specJson: string;
   try {
     const xml = readSection0(buf);
-    specJson = typeof specOverride === "string" && specOverride.length > 1
-      ? specOverride
-      : JSON.stringify(resolveForm(xml).spec);
+    const { spec } = resolveForm(xml);
+    const ovRaw = form.get("overrides");
+    if (typeof ovRaw === "string" && ovRaw.length > 1) {
+      try { applyOverrides(spec, JSON.parse(ovRaw)); } catch { /* noop */ }
+    }
+    specJson = JSON.stringify(spec);
   } catch {
     return Response.json({ error: "편집 가능한 .hwpx 가 아니에요." }, { status: 422 });
   }

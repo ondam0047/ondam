@@ -23,6 +23,9 @@ export default function FormMapperClient() {
   const [formName, setFormName] = useState("");
   const [kind, setKind] = useState<"record" | "schedule">("record");
   const [savingForm, setSavingForm] = useState(false);
+  // 셀프 보정: 칸 클릭으로 역할 지정/해제. key="t,r,c" → 역할(빈문자열=해제)
+  const [overrides, setOverrides] = useState<Record<string, string>>({});
+  const [picker, setPicker] = useState<{ t: number; r: number; c: number; text: string } | null>(null);
 
   const loadSaved = useCallback(() => {
     fetch("/api/forms/saved").then((r) => (r.ok ? r.json() : { forms: [] })).then((d) => setSaved(d.forms ?? [])).catch(() => {});
@@ -31,7 +34,7 @@ export default function FormMapperClient() {
 
   async function analyze() {
     if (!file) return;
-    setLoading(true); setError(null); setResult(null);
+    setLoading(true); setError(null); setResult(null); setOverrides({}); setPicker(null);
     try {
       const fd = new FormData();
       fd.append("file", file);
@@ -55,6 +58,7 @@ export default function FormMapperClient() {
     try {
       const fd = new FormData();
       fd.append("file", file);
+      if (overridesArray.length) fd.append("overrides", JSON.stringify(overridesArray));
       const r = await fetch(`/api/forms/sample${trim ? "?trim=1" : ""}`, { method: "POST", body: fd });
       if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || "샘플 생성 실패"); }
       const blob = await r.blob();
@@ -79,6 +83,7 @@ export default function FormMapperClient() {
       fd.append("file", file);
       fd.append("name", formName.trim());
       fd.append("kind", kind);
+      if (overridesArray.length) fd.append("overrides", JSON.stringify(overridesArray));
       const r = await fetch("/api/forms/saved", { method: "POST", body: fd });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || "저장 실패");
@@ -95,6 +100,37 @@ export default function FormMapperClient() {
     await fetch(`/api/forms/saved?id=${id}`, { method: "DELETE" }).catch(() => {});
     loadSaved();
   }
+
+  // 셀프 보정 — 지정 가능 역할(스칼라)
+  const ASSIGN_ROLES = ["기관명", "이름", "생년월일", "제공영역", "서비스종류"];
+  const effRole = (ti: number, cell: Cell): string | null => {
+    const k = `${ti},${cell.r},${cell.c}`;
+    return k in overrides ? (overrides[k] || null) : cell.role;
+  };
+  function assignRole(role: string) {
+    if (!picker) return;
+    const K = `${picker.t},${picker.r},${picker.c}`;
+    const next = { ...overrides };
+    if (role) {
+      next[K] = role;
+      // 같은 역할을 가진 다른 칸은 해제(스칼라는 1칸만)
+      result?.grid.forEach((cells, ti) =>
+        cells.forEach((c) => {
+          const k2 = `${ti},${c.r},${c.c}`;
+          const cur = k2 in next ? next[k2] : c.role;
+          if (k2 !== K && cur === role) next[k2] = "";
+        }),
+      );
+    } else {
+      next[K] = "";
+    }
+    setOverrides(next);
+    setPicker(null);
+  }
+  const overridesArray = Object.entries(overrides).map(([k, role]) => {
+    const [t, r, c] = k.split(",").map(Number);
+    return { table: t, row: r, col: c, role };
+  });
 
   const KIND_LABEL: Record<string, string> = { record: "기록지", schedule: "일정표" };
   const recordForms = saved.filter((f) => f.kind === "record");
@@ -221,12 +257,26 @@ export default function FormMapperClient() {
           <div className="card">
             <div className="card-body" style={{ display: "grid", gap: 16, overflowX: "auto" }}>
               <p style={{ margin: 0, fontSize: 12.5, color: "var(--text-mute)" }}>
-                양식 표 미리보기 — <span style={{ background: "var(--primary-soft)", color: "var(--primary)", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>색칠된 칸</span>이 자동 인식된 입력 위치예요.
+                양식 표 미리보기 — <span style={{ background: "var(--primary-soft)", color: "var(--primary)", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>색칠된 칸</span>이 자동 인식된 입력 위치예요. <b>칸을 클릭</b>하면 역할을 직접 고칠 수 있어요(기관명·이름·생년월일 등).
               </p>
+              {picker && (
+                <div style={{ position: "sticky", top: 0, zIndex: 5, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, padding: "8px 10px", borderRadius: 10, background: "var(--primary-soft)", border: "1px solid var(--primary)" }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "var(--primary)" }}>선택: “{picker.text || "(빈칸)"}” →</span>
+                  {ASSIGN_ROLES.map((role) => (
+                    <button key={role} className="btn btn-sm" onClick={() => assignRole(role)}>{role}</button>
+                  ))}
+                  <button className="btn btn-sm" onClick={() => assignRole("")} style={{ color: "#8A2F1C" }}>역할 비우기</button>
+                  <button className="btn btn-sm" onClick={() => setPicker(null)}>취소</button>
+                </div>
+              )}
               {result.grid.map((cells, ti) => (
                 <div key={ti}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-soft)", marginBottom: 4 }}>표 {ti + 1}</div>
-                  <TableView cells={cells} />
+                  <TableView
+                    cells={cells}
+                    roleOf={(cell) => effRole(ti, cell)}
+                    onCell={(r, c, text) => setPicker({ t: ti, r, c, text })}
+                  />
                 </div>
               ))}
             </div>
@@ -237,7 +287,11 @@ export default function FormMapperClient() {
   );
 }
 
-function TableView({ cells }: { cells: Cell[] }) {
+function TableView({ cells, roleOf, onCell }: {
+  cells: Cell[];
+  roleOf: (cell: Cell) => string | null;
+  onCell: (r: number, c: number, text: string) => void;
+}) {
   if (cells.length === 0) return null;
   const maxR = Math.max(...cells.map((c) => c.r + c.rs));
   const maxC = Math.max(...cells.map((c) => c.c + c.cs));
@@ -254,16 +308,19 @@ function TableView({ cells }: { cells: Cell[] }) {
         for (let rr = r; rr < r + cell.rs; rr++)
           for (let cc = c; cc < c + cell.cs; cc++)
             if (!(rr === r && cc === c)) covered.add(`${rr},${cc}`);
-        const hl = !!cell.role;
+        const role = roleOf(cell);
+        const hl = !!role;
         tds.push(
           <td key={c} colSpan={cell.cs} rowSpan={cell.rs}
+            onClick={() => onCell(cell.r, cell.c, cell.text)}
+            title="클릭해서 역할 지정/해제"
             style={{
               border: "1px solid var(--border)", padding: "3px 5px", fontSize: 11, verticalAlign: "top",
               background: hl ? "var(--primary-soft)" : "var(--surface)",
-              minWidth: 40, maxWidth: 160,
+              minWidth: 40, maxWidth: 160, cursor: "pointer",
             }}>
             {hl && (
-              <div style={{ fontSize: 9, fontWeight: 800, color: "var(--primary)", marginBottom: 1 }}>{cell.role}</div>
+              <div style={{ fontSize: 9, fontWeight: 800, color: "var(--primary)", marginBottom: 1 }}>{role}</div>
             )}
             <div style={{ color: cell.text ? "var(--text)" : "var(--text-mute)", whiteSpace: "normal", wordBreak: "break-all" }}>
               {cell.text || (hl ? "" : "·")}

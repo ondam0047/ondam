@@ -2,8 +2,13 @@ import { NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { readSection0, patchSection0 } from "@/lib/hwpx";
 import { fillCells } from "@/lib/record-fill";
-import { resolveForm, buildSampleEdits } from "@/lib/record-resolver";
+import { resolveForm, buildSampleEdits, applyOverrides } from "@/lib/record-resolver";
 import { removeTableColumns, removeTableRows } from "@/lib/record-trim";
+
+function parseOverrides(v: FormDataEntryValue | null) {
+  if (typeof v !== "string" || v.length < 2) return [];
+  try { return JSON.parse(v) as Array<{ table: number; row: number; col: number; role: string }>; } catch { return []; }
+}
 
 const OP = (process.env.BETA_ADMIN_EMAIL ?? "yj2000102@gmail.com").toLowerCase();
 
@@ -26,6 +31,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { spec } = resolveForm(xml);
+  applyOverrides(spec, parseOverrides(form.get("overrides")));
   // ?trim=1 이면 5칸 초과 회기 열을 물리적으로 제거(실험).
   const trim = new URL(req.url).searchParams.get("trim") === "1";
   if (trim && spec.dateTable != null && spec.extraSessionCols?.length) {

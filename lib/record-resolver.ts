@@ -290,6 +290,31 @@ export function resolveForm(xml: string): ResolveOutput {
   return { spec, coverage, grid: tbls };
 }
 
+// 셀프 보정 — 사용자가 칸 클릭으로 지정한 스칼라 역할을 spec 에 덮어쓴다.
+// override.role: "기관명"|"이름"|"생년월일"|"제공영역"|"서비스종류" (빈 문자열 = 해당 칸 역할 해제)
+const OVERRIDE_FIELD: Record<string, "org" | "name" | "birth" | "serviceArea" | "serviceName"> = {
+  기관명: "org", 이름: "name", 생년월일: "birth", 제공영역: "serviceArea", 서비스종류: "serviceName",
+};
+export function applyOverrides(
+  spec: ResolvedSpec,
+  overrides: Array<{ table: number; row: number; col: number; role: string }>,
+): ResolvedSpec {
+  const sameCoord = (c: Coord | undefined, t: number, r: number, col: number) =>
+    !!c && c[0] === t && c[1] === r && c[2] === col;
+  for (const ov of overrides) {
+    if (!ov.role) {
+      // 해제: 이 좌표를 가리키던 스칼라 필드 제거
+      for (const f of Object.values(OVERRIDE_FIELD)) {
+        if (sameCoord(spec[f], ov.table, ov.row, ov.col)) spec[f] = undefined;
+      }
+    } else {
+      const f = OVERRIDE_FIELD[ov.role];
+      if (f) spec[f] = [ov.table, ov.row, ov.col] as Coord;
+    }
+  }
+  return spec;
+}
+
 // 샘플(더미) 채움 — 미리보기 안전망. spec 의 각 좌표에 보기용 값을 넣는다.
 import type { CellEdit } from "@/lib/record-fill";
 export function buildSampleEdits(spec: ResolvedSpec): CellEdit[] {
