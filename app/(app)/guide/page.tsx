@@ -111,6 +111,7 @@ export default async function GuidePage() {
   const TOC = [
     { id: "intro",     label: "시작하기" },
     { id: "settings",  label: "내 설정" },
+    { id: "myforms",   label: "우리 센터 양식" },
     { id: "children",  label: "내 아동 등록" },
     { id: "schedule",  label: "일정표 작성" },
     { id: "record",    label: "기록지 작성" },
@@ -224,10 +225,10 @@ export default async function GuidePage() {
               본인이 실제로 운영하는 슬롯 목록 (예: 09:00~09:50). 일정표 생성·세션 편집의 드롭다운 옵션으로 사용됩니다.
               <b>HH:MM~HH:MM</b> 형식, 콤마 또는 줄바꿈으로 구분.
             </Step>
-            <Step n={5} title="기록지 서식 선택">
-              지역·기관마다 기록지 양식이 달라요. 내 설정에서 맞는 서식을 한 번 고르면, 그 다음부터
-              <b> 기록지·일괄 다운로드가 그 양식(.hwpx)</b>으로 만들어집니다.
-              현재 지원: <b>서식A·서식B·서식C</b>. (미리보기로 확인 후 선택하세요. 양식은 계속 추가돼요)
+            <Step n={5} title="우리 센터 양식 저장 (기록지·일정표)">
+              지역·기관마다 기록지·일정표 양식이 달라요. 내 설정 아래 <b>[우리 센터 양식 저장하기]</b> 에서
+              우리 센터 양식(.hwpx)을 직접 올려 저장해두면, 그 다음부터 출력·일괄 다운로드가 <b>그 양식 그대로</b> 채워서 나옵니다.
+              자세한 사용법은 가이드 <b>‘우리 센터 양식’</b> 항목을 참고하세요.
             </Step>
             <Callout kind="tip">
               결과를 손으로 적는 분은 기록지에서 <b>상태 및 결과 기록만 비워두고</b> 한글파일을 출력하세요.
@@ -236,8 +237,49 @@ export default async function GuidePage() {
           </Detail>
         </Section>
 
-        {/* 3. 내 아동 등록 */}
-        <Section id="children" num="3" title="내 아동 등록" summary="한 번 등록하면 매월 클릭 한 번에 정보가 채워져요. 직접·엑셀로 등록할 수 있어요.">
+        {/* 3. 우리 센터 양식 */}
+        <Section id="myforms" num="3" title="우리 센터 양식" summary="우리 센터 기록지·일정표(.hwpx)를 올려두면, 그 양식 그대로 채워서 출력돼요.">
+          {/* 영상 준비 중: <GuideVideo slug="guide-09-myforms" title="우리 센터 양식 저장" /> */}
+          <Detail>
+            <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
+              지자체·기관마다 기록지·일정표 양식이 제각각이에요. 우리 센터에서 쓰는 양식 파일(.hwpx)을
+              한 번 올려두면 칸을 <b>자동으로 인식</b>해서, 그 다음부터 일정표·기록지 출력과 일괄 다운로드가
+              <b> 우리 센터 양식 그대로</b> 채워서 나옵니다. <b>[내 설정] → [우리 센터 양식 저장하기]</b> 또는
+              왼쪽 메뉴 <b>[우리 센터 양식]</b> 에서 시작하세요.
+            </p>
+
+            <Step n={1} title="양식 파일(.hwpx) 올리기">
+              우리 센터에서 쓰는 빈 기록지나 일정표 한글파일(.hwpx)을 선택해 올려요.
+              스캔본·PDF·.hwp(구버전)는 안 되고, <b>한글에서 편집 가능한 .hwpx</b> 여야 해요.
+            </Step>
+            <Step n={2} title="자동 매핑 확인">
+              올리면 표의 칸(이름·생년월일·날짜·시간·금액·결과 등)을 자동으로 찾아 색으로 표시해줘요.
+              <b>[샘플로 채워보기]</b> 를 누르면 예시 데이터가 들어간 한글파일을 받아 <b>실제로 맞게 들어가는지</b> 미리 확인할 수 있어요.
+            </Step>
+            <Step n={3} title="틀린 칸은 직접 보정">
+              자동 인식이 어긋난 칸이 있으면, 그 칸을 <b>클릭해서 역할을 직접 지정</b>(예: 이 칸은 ‘대상자이름’)하거나 비울 수 있어요.
+              같은 값을 여러 칸에 넣어야 하면 여러 칸에 같은 역할을 지정하면 됩니다.
+            </Step>
+            <Step n={4} title="기록지 / 일정표 구분해서 저장">
+              종류(<b>기록지</b> 또는 <b>일정표</b>)를 고르고 이름을 붙여 저장해요. 통합 양식(한 장에 일정표+기록지)은 기록지로 저장하면 돼요.
+              <b>센터마다 양식이 다르면 여러 개</b> 저장해두고 골라 쓸 수 있어요(프리랜서 다(多)센터 대응).
+            </Step>
+            <Step n={5} title="출력할 때 양식 선택">
+              일정표·기록지 화면의 <b>‘출력 양식’</b> 에서 저장한 양식을 고르면 그 양식으로 다운로드돼요.
+              그 상태로 <b>저장</b>해두면 다음에 불러올 때도, <b>일괄 다운로드</b> 할 때도 같은 양식으로 나옵니다.
+            </Step>
+
+            <Callout kind="tip">
+              먼저 <b>[샘플로 채워보기]</b> 로 한 번 확인하고 저장하세요. 빈 양식 그대로 올리면 가장 잘 인식돼요.
+            </Callout>
+            <Callout kind="info">
+              올린 양식 파일과 저장 내용은 <b>본인만</b> 볼 수 있어요. 다른 사용자에게 절대 공유되지 않습니다.
+            </Callout>
+          </Detail>
+        </Section>
+
+        {/* 4. 내 아동 등록 */}
+        <Section id="children" num="4" title="내 아동 등록" summary="한 번 등록하면 매월 클릭 한 번에 정보가 채워져요. 직접·엑셀로 등록할 수 있어요.">
           <GuideVideo slug="guide-04-child-register" title="내 아동 한 명씩 등록" />
           <Detail>
             <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
@@ -273,8 +315,8 @@ export default async function GuidePage() {
           </Detail>
         </Section>
 
-        {/* 4. 일정표 */}
-        <Section id="schedule" num="4" title="일정표 작성" summary="반복 요일만 고르면 한 달치 회기가 자동으로 만들어져요. (공휴일 자동 제외)">
+        {/* 5. 일정표 */}
+        <Section id="schedule" num="5" title="일정표 작성" summary="반복 요일만 고르면 한 달치 회기가 자동으로 만들어져요. (공휴일 자동 제외)">
           <GuideVideo slug="guide-05-schedule" title="일정표 작성" />
           <Detail>
             <Step n={1} title="아동 · 연·월 선택">
@@ -303,8 +345,8 @@ export default async function GuidePage() {
           </Detail>
         </Section>
 
-        {/* 5. 기록지 */}
-        <Section id="record" num="5" title="기록지 작성" summary="직접 작성하거나, 월말 엑셀로 한 번에 자동완성하거나 — 두 가지 방식.">
+        {/* 6. 기록지 */}
+        <Section id="record" num="6" title="기록지 작성" summary="직접 작성하거나, 월말 엑셀로 한 번에 자동완성하거나 — 두 가지 방식.">
           <GuideVideo slug="guide-06-record" title="기록지 작성" />
           <Detail>
             <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
@@ -341,8 +383,8 @@ export default async function GuidePage() {
           </Detail>
         </Section>
 
-        {/* 6. 수기로 작성하는 분 */}
-        <Section id="handwrite" num="6" title="수기로 작성하는 분" summary="수기로 받는 분도 위쪽 표는 자동 인쇄 — 종이엔 결과·서명만 받으면 돼요.">
+        {/* 7. 수기로 작성하는 분 */}
+        <Section id="handwrite" num="7" title="수기로 작성하는 분" summary="수기로 받는 분도 위쪽 표는 자동 인쇄 — 종이엔 결과·서명만 받으면 돼요.">
           <Detail>
             <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
               지자체·센터 운영 방침상 <b>결과 기록과 부모 서명을 회기마다 종이에 직접</b> 받아야 하는 경우가 많아요.
@@ -378,8 +420,8 @@ export default async function GuidePage() {
           </Detail>
         </Section>
 
-        {/* 7. 승인내역 점검 */}
-        <Section id="approval" num="7" title="승인내역 점검" summary="엑셀만 올리면 결제 시간이 겹치는 회기를 자동으로 잡아줘요.">
+        {/* 8. 승인내역 점검 */}
+        <Section id="approval" num="8" title="승인내역 점검" summary="엑셀만 올리면 결제 시간이 겹치는 회기를 자동으로 잡아줘요.">
           <GuideVideo slug="guide-07-approval" title="승인내역 점검" />
           <Detail>
             <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
@@ -406,8 +448,8 @@ export default async function GuidePage() {
           </Detail>
         </Section>
 
-        {/* 8. 내 시간표 */}
-        <Section id="timetable" num="8" title="내 시간표" summary="저장된 일정표를 월간 캘린더로 한눈에 봐요.">
+        {/* 9. 내 시간표 */}
+        <Section id="timetable" num="9" title="내 시간표" summary="저장된 일정표를 월간 캘린더로 한눈에 봐요.">
           <Detail>
             <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
               저장된 일정표를 <b>월간 캘린더</b>로 한 눈에 봅니다. 모든 회기가 날짜별·시간순으로 표시되고,
@@ -420,8 +462,8 @@ export default async function GuidePage() {
           </Detail>
         </Section>
 
-        {/* 9. 일괄 다운로드 */}
-        <Section id="bulk" num="9" title="일괄 다운로드" summary="월말 마감, 아동별 한글파일을 ZIP으로 한 번에 받아요.">
+        {/* 10. 일괄 다운로드 */}
+        <Section id="bulk" num="10" title="일괄 다운로드" summary="월말 마감, 아동별 한글파일을 ZIP으로 한 번에 받아요.">
           <GuideVideo slug="guide-08-dashboard" title="대시보드·일괄 다운로드·내 시간표" />
           <Detail>
             <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
@@ -448,8 +490,8 @@ export default async function GuidePage() {
           </Detail>
         </Section>
 
-        {/* 10. 작업 상태 유지 */}
-        <Section id="persist" num="10" title="작업 상태 유지" summary="화면을 옮겨다녀도 보던 상태가 그대로 유지돼요.">
+        {/* 11. 작업 상태 유지 */}
+        <Section id="persist" num="11" title="작업 상태 유지" summary="화면을 옮겨다녀도 보던 상태가 그대로 유지돼요.">
           <Detail>
             <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
               일정표·기록지를 왔다갔다 하며 작업할 때 <b>보고 있던 화면이 그대로 유지</b>됩니다.
@@ -465,8 +507,8 @@ export default async function GuidePage() {
           </Detail>
         </Section>
 
-        {/* 11. FAQ */}
-        <Section id="faq" num="11" title="자주 묻는 질문" summary="궁금한 점을 빠르게 찾아보세요.">
+        {/* 12. FAQ */}
+        <Section id="faq" num="12" title="자주 묻는 질문" summary="궁금한 점을 빠르게 찾아보세요.">
           <div style={{ display: "grid", gap: 14 }}>
             <details style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", padding: "12px 16px" }}>
               <summary style={{ cursor: "pointer", fontWeight: 700 }}>Q. 가입 후 입력한 내용을 어디서 바꿔요?</summary>
