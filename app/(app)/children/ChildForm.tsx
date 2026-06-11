@@ -257,7 +257,7 @@ export default function ChildForm({
                   name={`svc[${i}][monthlyCopay]`}
                   type="number"
                   min={0}
-                  step={1000}
+                  step={1}
                   value={s.monthlyCopay ?? ""}
                   onChange={(e) => updateSvc(i, { monthlyCopay: e.target.value ? Number(e.target.value) : null })}
                 />
