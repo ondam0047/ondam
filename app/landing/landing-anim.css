@@ -1,0 +1,32 @@
+/* /landing 전용 애니메이션 — 스크롤 리빌·웨이브폼·글로우.
+   globals.css 의 @import 정렬 충돌을 피하려 별도 파일로 분리(랜딩 레이아웃에서만 로드). */
+
+@keyframes bi-rise { to { opacity: 1; transform: none; } }
+@keyframes bi-wave { 0%, 100% { transform: scaleY(0.35); } 50% { transform: scaleY(1); } }
+@keyframes bi-glowpulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.85; } }
+
+.bi-reveal { opacity: 0; transform: translateY(18px); transition: opacity 0.6s ease, transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.bi-reveal.is-visible { opacity: 1; transform: none; }
+
+.bi-stagger > * { opacity: 0; transform: translateY(18px); }
+.bi-stagger.is-visible > * { animation: bi-rise 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) forwards; }
+.bi-stagger.is-visible > *:nth-child(1) { animation-delay: 0.04s; }
+.bi-stagger.is-visible > *:nth-child(2) { animation-delay: 0.10s; }
+.bi-stagger.is-visible > *:nth-child(3) { animation-delay: 0.16s; }
+.bi-stagger.is-visible > *:nth-child(4) { animation-delay: 0.22s; }
+.bi-stagger.is-visible > *:nth-child(5) { animation-delay: 0.28s; }
+.bi-stagger.is-visible > *:nth-child(6) { animation-delay: 0.34s; }
+.bi-stagger.is-visible > *:nth-child(7) { animation-delay: 0.40s; }
+.bi-stagger.is-visible > *:nth-child(8) { animation-delay: 0.46s; }
+.bi-stagger.is-visible > *:nth-child(9) { animation-delay: 0.52s; }
+.bi-stagger.is-visible > *:nth-child(n + 10) { animation-delay: 0.58s; }
+
+.bi-wave-bar { transform-origin: bottom; animation: bi-wave 1.3s ease-in-out infinite; }
+.bi-glow-pulse { animation: bi-glowpulse 5s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bi-reveal, .bi-reveal.is-visible { opacity: 1 !important; transform: none !important; transition: none !important; }
+  .bi-stagger > * { opacity: 1 !important; transform: none !important; }
+  .bi-stagger.is-visible > * { animation: none !important; }
+  .bi-wave-bar, .bi-glow-pulse { animation: none !important; }
+}

@@ -1,3 +1,9 @@
+/* Tailwind v4 유틸리티 활성화 — preflight(기본 리셋) 제외.
+   기존 .card/.btn 등 커스텀 시맨틱 CSS는 unlayered 라 utilities 레이어보다 우선순위가 높아 그대로 보존됨.
+   랜딩페이지(/landing)가 Tailwind 유틸 클래스를 사용하므로 추가. */
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
 /* ============================================
    온담말언어연구소 · 통합 관리 · 디자인 토큰
    ============================================ */
