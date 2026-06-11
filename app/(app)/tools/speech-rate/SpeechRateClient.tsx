@@ -247,6 +247,11 @@ export default function SpeechRateClient() {
   const signalRef = useRef<Float32Array | null>(null);
   const srRef = useRef<number>(44100);
 
+  // 선택 구간만 다시 듣기용 재생 컨텍스트
+  const [playingSel, setPlayingSel] = useState(false);
+  const playCtxRef = useRef<AudioContext | null>(null);
+  const playSrcRef = useRef<AudioBufferSourceNode | null>(null);
+
   const audioCtxRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
@@ -288,6 +293,50 @@ export default function SpeechRateClient() {
     if (b - a < sr * 0.2) return; // 최소 0.2초
     setResult(analyzeSpeechRate(sig.subarray(a, b), sr, { trimEnds: false }));
   }, []);
+
+  // 선택 구간 재생 정지
+  const stopSelection = useCallback(() => {
+    if (playSrcRef.current) {
+      try { playSrcRef.current.onended = null; playSrcRef.current.stop(); } catch { /* noop */ }
+      try { playSrcRef.current.disconnect(); } catch { /* noop */ }
+      playSrcRef.current = null;
+    }
+    if (playCtxRef.current) {
+      playCtxRef.current.close().catch(() => undefined);
+      playCtxRef.current = null;
+    }
+    setPlayingSel(false);
+  }, []);
+
+  // 파형에서 정한 [selStart, selEnd] 구간만 다시 듣기
+  const playSelection = useCallback((startSec: number, endSec: number) => {
+    const sig = signalRef.current;
+    const sr = srRef.current;
+    if (!sig) return;
+    stopSelection();
+    const a = Math.max(0, Math.floor(startSec * sr));
+    const b = Math.min(sig.length, Math.floor(endSec * sr));
+    if (b - a < sr * 0.05) return;
+    try {
+      const Ctx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = new Ctx();
+      playCtxRef.current = ctx;
+      const buf = ctx.createBuffer(1, b - a, sr);
+      buf.getChannelData(0).set(sig.subarray(a, b));
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.connect(ctx.destination);
+      src.onended = () => stopSelection();
+      playSrcRef.current = src;
+      src.start();
+      setPlayingSel(true);
+    } catch (err) {
+      console.error(err);
+      stopSelection();
+    }
+  }, [stopSelection]);
 
   // 녹음/파일 신호로 파형·기본 선택구간·초기 분석 세팅.
   const setupFromSignal = useCallback((combined: Float32Array, sr: number) => {
@@ -429,6 +478,7 @@ export default function SpeechRateClient() {
   }, [finalizeAndAnalyze]);
 
   const reset = useCallback(() => {
+    stopSelection();
     setResult(null);
     setSyllables("");
     setEditedTranscript("");
@@ -442,7 +492,7 @@ export default function SpeechRateClient() {
     setFullSegments([]);
     signalRef.current = null;
     asr.reset();
-  }, [asr]);
+  }, [asr, stopSelection]);
 
   // 녹음이 끝났을 때 ASR 전사로부터 음절 수 자동 산출.
   useEffect(() => {
@@ -460,6 +510,7 @@ export default function SpeechRateClient() {
   }, [editedTranscript]);
 
   useEffect(() => () => cleanup(), [cleanup]);
+  useEffect(() => () => stopSelection(), [stopSelection]);
 
   const syllablesNum = parseInt(syllables, 10);
   const validSyllables = !isNaN(syllablesNum) && syllablesNum > 0;
@@ -772,14 +823,20 @@ export default function SpeechRateClient() {
                   <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: "var(--text-soft)" }}>
                     파형 · 양끝 손잡이를 끌어 분석 구간을 정하세요 (초록 = 발화, 회색 = 쉼)
                   </p>
-                  <span style={{ fontSize: 12, color: "var(--text-mute)" }}>
+                  <span style={{ fontSize: 12, color: "var(--text-mute)", display: "inline-flex", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
                     분석 구간 <b style={{ color: "var(--text)" }}>{(selEnd - selStart).toFixed(2)}초</b>
-                    {" "}({selStart.toFixed(2)}–{selEnd.toFixed(2)})
-                    {" "}
+                    ({selStart.toFixed(2)}–{selEnd.toFixed(2)})
                     <button
                       className="btn btn-sm"
-                      style={{ marginLeft: 6, padding: "2px 8px" }}
-                      onClick={() => { setSelStart(0); setSelEnd(rawDuration); recompute(0, rawDuration); }}
+                      style={{ padding: "2px 8px" }}
+                      onClick={() => playingSel ? stopSelection() : playSelection(selStart, selEnd)}
+                    >
+                      {playingSel ? "⏸ 정지" : "▶ 선택 구간 듣기"}
+                    </button>
+                    <button
+                      className="btn btn-sm"
+                      style={{ padding: "2px 8px" }}
+                      onClick={() => { stopSelection(); setSelStart(0); setSelEnd(rawDuration); recompute(0, rawDuration); }}
                     >
                       전체
                     </button>
@@ -791,7 +848,7 @@ export default function SpeechRateClient() {
                   segments={fullSegments}
                   selStart={selStart}
                   selEnd={selEnd}
-                  onChange={(s, e) => { setSelStart(s); setSelEnd(e); recompute(s, e); }}
+                  onChange={(s, e) => { stopSelection(); setSelStart(s); setSelEnd(e); recompute(s, e); }}
                 />
                 <div
                   style={{

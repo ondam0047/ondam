@@ -104,6 +104,23 @@ export default function LoudnessClient() {
   const [dragging, setDragging] = useState<{ chart: "pitch" | "intensity"; bound: "low" | "high" } | null>(null);
   const [presetId, setPresetId] = useState("custom");
   const [subj, setSubj] = useState<{ subject: string | null; clinician: string; chartSvg?: string }>({ subject: null, clinician: "" });
+  // 음도/강도 표시 선택 (둘 다 또는 하나만)
+  const [showPitch, setShowPitch] = useState(true);
+  const [showDb, setShowDb] = useState(true);
+  // 모바일에선 그래프 높이를 줄여요
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 640px)");
+    const apply = () => setIsMobile(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+  const chartH = isMobile ? 300 : CHART_H;
+
+  // 둘 다 꺼지지 않도록 — 마지막 하나는 끌 수 없음
+  const togglePitch = useCallback(() => setShowPitch((v) => (v && !showDb ? v : !v)), [showDb]);
+  const toggleDb = useCallback(() => setShowDb((v) => (v && !showPitch ? v : !v)), [showPitch]);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -120,8 +137,8 @@ export default function LoudnessClient() {
   useEffect(() => { durationRef.current = duration; }, [duration]);
   useEffect(() => { fftSizeRef.current = fftSize; }, [fftSize]);
 
-  const pitchScale = useMemo(() => logScale(F_MIN, F_MAX, CHART_H), []);
-  const dbScale = useMemo(() => linScale(DB_MIN, DB_MAX, CHART_H), []);
+  const pitchScale = useMemo(() => logScale(F_MIN, F_MAX, chartH), [chartH]);
+  const dbScale = useMemo(() => linScale(DB_MIN, DB_MAX, chartH), [chartH]);
 
   const stop = useCallback(() => {
     if (rafRef.current !== null) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
@@ -394,6 +411,16 @@ export default function LoudnessClient() {
             </div>
           </div>
 
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-soft)" }}>표시</span>
+            <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 600, color: PITCH_COLOR, cursor: "pointer" }}>
+              <input type="checkbox" checked={showPitch} onChange={togglePitch} style={{ accentColor: PITCH_COLOR }} /> 음도
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 600, color: DB_COLOR, cursor: "pointer" }}>
+              <input type="checkbox" checked={showDb} onChange={toggleDb} style={{ accentColor: DB_COLOR }} /> 강도
+            </label>
+          </div>
+
           <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
             {!isRecording ? (
               <button className="btn btn-primary" onClick={start}>시작</button>
@@ -418,7 +445,8 @@ export default function LoudnessClient() {
 
       {/* 음도(F0) + 강도(dB) 통합 차트 */}
       <DualTrackChart
-        height={CHART_H} duration={effDur} elapsed={elapsed} isRecording={isRecording}
+        height={chartH} mobile={isMobile} showPitch={showPitch} showDb={showDb}
+        duration={effDur} elapsed={elapsed} isRecording={isRecording}
         pitchScale={pitchScale} dbScale={dbScale}
         pitchGrid={[60, 80, 100, 150, 200, 300, 400]} dbGrid={[40, 50, 60, 70, 80, 90]}
         gridTimes={gridTimes} pitchPath={pitchPath} dbPath={dbPath}
@@ -429,18 +457,22 @@ export default function LoudnessClient() {
         onDragValue={handleDragValue} onDragEnd={endDrag}
       />
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
-        <StatBox label="현재 음도" value={currentF0 ? `${currentF0.toFixed(1)} Hz` : "-"} sub={currentF0 ? freqToNoteName(currentF0) : ""} />
-        <StatBox label="평균 음도" value={pitchStats.total ? `${pitchStats.mean.toFixed(1)} Hz` : "-"} sub={pitchStats.total ? freqToNoteName(pitchStats.mean) : ""} />
-        <StatBox label="음역 (최소~최대)" value={pitchStats.total ? `${pitchStats.min.toFixed(0)} ~ ${pitchStats.max.toFixed(0)} Hz` : "-"} sub={pitchStats.total ? `${pitchStats.rangeSemitones.toFixed(1)} semitone` : ""} />
-        <StatBox label="목표 음역대 체류" value={pitchStats.total ? `${pitchStats.inRangePct.toFixed(1)} %` : "-"} sub={pitchStats.total ? `${pitchStats.inRange} / ${pitchStats.total} 샘플` : ""} accent />
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
-        <StatBox label="현재 강도" value={currentDb ? `${currentDb.toFixed(1)} dB` : "-"} />
-        <StatBox label="평균 강도" value={dbStats.total ? `${dbStats.mean.toFixed(1)} dB` : "-"} />
-        <StatBox label="강도 범위" value={dbStats.total ? `${dbStats.min.toFixed(0)} ~ ${dbStats.max.toFixed(0)} dB` : "-"} />
-        <StatBox label="목표 강도 체류" value={dbStats.total ? `${dbStats.inRangePct.toFixed(1)} %` : "-"} sub={dbStats.total ? `${dbStats.inRange} / ${dbStats.total} 샘플` : ""} accent />
-      </div>
+      {showPitch && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
+          <StatBox label="현재 음도" value={currentF0 ? `${currentF0.toFixed(1)} Hz` : "-"} sub={currentF0 ? freqToNoteName(currentF0) : ""} />
+          <StatBox label="평균 음도" value={pitchStats.total ? `${pitchStats.mean.toFixed(1)} Hz` : "-"} sub={pitchStats.total ? freqToNoteName(pitchStats.mean) : ""} />
+          <StatBox label="음역 (최소~최대)" value={pitchStats.total ? `${pitchStats.min.toFixed(0)} ~ ${pitchStats.max.toFixed(0)} Hz` : "-"} sub={pitchStats.total ? `${pitchStats.rangeSemitones.toFixed(1)} semitone` : ""} />
+          <StatBox label="목표 음역대 체류" value={pitchStats.total ? `${pitchStats.inRangePct.toFixed(1)} %` : "-"} sub={pitchStats.total ? `${pitchStats.inRange} / ${pitchStats.total} 샘플` : ""} accent />
+        </div>
+      )}
+      {showDb && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
+          <StatBox label="현재 강도" value={currentDb ? `${currentDb.toFixed(1)} dB` : "-"} />
+          <StatBox label="평균 강도" value={dbStats.total ? `${dbStats.mean.toFixed(1)} dB` : "-"} />
+          <StatBox label="강도 범위" value={dbStats.total ? `${dbStats.min.toFixed(0)} ~ ${dbStats.max.toFixed(0)} dB` : "-"} />
+          <StatBox label="목표 강도 체류" value={dbStats.total ? `${dbStats.inRangePct.toFixed(1)} %` : "-"} sub={dbStats.total ? `${dbStats.inRange} / ${dbStats.total} 샘플` : ""} accent />
+        </div>
+      )}
 
       {isRecording && (
         <div style={{ padding: "10px 14px", borderRadius: 10, fontSize: 13.5, background: "var(--primary-soft)", color: "var(--primary)" }}>
@@ -477,11 +509,12 @@ export default function LoudnessClient() {
 }
 
 function DualTrackChart({
-  height, duration, elapsed, isRecording, pitchScale, dbScale, pitchGrid, dbGrid, gridTimes,
+  height, mobile, showPitch, showDb, duration, elapsed, isRecording, pitchScale, dbScale, pitchGrid, dbGrid, gridTimes,
   pitchPath, dbPath, currentF0, currentDb, pitchLower, pitchUpper, dbLower, dbUpper,
   dragging, onDragStart, onDragValue, onDragEnd,
 }: {
-  height: number; duration: number; elapsed: number; isRecording: boolean;
+  height: number; mobile: boolean; showPitch: boolean; showDb: boolean;
+  duration: number; elapsed: number; isRecording: boolean;
   pitchScale: Scale; dbScale: Scale; pitchGrid: number[]; dbGrid: number[]; gridTimes: number[];
   pitchPath: string; dbPath: string; currentF0: number | null; currentDb: number | null;
   pitchLower: number; pitchUpper: number; dbLower: number; dbUpper: number;
@@ -511,23 +544,29 @@ function DualTrackChart({
     <div className="card" style={{ overflowX: "auto" }}>
       <div className="card-body">
         <div style={{ marginBottom: 8, display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px 20px", fontSize: 12 }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 600, color: PITCH_COLOR }}>
-            <span style={{ display: "inline-block", height: 10, width: 16, borderRadius: 3, background: PITCH_COLOR }} /> 음도 F0 (Hz · 좌축)
+          {showPitch && (
+            <span style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 600, color: PITCH_COLOR }}>
+              <span style={{ display: "inline-block", height: 10, width: 16, borderRadius: 3, background: PITCH_COLOR }} /> 음도 F0 (Hz · 좌축)
+            </span>
+          )}
+          {showDb && (
+            <span style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 600, color: DB_COLOR }}>
+              <span style={{ display: "inline-block", height: 10, width: 16, borderRadius: 3, background: DB_COLOR }} /> 강도 (dB · 우축)
+            </span>
+          )}
+          <span style={{ color: "var(--text-mute)" }}>
+            막대를 끌어 목표 구간 설정{showPitch && showDb ? " (좌=음역, 우=강도)" : ""}
           </span>
-          <span style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 600, color: DB_COLOR }}>
-            <span style={{ display: "inline-block", height: 10, width: 16, borderRadius: 3, background: DB_COLOR }} /> 강도 (dB · 우축)
-          </span>
-          <span style={{ color: "var(--text-mute)" }}>막대를 끌어 목표 구간 설정 (좌=음역, 우=강도)</span>
         </div>
-        <div style={{ minWidth: 680 }}>
+        <div style={{ minWidth: mobile ? 480 : 680 }}>
           <svg ref={svgRef} viewBox={`0 0 ${CHART_WIDTH} ${height}`} style={{ width: "100%", touchAction: "none", userSelect: "none" }}
             onMouseMove={(e) => moveFromClientY(e.clientY)} onMouseUp={onDragEnd} onMouseLeave={onDragEnd}
             onTouchMove={(e) => { if (!dragging) return; e.preventDefault(); const t = e.touches[0]; if (t) moveFromClientY(t.clientY); }}
             onTouchEnd={onDragEnd} onTouchCancel={onDragEnd}>
             <rect x={PADDING.left} y={PADDING.top} width={innerW} height={plotBottom - PADDING.top} fill="#FBF8F1" />
-            <rect x={PADDING.left} y={pUpperY} width={innerW} height={Math.max(0, pLowerY - pUpperY)} fill={PITCH_COLOR} opacity={0.08} />
-            <rect x={PADDING.left} y={dUpperY} width={innerW} height={Math.max(0, dLowerY - dUpperY)} fill={DB_COLOR} opacity={0.08} />
-            {pitchGrid.map((v) => {
+            {showPitch && <rect x={PADDING.left} y={pUpperY} width={innerW} height={Math.max(0, pLowerY - pUpperY)} fill={PITCH_COLOR} opacity={0.08} />}
+            {showDb && <rect x={PADDING.left} y={dUpperY} width={innerW} height={Math.max(0, dLowerY - dUpperY)} fill={DB_COLOR} opacity={0.08} />}
+            {showPitch && pitchGrid.map((v) => {
               const y = pitchScale.toY(v);
               return (
                 <g key={`hz-${v}`}>
@@ -536,7 +575,7 @@ function DualTrackChart({
                 </g>
               );
             })}
-            {dbGrid.map((v) => {
+            {showDb && dbGrid.map((v) => {
               const y = dbScale.toY(v);
               return (
                 <g key={`db-${v}`}>
@@ -554,27 +593,27 @@ function DualTrackChart({
                 </g>
               );
             })}
-            <line x1={PADDING.left} x2={PADDING.left} y1={PADDING.top} y2={plotBottom} stroke={PITCH_COLOR} strokeOpacity={0.5} />
-            <line x1={CHART_WIDTH - PADDING.right} x2={CHART_WIDTH - PADDING.right} y1={PADDING.top} y2={plotBottom} stroke={DB_COLOR} strokeOpacity={0.5} />
+            {showPitch && <line x1={PADDING.left} x2={PADDING.left} y1={PADDING.top} y2={plotBottom} stroke={PITCH_COLOR} strokeOpacity={0.5} />}
+            {showDb && <line x1={CHART_WIDTH - PADDING.right} x2={CHART_WIDTH - PADDING.right} y1={PADDING.top} y2={plotBottom} stroke={DB_COLOR} strokeOpacity={0.5} />}
             <line x1={PADDING.left} x2={CHART_WIDTH - PADDING.right} y1={plotBottom} y2={plotBottom} stroke="#C9BC9C" />
-            <text x={22} y={height / 2} textAnchor="middle" fontSize={13} fill={PITCH_COLOR} fontWeight={600} transform={`rotate(-90 22 ${height / 2})`}>음도 (Hz)</text>
-            <text x={CHART_WIDTH - 18} y={height / 2} textAnchor="middle" fontSize={13} fill={DB_COLOR} fontWeight={600} transform={`rotate(90 ${CHART_WIDTH - 18} ${height / 2})`}>강도 (dB)</text>
+            {showPitch && <text x={22} y={height / 2} textAnchor="middle" fontSize={13} fill={PITCH_COLOR} fontWeight={600} transform={`rotate(-90 22 ${height / 2})`}>음도 (Hz)</text>}
+            {showDb && <text x={CHART_WIDTH - 18} y={height / 2} textAnchor="middle" fontSize={13} fill={DB_COLOR} fontWeight={600} transform={`rotate(90 ${CHART_WIDTH - 18} ${height / 2})`}>강도 (dB)</text>}
             <text x={CHART_WIDTH / 2} y={height - 6} textAnchor="middle" fontSize={13} fill="#3D4A2A" fontWeight={500}>시간 (초)</text>
-            {dbPath && <path d={dbPath} fill="none" stroke={DB_COLOR} strokeWidth={2.25} strokeLinejoin="round" strokeLinecap="round" />}
-            {pitchPath && <path d={pitchPath} fill="none" stroke={PITCH_COLOR} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />}
+            {showDb && dbPath && <path d={dbPath} fill="none" stroke={DB_COLOR} strokeWidth={2.25} strokeLinejoin="round" strokeLinecap="round" />}
+            {showPitch && pitchPath && <path d={pitchPath} fill="none" stroke={PITCH_COLOR} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />}
             {isRecording && (
               <line x1={timeToX(elapsed, duration)} x2={timeToX(elapsed, duration)} y1={PADDING.top} y2={plotBottom} stroke="#94A38B" strokeWidth={1} />
             )}
-            {currentDb !== null && isRecording && (
+            {showDb && currentDb !== null && isRecording && (
               <circle cx={timeToX(elapsed, duration)} cy={dbScale.toY(currentDb)} r={5.5} fill={DB_COLOR} stroke="white" strokeWidth={2} />
             )}
-            {currentF0 !== null && isRecording && (
+            {showPitch && currentF0 !== null && isRecording && (
               <circle cx={timeToX(elapsed, duration)} cy={pitchScale.toY(currentF0)} r={5.5} fill={PITCH_COLOR} stroke="white" strokeWidth={2} />
             )}
-            <DualHandle y={pUpperY} value={pitchUpper} unit="Hz" color={PITCH_COLOR} side="left" onStart={() => onDragStart("pitch", "high")} />
-            <DualHandle y={pLowerY} value={pitchLower} unit="Hz" color={PITCH_COLOR} side="left" onStart={() => onDragStart("pitch", "low")} />
-            <DualHandle y={dUpperY} value={dbUpper} unit="dB" color={DB_COLOR} side="right" onStart={() => onDragStart("intensity", "high")} />
-            <DualHandle y={dLowerY} value={dbLower} unit="dB" color={DB_COLOR} side="right" onStart={() => onDragStart("intensity", "low")} />
+            {showPitch && <DualHandle y={pUpperY} value={pitchUpper} unit="Hz" color={PITCH_COLOR} side="left" onStart={() => onDragStart("pitch", "high")} />}
+            {showPitch && <DualHandle y={pLowerY} value={pitchLower} unit="Hz" color={PITCH_COLOR} side="left" onStart={() => onDragStart("pitch", "low")} />}
+            {showDb && <DualHandle y={dUpperY} value={dbUpper} unit="dB" color={DB_COLOR} side="right" onStart={() => onDragStart("intensity", "high")} />}
+            {showDb && <DualHandle y={dLowerY} value={dbLower} unit="dB" color={DB_COLOR} side="right" onStart={() => onDragStart("intensity", "low")} />}
           </svg>
         </div>
       </div>

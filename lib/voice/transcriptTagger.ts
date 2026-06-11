@@ -11,7 +11,8 @@
  *   제거하므로 이 분석에 부적합.
  */
 
-export type TranscriptTagType = "I" | "UR" | "R1" | "R2";
+// I=간투사, UR=수정/거짓시작, R1=낱말 반복, R2=음절 반복, P=연장, B=막힘
+export type TranscriptTagType = "I" | "UR" | "R1" | "R2" | "P" | "B";
 
 export interface TranscriptDraft {
   type: TranscriptTagType;
@@ -30,10 +31,15 @@ function hangulCount(s: string): number {
 
 // 늘임표·물결·반복모음 정규화: "어어"→"어", "음~"→"음", "그…"→"그"
 function collapse(token: string): string {
-  let t = token.replace(/[~….,!?·]/g, "");
+  let t = token.replace(/[~….,!?·ː—#]/g, "");
   t = t.replace(/(.)\1+/g, "$1");
   return t;
 }
+
+// 연장 표시: 늘임 부호(ː · : · ~ · — em대시)
+const PROLONG_MARK = /[ː:~—]/;
+// 막힘 표시: '#' 또는 (막힘)/막힘
+const BLOCK_MARK = /#|막힘/;
 
 export function tagFromTranscript(
   transcript: string,
@@ -92,6 +98,20 @@ export function tagFromTranscript(
         drafts.push({ type: "R1", time: at, note: `전사: 낱말 반복 '${clean}'` });
       else if (sy === 1 && !FILLERS.has(clean))
         drafts.push({ type: "R2", time: at, note: `전사: 음절 반복 '${clean}'` });
+    }
+
+    // 5) 막힘(B): '#사과', '(막힘)' 등 멈춤 표시
+    if (BLOCK_MARK.test(tokenRaw)) {
+      drafts.push({ type: "B", time: at, note: `전사: 막힘 '${tokenRaw}'` });
+    }
+
+    // 6) 연장(P): 늘임 부호(ː : ~ —) 또는 같은 글자 3회↑ 연속('스스스', '어어어')
+    //    단, '-'(반복 표시) 토큰은 제외 — 이미 반복으로 처리
+    if (
+      PROLONG_MARK.test(tokenRaw) ||
+      (!tokenRaw.includes("-") && /(.)\1{2,}/.test(tokenRaw))
+    ) {
+      drafts.push({ type: "P", time: at, note: `전사: 연장 '${tokenRaw}'` });
     }
 
     running += tokenSyll;

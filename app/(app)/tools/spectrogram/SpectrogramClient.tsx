@@ -31,6 +31,9 @@ const TARGETS: Record<TargetId, TargetInfo> = {
   },
 };
 
+// 근접 구간 범주 (인덱스 1=왜곡, 2=구개음화, 3=표준). 모니터링 추이 y축 라벨.
+const ZONE_LABELS = ["", "왜곡", "구개음화", "표준"] as const;
+
 const GAUGE_MIN = 2000;
 const GAUGE_MAX = 9500;
 const EMA_ALPHA = 0.55;
@@ -334,10 +337,20 @@ export default function SpectrogramClient() {
           module="spectrogram"
           getMetrics={() => {
             const inTarget = targetId === "s" ? stats.inS : targetId === "sh" ? stats.inSh : stats.inPal;
-            return { centroid: Math.round(meanCentroid), targetPct: Number(((inTarget / stats.samples) * 100).toFixed(1)), target: target.label };
+            // 평균 스펙트럼 중심이 왜곡(1)·구개음화(2)·표준(3) 중 어디에 가까웠는지
+            const zone = meanCentroid < TARGETS.sh.max ? 1 : meanCentroid < TARGETS.palatalized.max ? 2 : 3;
+            return {
+              centroid: Math.round(meanCentroid),
+              targetPct: Number(((inTarget / stats.samples) * 100).toFixed(1)),
+              target: target.label,
+              zone,
+            };
           }}
-          renderSummary={(m) => `중심 ${m.centroid ?? "-"}Hz · 목표 체류 ${m.targetPct ?? "-"}%`}
-          trend={{ key: "centroid", label: "스펙트럼 중심", unit: "Hz" }}
+          renderSummary={(m) => {
+            const zl = ZONE_LABELS[Number(m.zone)] ?? "-";
+            return `근접 ${zl} · 중심 ${m.centroid ?? "-"}Hz · 목표 체류 ${m.targetPct ?? "-"}%`;
+          }}
+          trend={{ key: "zone", label: "근접 구간", categories: ZONE_LABELS.slice(1) }}
           onContext={setSubj}
         />
       )}

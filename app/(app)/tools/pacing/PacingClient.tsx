@@ -37,6 +37,10 @@ const DEFAULT_CHUNK_MODE: ChunkMode = "2어절씩";
 const DEFAULT_PAUSE_SEC = 0.5;
 const DEFAULT_FONT_SIZE = 18;
 
+// 미리 써두는 문장 목록 (오른쪽 칸) — 5개, localStorage 유지
+const SENTENCE_SLOTS = 5;
+const SENTENCE_LIST_KEY = "pd-pacing-sentence-list";
+
 /* 측정 피드백 배지 색상 (baroilji 토큰 기반) */
 function feedbackBadgeStyle(feedback: string): { bg: string; fg: string } {
   if (feedback === "빠름") return { bg: "#F6E4DE", fg: "#8A2F1C" };
@@ -94,6 +98,9 @@ function usePacingTrainer(moduleType: ModuleType, opts: { withBall: boolean; wit
   const [presetLabelInput, setPresetLabelInput] = useState("");
   const [presetTextInput, setPresetTextInput] = useState("");
 
+  // 미리 써두는 문장 목록 (5개)
+  const [sentenceList, setSentenceList] = useState<string[]>(() => Array(SENTENCE_SLOTS).fill(""));
+
   const [isRunning, setIsRunning] = useState(false);
   const [activeChunkIndex, setActiveChunkIndex] = useState(-1);
   const [ballProgress, setBallProgress] = useState(0);
@@ -129,6 +136,42 @@ function usePacingTrainer(moduleType: ModuleType, opts: { withBall: boolean; wit
     window.addEventListener("pd-current-session-updated", sync);
     return () => window.removeEventListener("pd-current-session-updated", sync);
   }, []);
+
+  /* 미리 써둔 문장 목록 — localStorage 로드/저장 */
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(SENTENCE_LIST_KEY);
+      if (!raw) return;
+      const arr: unknown = JSON.parse(raw);
+      if (Array.isArray(arr)) {
+        setSentenceList(
+          Array.from({ length: SENTENCE_SLOTS }, (_, i) =>
+            typeof arr[i] === "string" ? (arr[i] as string) : "",
+          ),
+        );
+      }
+    } catch {
+      /* noop */
+    }
+  }, []);
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(SENTENCE_LIST_KEY, JSON.stringify(sentenceList));
+    } catch {
+      /* noop */
+    }
+  }, [sentenceList]);
+
+  function updateSentence(index: number, value: string) {
+    setSentenceList((prev) => prev.map((s, i) => (i === index ? value : s)));
+  }
+  function applySentence(text: string) {
+    if (isRunning) return;
+    const v = text.trim();
+    if (!v) return;
+    setPracticeText(v);
+    setSelectedPresetId(null);
+  }
 
   /* 정리 */
   useEffect(() => {
@@ -417,6 +460,8 @@ function usePacingTrainer(moduleType: ModuleType, opts: { withBall: boolean; wit
     presets, presetLabelInput, setPresetLabelInput, presetTextInput, setPresetTextInput,
     handleSelectPreset, handleNewPreset, handleSavePreset, handleDeletePreset, handleResetPresets,
     resetSettingsToDefault,
+    // 미리 써둔 문장 목록
+    sentenceList, updateSentence, applySentence,
     // 실행 상태
     isRunning, activeChunkIndex, ballProgress, statusText,
     measuredSps, feedback, recordingSec, recordedAudioUrl,
@@ -463,38 +508,71 @@ function TrainerView({
       {/* 설정 카드 */}
       <div className="card">
         <div className="card-body" style={{ display: "grid", gap: 18 }}>
-          {/* 저장 문구(프리셋) */}
+          {/* 연습 문구 고르기 — 왼쪽: 저장된 문구 / 오른쪽: 미리 써둔 문장 5개 */}
           <div style={{ display: "grid", gap: 10 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-              <strong style={{ fontSize: 13, color: "var(--text)" }}>저장된 문구</strong>
+              <strong style={{ fontSize: 13, color: "var(--text)" }}>연습 문구 고르기</strong>
               <button type="button" className="btn btn-sm" onClick={t.resetSettingsToDefault} disabled={t.isRunning}>
                 설정 초기화
               </button>
             </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {t.presets.map((preset) => {
-                const on = t.selectedPresetId === preset.id;
-                return (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    onClick={() => t.handleSelectPreset(preset)}
-                    disabled={t.isRunning}
-                    style={{
-                      padding: "8px 12px",
-                      borderRadius: 999,
-                      border: "none",
-                      background: on ? "var(--primary)" : "var(--surface-2)",
-                      color: on ? "#fff" : "var(--text-soft)",
-                      cursor: t.isRunning ? "not-allowed" : "pointer",
-                      fontWeight: on ? 700 : 500,
-                      fontSize: 13,
-                    }}
-                  >
-                    {preset.label}
-                  </button>
-                );
-              })}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
+              {/* 왼쪽: 저장된 문구(프리셋) */}
+              <div style={{ display: "grid", gap: 8, alignContent: "start" }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)" }}>저장된 문구</span>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {t.presets.map((preset) => {
+                    const on = t.selectedPresetId === preset.id;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => t.handleSelectPreset(preset)}
+                        disabled={t.isRunning}
+                        style={{
+                          padding: "8px 12px",
+                          borderRadius: 999,
+                          border: "none",
+                          background: on ? "var(--primary)" : "var(--surface-2)",
+                          color: on ? "#fff" : "var(--text-soft)",
+                          cursor: t.isRunning ? "not-allowed" : "pointer",
+                          fontWeight: on ? 700 : 500,
+                          fontSize: 13,
+                        }}
+                      >
+                        {preset.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 오른쪽: 미리 써둔 문장 5개 */}
+              <div style={{ display: "grid", gap: 8, alignContent: "start" }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)" }}>문장 목록 (미리 5개 작성 · 자동 저장)</span>
+                {t.sentenceList.map((s, i) => (
+                  <div key={i} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <span style={{ fontSize: 12, color: "var(--text-mute)", width: 14, textAlign: "right", flexShrink: 0 }}>{i + 1}</span>
+                    <input
+                      type="text"
+                      value={s}
+                      onChange={(e) => t.updateSentence(i, e.target.value)}
+                      placeholder={`문장 ${i + 1}`}
+                      disabled={t.isRunning}
+                      style={{ ...inputStyle, flex: 1, minWidth: 0 }}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      onClick={() => t.applySentence(s)}
+                      disabled={t.isRunning || !s.trim()}
+                      style={{ flexShrink: 0 }}
+                    >
+                      사용
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 

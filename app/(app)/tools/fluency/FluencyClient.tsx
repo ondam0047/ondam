@@ -7,11 +7,30 @@ import {
   type TranscriptTagType,
 } from "@/lib/voice/transcriptTagger";
 import { countKoreanSyllables } from "@/lib/voice/syllables";
+import { decodeAudioFile } from "@/lib/voice/audioFile";
 import { downloadReport } from "@/lib/voice/report";
 import ToolMonitor from "../ToolMonitor";
 
+// 파형 피크 추출 — 절대값 최대를 버킷마다 뽑아 0‥1 정규화
+function computePeaks(data: Float32Array, buckets: number): number[] {
+  const out = new Array(buckets).fill(0);
+  const size = Math.floor(data.length / buckets) || 1;
+  for (let i = 0; i < buckets; i++) {
+    let max = 0;
+    const start = i * size;
+    const end = Math.min(data.length, start + size);
+    for (let j = start; j < end; j++) {
+      const a = Math.abs(data[j]);
+      if (a > max) max = a;
+    }
+    out[i] = max;
+  }
+  const peak = Math.max(...out, 1e-6);
+  return out.map((v) => v / peak);
+}
+
 // 말 흐름 패턴 유형 — 자가 점검용 일반 설명 라벨(점수·등급 산출 없음)
-type PatternType = "I" | "UR" | "R1" | "R2";
+type PatternType = "I" | "UR" | "R1" | "R2" | "P" | "B";
 
 const TYPES: {
   id: PatternType;
@@ -24,10 +43,12 @@ const TYPES: {
   { id: "UR", label: "수정·고쳐말하기", key: "2", description: "말하다 멈추고 다시 시작/고침 (예: 난 아니 제가)", hex: "#5A6E3D" },
   { id: "R1", label: "낱말 반복", key: "3", description: "다음절 낱말·구를 반복 (예: 어제-어제)", hex: "#1F4E79" },
   { id: "R2", label: "음절 반복", key: "4", description: "음절·일음절을 반복 (예: 지-지-지구)", hex: "#C0492F" },
+  { id: "P", label: "연장", key: "5", description: "소리를 길게 늘임 (예: 스ː프·어~). 전사엔 ː·~·— 또는 같은 글자 반복", hex: "#1F8A70" },
+  { id: "B", label: "막힘", key: "6", description: "소리가 막혀 안 나옴 (예: #사과). 전사엔 # 또는 (막힘)", hex: "#7A4FB0" },
 ];
 
 const EXAMPLE_TRANSCRIPT =
-  "음 어제 하- 아니 학교 에-에-에서 친구를 마- 만났-만났어요";
+  "음 어제 하- 아니 학교 에-에-에서 #친구를 마- 만났-만났어요 그래서 스ː트레스 받았어요";
 
 type TagSource = "manual" | "transcript";
 type Tag = {
@@ -75,6 +96,10 @@ export default function FluencyClient() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [duration, setDuration] = useState(0);
   const [playing, setPlaying] = useState(false);
+  // 파형 표시 + 클릭으로 패턴 표시
+  const [peaks, setPeaks] = useState<number[]>([]);
+  const [cursorTime, setCursorTime] = useState(0);
+  const [activeType, setActiveType] = useState<PatternType | null>(null);
 
   const [tags, setTags] = useState<Tag[]>([]);
 
@@ -115,6 +140,15 @@ export default function FluencyClient() {
         if (prev) URL.revokeObjectURL(prev);
         return url;
       });
+      // 파형 피크 디코드 (서버 업로드 없이 브라우저에서)
+      setPeaks([]);
+      setCursorTime(0);
+      decodeAudioFile(blob)
+        .then(({ data, duration: d }) => {
+          setPeaks(computePeaks(data, 600));
+          if (isFinite(d) && d > 0) setDuration(d);
+        })
+        .catch(() => setPeaks([]));
       const tText = seedTranscript ?? "";
       if (seedTranscript !== undefined) setTranscript(seedTranscript);
       if (seedSyll !== undefined) setSyllables(seedSyll);
@@ -252,7 +286,21 @@ export default function FluencyClient() {
   const seek = useCallback((t: number) => {
     const a = audioRef.current;
     if (a) a.currentTime = t;
+    setCursorTime(t);
   }, []);
+
+  // 재생 중 파형 커서 갱신
+  useEffect(() => {
+    if (!playing) return;
+    let raf = 0;
+    const loop = () => {
+      const a = audioRef.current;
+      if (a) setCursorTime(a.currentTime);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [playing]);
 
   const addTagAt = useCallback((type: PatternType, time: number) => {
     setTags((prev) =>
@@ -270,7 +318,13 @@ export default function FluencyClient() {
     );
   }, []);
 
-  // 키보드: 1-4 태그, space 재생/정지
+  // 파형 클릭: 그 위치로 이동 + (유형 선택 상태면) 그 위치에 패턴 표시
+  const handleWaveformClick = useCallback((t: number) => {
+    seek(t);
+    if (activeType) addTagAt(activeType, t);
+  }, [seek, activeType, addTagAt]);
+
+  // 키보드: 1-6 태그, space 재생/정지
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (stageRef.current !== "review") return;
@@ -345,6 +399,9 @@ export default function FluencyClient() {
     setAudioUrl(null);
     setDuration(0);
     setPlaying(false);
+    setPeaks([]);
+    setCursorTime(0);
+    setActiveType(null);
     setTags([]);
     setTranscript("");
     setSyllables("");
@@ -424,7 +481,7 @@ export default function FluencyClient() {
   // ---- 파생값 ----
   const syllablesNum = parseInt(syllables, 10);
   const validSyll = !isNaN(syllablesNum) && syllablesNum > 0;
-  const counts: Record<PatternType, number> = { I: 0, UR: 0, R1: 0, R2: 0 };
+  const counts: Record<PatternType, number> = { I: 0, UR: 0, R1: 0, R2: 0, P: 0, B: 0 };
   for (const tag of tags) counts[tag.type]++;
   const unreviewed = tags.filter((t) => !t.reviewed).length;
   const ratioPer100 =
@@ -627,63 +684,86 @@ export default function FluencyClient() {
                     {playing ? "⏸ 일시정지" : "▶ 재생"}
                   </button>
                   <span style={{ fontSize: 12, color: "var(--text-mute)" }}>
-                    Space 재생/정지 · 키 1–4 로 현재 위치에 표시 추가
+                    Space 재생/정지 · 재생 중 키 1–6 으로 현재 위치에 표시
                   </span>
                 </div>
               )}
 
+              {/* 파형 — 클릭한 위치에 패턴 표시 */}
+              {audioUrl && peaks.length > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <FluencyWaveform
+                    peaks={peaks}
+                    duration={duration}
+                    cursorTime={cursorTime}
+                    tags={tags}
+                    onPick={handleWaveformClick}
+                    activeHex={activeType ? (TYPES.find((t) => t.id === activeType)?.hex ?? null) : null}
+                  />
+                </div>
+              )}
+
+              {/* 유형 선택 → 파형 클릭으로 표시 */}
               <div
                 style={{
-                  marginTop: 14,
-                  borderRadius: 10,
-                  border: "1px solid var(--border)",
-                  background: "var(--surface-2)",
-                  padding: "8px 12px",
-                  fontSize: 12,
-                  color: "var(--text-soft)",
+                  marginTop: 12,
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
+                  gap: 8,
                 }}
               >
-                현재 위치{" "}
-                <b style={{ fontVariantNumeric: "tabular-nums" }}>
-                  {(audioRef.current?.currentTime ?? 0).toFixed(2)}s
-                </b>{" "}
-                에 패턴 표시 추가 (키 1–4)
+                {TYPES.map((t) => {
+                  const on = activeType === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => setActiveType((prev) => (prev === t.id ? null : t.id))}
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        borderRadius: 12,
+                        padding: "10px",
+                        border: "none",
+                        background: t.hex,
+                        color: "#fff",
+                        cursor: "pointer",
+                        opacity: activeType && !on ? 0.5 : 1,
+                        boxShadow: on ? "0 0 0 3px var(--text), 0 0 0 5px #fff" : "none",
+                        transform: on ? "translateY(-1px)" : "none",
+                        transition: "opacity 0.12s, box-shadow 0.12s, transform 0.12s",
+                      }}
+                      title={`${t.label} (키 ${t.key})`}
+                    >
+                      <span style={{ fontSize: 13, fontWeight: 700 }}>
+                        {on ? "✓ " : ""}{t.label}
+                      </span>
+                      <span style={{ marginTop: 2, fontSize: 11, opacity: 0.85 }}>
+                        [{t.key}]
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
               <div
                 style={{
                   marginTop: 8,
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
-                  gap: 8,
+                  borderRadius: 10,
+                  border: `1px solid ${activeType ? "var(--primary)" : "var(--border)"}`,
+                  background: activeType ? "var(--primary-soft)" : "var(--surface-2)",
+                  padding: "8px 12px",
+                  fontSize: 12.5,
+                  color: activeType ? "var(--primary)" : "var(--text-soft)",
+                  lineHeight: 1.6,
                 }}
               >
-                {TYPES.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() =>
-                      addTagAt(t.id, audioRef.current?.currentTime ?? 0)
-                    }
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      borderRadius: 12,
-                      padding: "10px",
-                      border: "none",
-                      background: t.hex,
-                      color: "#fff",
-                      cursor: "pointer",
-                    }}
-                    title={`${t.label} (키 ${t.key})`}
-                  >
-                    <span style={{ fontSize: 13, fontWeight: 700 }}>
-                      {t.label}
-                    </span>
-                    <span style={{ marginTop: 2, fontSize: 11, opacity: 0.85 }}>
-                      [{t.key}]
-                    </span>
-                  </button>
-                ))}
+                {activeType ? (
+                  <>
+                    <b>{TYPES.find((t) => t.id === activeType)?.label}</b> 선택됨 — {audioUrl && peaks.length > 0 ? "파형에서 표시할 위치를 클릭하세요" : "재생 중 키로 현재 위치에 표시하세요"}. (유형을 다시 누르면 해제)
+                  </>
+                ) : (
+                  <>위 유형을 하나 고른 뒤 {audioUrl && peaks.length > 0 ? "파형을 클릭하면 그 위치에" : "재생 중 키 1–6 으로 현재 위치에"} 표시가 추가돼요.</>
+                )}
               </div>
             </div>
           </div>
@@ -947,7 +1027,7 @@ export default function FluencyClient() {
                   value={transcript}
                   onChange={(e) => setTranscript(e.target.value)}
                   rows={3}
-                  placeholder="예: 음 어제 하- 아니 학교 에-에-에서 친구를 만났-만났어요  (반복은 '-' 로, 간투사는 음·어 등으로 적으면 자동 표시 정확도가 올라가요)"
+                  placeholder="예: 음 어제 하- 아니 학교 에-에-에서 #친구를 만났-만났어요  (반복은 '-', 연장은 'ː·~·—'(스ː프), 막힘은 '#'(#사과), 간투사는 음·어 등으로 적으면 자동 표시 정확도가 올라가요)"
                   style={{
                     resize: "vertical",
                     padding: "10px 12px",
@@ -1167,14 +1247,14 @@ export default function FluencyClient() {
               tags.length > 0
                 ? {
                     total: tags.length,
-                    I: counts.I, UR: counts.UR, R1: counts.R1, R2: counts.R2,
+                    I: counts.I, UR: counts.UR, R1: counts.R1, R2: counts.R2, P: counts.P, B: counts.B,
                     syllables: validSyll ? syllablesNum : 0,
                     per100: validSyll && tags.length > 0 ? Number(ratioPer100.toFixed(1)) : 0,
                   }
                 : null
             }
             renderSummary={(m) =>
-              `총 ${m.total ?? "-"}회 (간투사 ${m.I ?? 0}·반복 ${(Number(m.R1 ?? 0) + Number(m.R2 ?? 0))}·수정 ${m.UR ?? 0})${m.per100 ? ` · 100음절당 ${m.per100}` : ""}`
+              `총 ${m.total ?? "-"}회 (간투사 ${m.I ?? 0}·반복 ${(Number(m.R1 ?? 0) + Number(m.R2 ?? 0))}·수정 ${m.UR ?? 0}·연장 ${m.P ?? 0}·막힘 ${m.B ?? 0})${m.per100 ? ` · 100음절당 ${m.per100}` : ""}`
             }
             trend={{ key: "total", label: "비유창 표시 수", unit: "회" }}
             onContext={setSubj}
@@ -1245,6 +1325,149 @@ export default function FluencyClient() {
           </div>
         </div>
       </details>
+    </div>
+  );
+}
+
+const WAVE_H = 76;
+
+// 파형 + 패턴 마커 + 재생 커서. 클릭 위치(초)를 onPick 으로 전달.
+function FluencyWaveform({
+  peaks,
+  duration,
+  cursorTime,
+  tags,
+  onPick,
+  activeHex,
+}: {
+  peaks: number[];
+  duration: number;
+  cursorTime: number;
+  tags: Tag[];
+  onPick: (t: number) => void;
+  activeHex: string | null;
+}) {
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    const canvas = canvasRef.current;
+    if (!wrap || !canvas) return;
+    const draw = () => {
+      const cssW = wrap.clientWidth;
+      const cssH = WAVE_H;
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.max(1, Math.floor(cssW * dpr));
+      canvas.height = Math.floor(cssH * dpr);
+      canvas.style.width = `${cssW}px`;
+      canvas.style.height = `${cssH}px`;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.scale(dpr, dpr);
+      ctx.clearRect(0, 0, cssW, cssH);
+      ctx.fillStyle = "#F5EDE0";
+      ctx.fillRect(0, 0, cssW, cssH);
+      const mid = cssH / 2;
+      const n = peaks.length;
+      if (n === 0) return;
+      const barW = cssW / n;
+      ctx.fillStyle = "#9FAE86";
+      for (let i = 0; i < n; i++) {
+        const h = Math.max(1, peaks[i] * cssH * 0.9);
+        ctx.fillRect(i * barW, mid - h / 2, Math.max(0.5, barW), h);
+      }
+    };
+    draw();
+    const ro = new ResizeObserver(draw);
+    ro.observe(wrap);
+    return () => ro.disconnect();
+  }, [peaks]);
+
+  const handleClick = (clientX: number) => {
+    const wrap = wrapRef.current;
+    if (!wrap || duration <= 0) return;
+    const rect = wrap.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    onPick(ratio * duration);
+  };
+
+  const pct = (t: number) => (duration > 0 ? Math.max(0, Math.min(100, (t / duration) * 100)) : 0);
+
+  return (
+    <div>
+      <div
+        ref={wrapRef}
+        onMouseDown={(e) => handleClick(e.clientX)}
+        onTouchStart={(e) => { if (e.touches[0]) handleClick(e.touches[0].clientX); }}
+        style={{
+          position: "relative",
+          width: "100%",
+          height: WAVE_H,
+          overflow: "hidden",
+          borderRadius: 8,
+          border: "1px solid var(--border-strong)",
+          background: "#F5EDE0",
+          cursor: activeHex ? "crosshair" : "pointer",
+          touchAction: "none",
+          userSelect: "none",
+        }}
+      >
+        <canvas ref={canvasRef} style={{ display: "block" }} />
+        {/* 태그 마커 */}
+        {duration > 0 && tags.map((tag) => {
+          const hex = TYPES.find((t) => t.id === tag.type)?.hex ?? "#666";
+          return (
+            <div
+              key={tag.id}
+              style={{
+                position: "absolute",
+                top: 0,
+                bottom: 0,
+                left: `${pct(tag.time)}%`,
+                width: tag.emphasized ? 3 : 2,
+                marginLeft: tag.emphasized ? -1.5 : -1,
+                background: hex,
+                opacity: tag.reviewed ? 0.95 : 0.55,
+                pointerEvents: "none",
+                zIndex: 2,
+              }}
+            >
+              <span
+                style={{
+                  position: "absolute",
+                  top: -1,
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  width: 0,
+                  height: 0,
+                  borderLeft: "4px solid transparent",
+                  borderRight: "4px solid transparent",
+                  borderTop: `6px solid ${hex}`,
+                }}
+              />
+            </div>
+          );
+        })}
+        {/* 재생 커서 */}
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            bottom: 0,
+            left: `${pct(cursorTime)}%`,
+            width: 2,
+            marginLeft: -1,
+            background: "#1F2317",
+            opacity: 0.8,
+            pointerEvents: "none",
+            zIndex: 3,
+          }}
+        />
+      </div>
+      <p style={{ margin: "6px 0 0", fontSize: 11.5, color: "var(--text-mute)", lineHeight: 1.6 }}>
+        파형을 클릭하면 그 위치로 이동해요{activeHex ? " · 유형이 선택돼 있어 클릭하면 그 자리에 표시가 추가돼요" : ""}. 표시는 색 막대(▼)로 나타나요.
+      </p>
     </div>
   );
 }

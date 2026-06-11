@@ -10,7 +10,7 @@ type SavedSession = {
   note: string | null;
   metrics: Record<string, unknown>;
 };
-type Series = { key: string; label: string; unit?: string; color?: string };
+type Series = { key: string; label: string; unit?: string; color?: string; categories?: string[] };
 
 // 바로툴 모듈 공용 — 담당 대상자 선택 + 측정 결과 저장 + 최근 기록 + 추이 그래프.
 export default function ToolMonitor({
@@ -174,7 +174,7 @@ export default function ToolMonitor({
   );
 }
 
-// 저장된 세션의 한 지표를 시간순 선그래프로.
+// 저장된 세션의 한 지표를 시간순 선그래프로. (날짜 점 hover → 수치 툴팁)
 function TrendChart({
   sessions,
   series,
@@ -184,51 +184,100 @@ function TrendChart({
   series: Series;
   fmtDate: (iso: string) => string;
 }) {
+  const [hover, setHover] = useState<number | null>(null);
+
   const pts = sessions
     .map((s) => ({ t: s.createdAt, v: Number(s.metrics[series.key]) }))
     .filter((p) => isFinite(p.v));
   if (pts.length < 2) return null;
 
+  const cats = series.categories;
   const W = 600;
   const H = 130;
-  const PAD = { top: 16, right: 16, bottom: 26, left: 44 };
+  const PAD = { top: 16, right: 16, bottom: 26, left: cats ? 64 : 44 };
   const innerW = W - PAD.left - PAD.right;
   const innerH = H - PAD.top - PAD.bottom;
   const color = series.color ?? "var(--primary)";
 
-  const vals = pts.map((p) => p.v);
-  let min = Math.min(...vals);
-  let max = Math.max(...vals);
-  if (min === max) { min -= 1; max += 1; }
-  const pad = (max - min) * 0.15;
-  min -= pad; max += pad;
+  let min: number, max: number;
+  if (cats && cats.length > 0) {
+    min = 0.5; max = cats.length + 0.5;
+  } else {
+    const vals = pts.map((p) => p.v);
+    min = Math.min(...vals);
+    max = Math.max(...vals);
+    if (min === max) { min -= 1; max += 1; }
+    const pad = (max - min) * 0.15;
+    min -= pad; max += pad;
+  }
 
   const x = (i: number) => PAD.left + (pts.length === 1 ? innerW / 2 : (i / (pts.length - 1)) * innerW);
   const y = (v: number) => PAD.top + innerH * (1 - (v - min) / (max - min));
   const path = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${x(i).toFixed(1)} ${y(p.v).toFixed(1)}`).join(" ");
 
+  // 값 표기: 범주형이면 범주 라벨, 아니면 숫자(+단위)
+  const valLabel = (v: number) =>
+    cats && cats.length > 0
+      ? cats[Math.min(cats.length - 1, Math.max(0, Math.round(v) - 1))] ?? "-"
+      : `${Number.isInteger(v) ? v : v.toFixed(1)}${series.unit ? ` ${series.unit}` : ""}`;
+
+  const gridLevels = cats && cats.length > 0
+    ? cats.map((label, idx) => ({ gy: y(idx + 1), label }))
+    : [max, (max + min) / 2, min].map((gv) => ({ gy: y(gv), label: gv.toFixed(1) }));
+
   return (
     <div style={{ marginBottom: 12, borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface)", padding: 10 }}>
       <p style={{ margin: "0 0 4px", fontSize: 12, fontWeight: 600, color: "var(--text-soft)" }}>
-        {series.label} 추이 {series.unit ? `(${series.unit})` : ""}
+        {series.label} 추이 {series.unit && !cats ? `(${series.unit})` : ""}
+        <span style={{ marginLeft: 6, fontWeight: 400, color: "var(--text-mute)" }}>· 점에 마우스를 올리면 수치가 나와요</span>
       </p>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", display: "block" }}>
-        {[max, (max + min) / 2, min].map((gv, i) => {
-          const gy = PAD.top + (innerH * i) / 2;
-          return (
-            <g key={i}>
-              <line x1={PAD.left} x2={W - PAD.right} y1={gy} y2={gy} stroke="#EBE5D6" strokeDasharray="3 3" />
-              <text x={PAD.left - 6} y={gy + 4} textAnchor="end" fontSize={11} fill="var(--text-mute)">{gv.toFixed(1)}</text>
-            </g>
-          );
-        })}
+        {gridLevels.map(({ gy, label }, i) => (
+          <g key={i}>
+            <line x1={PAD.left} x2={W - PAD.right} y1={gy} y2={gy} stroke="#EBE5D6" strokeDasharray="3 3" />
+            <text x={PAD.left - 6} y={gy + 4} textAnchor="end" fontSize={11} fill="var(--text-mute)">{label}</text>
+          </g>
+        ))}
         <path d={path} fill="none" stroke={color} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
         {pts.map((p, i) => (
-          <circle key={i} cx={x(i)} cy={y(p.v)} r={3.5} fill={color} stroke="white" strokeWidth={1.5} />
+          <circle key={i} cx={x(i)} cy={y(p.v)} r={hover === i ? 5 : 3.5} fill={color} stroke="white" strokeWidth={1.5} />
         ))}
         {/* 처음/마지막 날짜 */}
         <text x={PAD.left} y={H - 8} textAnchor="start" fontSize={10} fill="var(--text-mute)">{fmtDate(pts[0].t).slice(0, 8)}</text>
         <text x={W - PAD.right} y={H - 8} textAnchor="end" fontSize={10} fill="var(--text-mute)">{fmtDate(pts[pts.length - 1].t).slice(0, 8)}</text>
+
+        {/* hover 툴팁 */}
+        {hover !== null && (() => {
+          const p = pts[hover];
+          const cx = x(hover);
+          const cy = y(p.v);
+          const text = `${fmtDate(p.t).slice(0, 8)} · ${valLabel(p.v)}`;
+          const tw = Math.max(64, text.length * 6.6 + 14);
+          const tx = Math.min(W - PAD.right - tw, Math.max(PAD.left, cx - tw / 2));
+          const ty = Math.max(2, cy - 30);
+          return (
+            <g pointerEvents="none">
+              <line x1={cx} x2={cx} y1={PAD.top} y2={H - PAD.bottom} stroke={color} strokeOpacity={0.35} />
+              <rect x={tx} y={ty} width={tw} height={22} rx={5} fill="#1F2317" opacity={0.92} />
+              <text x={tx + tw / 2} y={ty + 15} textAnchor="middle" fontSize={11.5} fontWeight={600} fill="#fff">{text}</text>
+            </g>
+          );
+        })()}
+
+        {/* hover 히트영역(넓게) */}
+        {pts.map((p, i) => (
+          <rect
+            key={`hit-${i}`}
+            x={x(i) - Math.max(8, innerW / pts.length / 2)}
+            y={PAD.top}
+            width={Math.max(16, innerW / pts.length)}
+            height={innerH}
+            fill="transparent"
+            style={{ cursor: "pointer" }}
+            onMouseEnter={() => setHover(i)}
+            onMouseLeave={() => setHover((h) => (h === i ? null : h))}
+          />
+        ))}
       </svg>
     </div>
   );
