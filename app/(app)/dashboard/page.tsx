@@ -106,15 +106,7 @@ async function TherapistDashboard({ user, centerId, year: y, month: m, todayDay,
         </div>
       </div>
 
-      {data.myChildrenCount === 0 && (
-        <div className="tip">
-          아직 담당 아동이 없어요.{" "}
-          <Link href="/children/new" style={{ color: "var(--primary)", fontWeight: 700 }}>
-            아동 등록
-          </Link>{" "}
-          으로 시작하세요.
-        </div>
-      )}
+      <StartChecklist hasChild={data.hasChild} hasSchedule={data.hasSchedule} hasRecord={data.hasRecord} />
 
       <MyStats data={data} />
 
@@ -136,6 +128,69 @@ async function TherapistDashboard({ user, centerId, year: y, month: m, todayDay,
         />
       </div>
     </>
+  );
+}
+
+// ─── 시작 가이드 체크리스트 ──────────────────────────────────────────────
+// 신규 사용자가 "첫 기록지"까지 가는 골든 패스. 3단계 모두 끝나면 자동으로 사라짐.
+function StartChecklist({ hasChild, hasSchedule, hasRecord }: { hasChild: boolean; hasSchedule: boolean; hasRecord: boolean }) {
+  const steps = [
+    { done: hasChild, title: "첫 아동 등록", desc: "담당 아동을 추가해요.", href: "/children/new", cta: "아동 등록" },
+    { done: hasSchedule, title: "이번 달 일정 만들기", desc: "회기 일정을 짜두면 기록지가 자동으로 채워져요.", href: "/schedule", cta: "일정표 가기" },
+    { done: hasRecord, title: "첫 기록지 받기", desc: "일정에서 기록지를 자동 생성해 내려받아요.", href: "/record", cta: "기록지 가기" },
+  ];
+  const doneCount = steps.filter((s) => s.done).length;
+  if (doneCount >= steps.length) return null;
+  const nextIdx = steps.findIndex((s) => !s.done);
+
+  return (
+    <div className="card" style={{ borderColor: "var(--primary)" }}>
+      <div className="card-body">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+          <div style={{ fontSize: 15, fontWeight: 800 }}>🚀 시작 가이드</div>
+          <div className="sub-mute" style={{ fontSize: 12 }}>{doneCount}/{steps.length} 완료</div>
+        </div>
+        <div className="sub-mute" style={{ fontSize: 12, marginBottom: 12 }}>
+          처음이세요? 먼저{" "}
+          <Link href="/center" style={{ color: "var(--primary)", fontWeight: 700 }}>내 설정</Link>
+          에서 센터·회기 시간대를 확인하고, 아래 순서대로 따라오시면 첫 기록지까지 끝나요.
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {steps.map((s, i) => {
+            const isNext = i === nextIdx;
+            return (
+              <div
+                key={i}
+                style={{
+                  display: "flex", alignItems: "center", gap: 12, padding: "10px 12px",
+                  borderRadius: "var(--r-md)",
+                  background: isNext ? "var(--primary-soft)" : "transparent",
+                  opacity: s.done ? 0.55 : 1,
+                }}
+              >
+                <div style={{
+                  width: 26, height: 26, borderRadius: "50%", flex: "0 0 auto",
+                  display: "grid", placeItems: "center", fontSize: 13, fontWeight: 800,
+                  color: s.done || isNext ? "#fff" : "var(--text-mute)",
+                  background: s.done ? "var(--success)" : isNext ? "var(--primary)" : "var(--border)",
+                }}>
+                  {s.done ? "✓" : i + 1}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, textDecoration: s.done ? "line-through" : "none" }}>{s.title}</div>
+                  {!s.done && <div className="sub-mute" style={{ fontSize: 12 }}>{s.desc}</div>}
+                </div>
+                {isNext && (
+                  <Link className="btn btn-primary" href={s.href} style={{ padding: "8px 14px", fontWeight: 700, whiteSpace: "nowrap" }}>
+                    {s.cta}
+                  </Link>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -219,7 +274,15 @@ async function loadMyStats(
     return { day: weekday, date: `${d.getMonth() + 1}.${d.getDate()}`, isToday, items };
   });
 
+  const [everScheduleCount, everRecordCount] = await Promise.all([
+    prisma.schedule.count({ where: { childService: { therapistId: tid, child: { centerId } } } }),
+    prisma.record.count({ where: { childService: { therapistId: tid, child: { centerId } } } }),
+  ]);
+
   return {
+    hasChild: myServices.length > 0,
+    hasSchedule: everScheduleCount > 0,
+    hasRecord: everRecordCount > 0,
     myChildrenCount: new Set(myServices.map((s) => s.childId)).size,
     todaySessions,
     todaySessionList,
