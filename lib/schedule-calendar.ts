@@ -7,9 +7,10 @@ import type { ScheduleCalendar } from "@/lib/record-resolver";
 
 export type CalSession = { day: number; time: string };
 export type CalOpts = {
-  redCharPr?: number;   // 일요일·공휴일 날짜에 적용할 빨강 charPr
-  timeCharPr?: number;  // 회기 시간 칸에 적용할 글자크기(예: 6pt) charPr — 한 줄 맞춤
-  holidays?: number[];  // 공휴일(일자)
+  redCharPr?: number;     // 일요일·공휴일 날짜에 적용할 빨강 charPr
+  timeCharPr?: number;    // 회기 시간 칸에 적용할 글자크기(예: 6pt) charPr — 한 줄 맞춤
+  holidayCharPr?: number; // 공휴일 이름칸 charPr(빨강[+통합양식이면 6pt])
+  holidays?: { day: number; name: string }[]; // 공휴일(일자+이름)
 };
 
 // (연,월) 달력의 각 칸에 들어갈 날짜/시간 편집 목록을 만든다.
@@ -20,7 +21,7 @@ export function buildCalendarEdits(
   sessions: CalSession[],
   opts: CalOpts = {},
 ): CellEdit[] {
-  const holiSet = new Set(opts.holidays ?? []);
+  const holiMap = new Map((opts.holidays ?? []).map((h) => [h.day, h.name]));
   const dim = new Date(year, month, 0).getDate();
   const firstDow = new Date(year, month - 1, 1).getDay();
   const colByDow = new Map(cal.cols.map((c) => [c.dow, c]));
@@ -49,17 +50,26 @@ export function buildCalendarEdits(
       const d = dayAt(w, col.dow);
       const numC: Coord = [cal.table, numberRow, col.startCol];
       const conC: Coord = [cal.table, contentRow, col.startCol];
+      const holName = d ? holiMap.get(d) : undefined;
       // 일요일·공휴일 날짜는 빨강
-      const isRed = !!d && (col.dow === 0 || holiSet.has(d));
+      const isRed = !!d && (col.dow === 0 || holName != null);
       edits.push({
         table: numC[0], row: numC[1], col: numC[2], value: d ? String(d) : "",
         charPr: isRed && opts.redCharPr != null ? opts.redCharPr : undefined,
       });
-      const time = d ? (timeByDay.get(d) ?? "") : "";
-      edits.push({
-        table: conC[0], row: conC[1], col: conC[2], value: time,
-        charPr: time && opts.timeCharPr != null ? opts.timeCharPr : undefined,
-      });
+      // 내용칸: 공휴일이면 공휴일 이름(빨강), 아니면 회기 시간
+      if (holName != null) {
+        edits.push({
+          table: conC[0], row: conC[1], col: conC[2], value: holName,
+          charPr: opts.holidayCharPr ?? opts.timeCharPr,
+        });
+      } else {
+        const time = d ? (timeByDay.get(d) ?? "") : "";
+        edits.push({
+          table: conC[0], row: conC[1], col: conC[2], value: time,
+          charPr: time && opts.timeCharPr != null ? opts.timeCharPr : undefined,
+        });
+      }
     }
   }
   return edits;

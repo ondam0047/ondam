@@ -7,6 +7,7 @@ import { removeTableColumns, removeTableRows } from "@/lib/record-trim";
 import { detectCalendarFromXml, type ResolvedSpec } from "@/lib/record-resolver";
 import { buildCalendarEdits, type CalSession } from "@/lib/schedule-calendar";
 import { getCellRunCharPr, addClonedCharPr } from "@/lib/hwpx-charpr";
+import { holiday } from "@/lib/constants";
 import type { RecordPayload, RecordSessionDetail } from "@/lib/record-hwpx";
 
 const num = (s?: string) => Number(String(s ?? "").replace(/[^0-9.-]/g, "")) || 0;
@@ -172,16 +173,22 @@ export function generateRecordFromForm(
   // 저장 spec 에 달력이 없으면(구버전) 템플릿에서 재탐지
   const cal = spec.scheduleCalendar ?? detectCalendarFromXml(baseXml);
 
-  // 통합 양식 달력: 시간 한 줄(글자크기 6pt) + 빨간날 색상용 charPr 를 header 에 주입(1회).
+  // 통합 양식 달력: 시간 한 줄(6pt) + 빨간날 색 + 공휴일 이름(빨강·6pt) charPr 주입(1회).
   let header: string | null = null;
   let timeCharPr: number | undefined;
   let redCharPr: number | undefined;
+  let holidayCharPr: number | undefined;
+  const monthHolidays: { day: number; name: string }[] = [];
   if (cal && payload.month) {
+    const dim = new Date(yr, payload.month, 0).getDate();
+    for (let d = 1; d <= dim; d++) { const hn = holiday(yr, payload.month, d); if (hn) monthHolidays.push({ day: d, name: hn }); }
     header = readHeader(template);
     const conBase = getCellRunCharPr(baseXml, cal.table, cal.weeks[0].contentRow, cal.cols[0].startCol);
     if (conBase != null) {
       const r = addClonedCharPr(header, conBase, { height: 600 }); // 6pt → 시간 한 줄
       if (r) { header = r.xml; timeCharPr = r.id; }
+      const rh = addClonedCharPr(header, conBase, { textColor: "#FF0000", height: 600 }); // 공휴일 이름
+      if (rh) { header = rh.xml; holidayCharPr = rh.id; }
     }
     const wkCol = cal.cols.find((c) => c.dow !== 0) ?? cal.cols[0];
     const numBase = getCellRunCharPr(baseXml, cal.table, cal.weeks[0].numberRow, wkCol.startCol);
@@ -201,7 +208,7 @@ export function generateRecordFromForm(
     }
     const edits = buildRecordEdits(spec, { ...data, sessions: sessionChunk });
     if (cal && payload.month) {
-      edits.push(...buildCalendarEdits(cal, yr, payload.month, calSessions, { timeCharPr, redCharPr }));
+      edits.push(...buildCalendarEdits(cal, yr, payload.month, calSessions, { timeCharPr, redCharPr, holidayCharPr, holidays: monthHolidays }));
     }
     xml = fillCells(xml, edits);
     // 제목의 "( N월 )" 채우기 (빈 양식은 "(  월)" 처럼 비어 있음)

@@ -64,6 +64,7 @@ export function generateScheduleFromForm(
   if (cal && p.year && p.month) {
     let redCharPr: number | undefined;
     let timeCharPr: number | undefined;
+    let holidayCharPr: number | undefined;
     header = readHeader(template);
     // 빨간날(일요일·공휴일) 색상 — 평일 날짜 칸의 글자속성을 복제해 빨강 charPr 생성.
     const wkCol = cal.cols.find((c) => c.dow !== 0) ?? cal.cols[0];
@@ -72,20 +73,21 @@ export function generateScheduleFromForm(
       const r = addClonedCharPr(header, baseNum, { textColor: "#FF0000" });
       if (r) { header = r.xml; redCharPr = r.id; }
     }
-    // 통합 양식: 시간 6pt(한 줄)
-    if (isCombined) {
-      const conBase = getCellRunCharPr(xml, cal.table, cal.weeks[0].contentRow, cal.cols[0].startCol);
-      if (conBase != null) {
+    // 내용칸 글자속성 기준 — 시간(통합양식 6pt) + 공휴일 이름(빨강[+6pt])
+    const conBase = getCellRunCharPr(xml, cal.table, cal.weeks[0].contentRow, cal.cols[0].startCol);
+    if (conBase != null) {
+      if (isCombined) {
         const r = addClonedCharPr(header, conBase, { height: 600 });
         if (r) { header = r.xml; timeCharPr = r.id; }
       }
+      const rh = addClonedCharPr(header, conBase, { textColor: "#FF0000", ...(isCombined ? { height: 600 } : {}) });
+      if (rh) { header = rh.xml; holidayCharPr = rh.id; }
     }
-    if (redCharPr == null && timeCharPr == null) header = null; // 주입 없으면 header 교체 불필요
-    const holidays = (p.holidays ?? []).map((h) => h.day);
+    if (redCharPr == null && timeCharPr == null && holidayCharPr == null) header = null;
     edits.push(...buildCalendarEdits(
       cal, p.year, p.month,
       (p.sessions ?? []).map((s) => ({ day: s.day, time: s.time })),
-      { redCharPr, timeCharPr, holidays },
+      { redCharPr, timeCharPr, holidayCharPr, holidays: p.holidays ?? [] },
     ));
   }
 

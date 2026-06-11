@@ -451,10 +451,10 @@ export function buildSampleEdits(spec: ResolvedSpec): CellEdit[] {
   };
   spec.schedule?.forEach((s) => put(s.coord, schedDummy[s.role] ?? "샘플"));
 
-  // 달력 샘플 — 2026년 6월에 더미 회기일(3·7·12·18·24)을 배치해 미리보기로 검증.
+  // 달력 샘플 — 2026년 6월에 더미 회기일(3·7·12·18·24) + 공휴일(현충일 6/6) 미리보기.
   if (spec.scheduleCalendar) {
     const sampleSessions = days.map((d) => ({ day: Number(d), time: "10:00~10:50" }));
-    edits.push(...buildCalendarEdits(spec.scheduleCalendar, 2026, 6, sampleSessions));
+    edits.push(...buildCalendarEdits(spec.scheduleCalendar, 2026, 6, sampleSessions, { holidays: [{ day: 6, name: "현충일" }] }));
   }
 
   // 셀프 보정 칸 — 역할별 더미값. 회기 행 역할은 날짜 열에 걸쳐 채움.
