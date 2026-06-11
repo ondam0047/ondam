@@ -35,6 +35,8 @@ export type ResolvedSpec = {
   voucher: Coord[]; extra: Coord[]; amount: Coord[];
   voucherAmount?: Coord[]; copayAmount?: Coord[];
   serviceName?: Coord; // 본표 서비스 종류 칸("( )재활") — 치료사 종류 기반 채움
+  dateTable?: number;          // 회기(날짜축) 표 인덱스
+  extraSessionCols?: number[]; // 5칸 초과 회기 열(날짜축에서 6번째 이후, 누계 제외) — 5칸 정리용
   serviceBlocks?: Array<{ start: Coord[]; end: Coord[] }>;
   result: Array<{ date?: Coord; time?: Coord; apprDate?: Coord; apprNum?: Coord; status?: Coord; result?: Coord }>;
   // 별지(2페이지) 상세 결과표 — 회기별 세로 블록(서비스제공일자·승인일자·승인번호·결과 narrative).
@@ -139,17 +141,20 @@ export function resolveForm(xml: string): ResolveOutput {
   }
 
   // DATE AXIS
-  let dt = -1, drow = -1; let dcols: number[] = [];
+  let dt = -1, drow = -1; let dcols: number[] = []; let allDateCols: number[] = [];
   for (let ti = recordStart; ti < tbls.length && dt < 0; ti++) {
     for (const cell of tbls[ti]) {
       if (cell.norm.includes("월일") && cell.norm.includes("내용")) {
         dt = ti; drow = cell.r;
-        dcols = rowCells(tbls[ti], cell.r).filter((x) => x.c >= cell.c + cell.cs && !DATEX.has(x.norm)).slice(0, 5).map((x) => x.c);
+        allDateCols = rowCells(tbls[ti], cell.r).filter((x) => x.c >= cell.c + cell.cs && !DATEX.has(x.norm)).map((x) => x.c);
+        dcols = allDateCols.slice(0, 5);
         break;
       }
     }
   }
   spec.date = dcols.map((c) => [dt, drow, c] as Coord);
+  if (dt >= 0) spec.dateTable = dt;
+  if (allDateCols.length > 5) spec.extraSessionCols = allDateCols.slice(5);
 
   const dtab = dt >= 0 ? tbls[dt] : [];
   const labelRows = (re: RegExp) => [...new Set(dtab.filter((c) => re.test(c.norm)).map((c) => c.r))].sort((a, b) => a - b);

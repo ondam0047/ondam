@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { readSection0, patchSection0 } from "@/lib/hwpx";
 import { fillCells } from "@/lib/record-fill";
 import { resolveForm, buildSampleEdits } from "@/lib/record-resolver";
+import { removeTableColumns } from "@/lib/record-trim";
 
 const OP = (process.env.BETA_ADMIN_EMAIL ?? "yj2000102@gmail.com").toLowerCase();
 
@@ -25,6 +26,11 @@ export async function POST(req: NextRequest) {
   }
 
   const { spec } = resolveForm(xml);
+  // ?trim=1 이면 5칸 초과 회기 열을 물리적으로 제거(실험).
+  const trim = new URL(req.url).searchParams.get("trim") === "1";
+  if (trim && spec.dateTable != null && spec.extraSessionCols?.length) {
+    xml = removeTableColumns(xml, spec.dateTable, spec.extraSessionCols);
+  }
   const filled = fillCells(xml, buildSampleEdits(spec));
   const out = patchSection0(srcBuf, filled);
 

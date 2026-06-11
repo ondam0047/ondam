@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 type Cell = { r: number; c: number; cs: number; rs: number; text: string; role: string | null };
-type Spec = { schedule?: Array<{ role: string }>; detail?: unknown[] };
+type Spec = { schedule?: Array<{ role: string }>; detail?: unknown[]; extraSessionCols?: number[] };
 type AnalyzeResult = { coverage: Record<string, boolean>; grid: Cell[][]; spec?: Spec };
 
 const FIELD_LABEL: Record<string, string> = {
@@ -36,19 +36,19 @@ export default function FormMapperClient() {
     }
   }
 
-  async function downloadSample() {
+  async function downloadSample(trim = false) {
     if (!file) return;
     setDownloading(true); setError(null);
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const r = await fetch("/api/forms/sample", { method: "POST", body: fd });
+      const r = await fetch(`/api/forms/sample${trim ? "?trim=1" : ""}`, { method: "POST", body: fd });
       if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || "샘플 생성 실패"); }
       const blob = await r.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${file.name.replace(/\.hwpx$/i, "")}_샘플채움.hwpx`;
+      a.download = `${file.name.replace(/\.hwpx$/i, "")}_${trim ? "5칸정리샘플" : "샘플채움"}.hwpx`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
@@ -75,8 +75,14 @@ export default function FormMapperClient() {
               {loading ? "분석 중…" : "자동 매핑 분석"}
             </button>
             {result && (
-              <button className="btn" onClick={downloadSample} disabled={downloading}>
+              <button className="btn" onClick={() => downloadSample(false)} disabled={downloading}>
                 {downloading ? "생성 중…" : "샘플로 채워 받기 (.hwpx)"}
+              </button>
+            )}
+            {result && (result.spec?.extraSessionCols?.length ?? 0) > 0 && (
+              <button className="btn" onClick={() => downloadSample(true)} disabled={downloading}
+                title="회기 칸이 5칸을 넘는 양식에서 초과 열을 제거해 5칸으로 정리(실험)">
+                {downloading ? "생성 중…" : `5칸으로 정리해서 받기 (초과 ${result.spec?.extraSessionCols?.length}칸 제거)`}
               </button>
             )}
           </div>
