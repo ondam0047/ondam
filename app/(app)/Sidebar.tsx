@@ -82,6 +82,7 @@ const NAV_GROUPS: NavItem[][] = [
 ];
 
 const BETA_GEAR_ICON = "M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z";
+const SUPPORT_ICON = "M9 2h6a1 1 0 0 1 1 1v1h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2V3a1 1 0 0 1 1-1z M9 4v2h6V4 M8 11h8 M8 15h5";
 
 // 로그아웃 시 일정표·기록지 임시 작성본 등 작업 캐시를 비움.
 // (환영 모달·투어 1회 표시 기록은 사용자별이라 유지)
@@ -110,6 +111,8 @@ export default function Sidebar({ user, isBetaAdmin = false }: { user: SessionUs
   if (isBetaAdmin) {
     // 바로툴(준비중) — 운영 검증 단계라 운영자에게만. "승인내역 점검" 바로 아래.
     groups[0].push({ href: "/tools", label: "바로툴", icon: WAVE_ICON, tour: "tools" });
+    // 기타지원사업 — 바로툴 바로 아래(별개 탭). 운영자 전용.
+    groups[0].push({ href: "/support", label: "기타지원사업", icon: SUPPORT_ICON });
     // 운영 메뉴 — 도움말(마지막 그룹) 바로 위에 끼워넣음
     groups.splice(groups.length - 1, 0, [
       { href: "/admin/beta", label: "베타 운영", icon: BETA_GEAR_ICON },
