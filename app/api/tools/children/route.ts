@@ -25,5 +25,5 @@ export async function GET() {
       map.set(s.childId, { id: s.child.id, name: s.child.name, birthDate: s.child.birthDate });
     }
   }
-  return Response.json({ children: [...map.values()] });
+  return Response.json({ therapist: user.name, children: [...map.values()] });
 }

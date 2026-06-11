@@ -16,6 +16,8 @@ export interface ReportSpec {
   chartSvg?: string;
   sections: ReportSection[];
   footnote?: string;
+  // 자동 기입: 대상자·치료사·측정일 (없으면 빈칸 출력)
+  meta?: { subject?: string; clinician?: string; date?: string };
 }
 
 function esc(s: string): string {
@@ -82,9 +84,9 @@ function buildHtml(spec: ReportSpec): string {
   <h1>${esc(spec.title)}</h1>
   ${spec.subtitle ? `<div class="sub">${esc(spec.subtitle)}</div>` : ""}
   <div class="meta">
-    <span>대상자 <span class="blank"></span></span>
-    <span>치료사 <span class="blank"></span></span>
-    <span>측정일 <span class="blank"></span></span>
+    <span>대상자 ${spec.meta?.subject ? `<b>${esc(spec.meta.subject)}</b>` : `<span class="blank"></span>`}</span>
+    <span>치료사 ${spec.meta?.clinician ? `<b>${esc(spec.meta.clinician)}</b>` : `<span class="blank"></span>`}</span>
+    <span>측정일 <b>${esc(spec.meta?.date ?? dateStr)}</b></span>
   </div>
   ${spec.chartSvg ? `<div class="chart">${spec.chartSvg}</div>` : ""}
   ${sectionsHtml}

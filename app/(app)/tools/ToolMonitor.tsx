@@ -9,34 +9,43 @@ type SavedSession = {
   note: string | null;
   metrics: Record<string, unknown>;
 };
+type Series = { key: string; label: string; unit?: string; color?: string };
 
-// 바로툴 모듈 공용 — 담당 대상자 선택 + 측정 결과 저장 + 최근 기록(추이).
-// getMetrics: 현재 측정 요약을 저장용 객체로 반환(저장할 게 없으면 null).
-// renderSummary: 저장된 한 세션의 metrics 를 한 줄 요약 문자열로.
+// 바로툴 모듈 공용 — 담당 대상자 선택 + 측정 결과 저장 + 최근 기록 + 추이 그래프.
 export default function ToolMonitor({
   module,
   getMetrics,
   renderSummary,
+  trend,
+  onSubject,
 }: {
   module: string;
   getMetrics: () => Record<string, number | string> | null;
   renderSummary: (m: Record<string, unknown>) => string;
+  trend?: Series;
+  onSubject?: (subject: string | null, clinician: string) => void;
 }) {
   const [children, setChildren] = useState<Child[] | null>(null);
+  const [therapist, setTherapist] = useState("");
   const [childId, setChildId] = useState<number | null>(null);
   const [sessions, setSessions] = useState<SavedSession[]>([]);
   const [loadingList, setLoadingList] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  // 대상자 목록 1회 로드
   useEffect(() => {
     let alive = true;
     fetch("/api/tools/children")
       .then((r) => (r.ok ? r.json() : { children: [] }))
-      .then((d) => { if (alive) setChildren(d.children ?? []); })
+      .then((d) => {
+        if (!alive) return;
+        setChildren(d.children ?? []);
+        setTherapist(d.therapist ?? "");
+        onSubject?.(null, d.therapist ?? "");
+      })
       .catch(() => { if (alive) setChildren([]); });
     return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadSessions = useCallback((cid: number) => {
@@ -51,6 +60,9 @@ export default function ToolMonitor({
   useEffect(() => {
     if (childId != null) loadSessions(childId);
     else setSessions([]);
+    const name = children?.find((c) => c.id === childId)?.name ?? null;
+    onSubject?.(name, therapist);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [childId, loadSessions]);
 
   const save = useCallback(async () => {
@@ -89,7 +101,7 @@ export default function ToolMonitor({
   return (
     <div className="card">
       <div className="card-body" style={{ display: "grid", gap: 14 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>대상자 모니터링</h3>
           <span style={{ fontSize: 12, color: "var(--text-mute)" }}>측정 결과를 대상자별로 저장해 추이를 봐요</span>
         </div>
@@ -121,6 +133,9 @@ export default function ToolMonitor({
 
             {childId != null && (
               <div>
+                {/* 추이 그래프 */}
+                {trend && <TrendChart sessions={sessions} series={trend} fmtDate={fmtDate} />}
+
                 <p style={{ margin: "0 0 6px", fontSize: 12, fontWeight: 600, color: "var(--text-soft)" }}>
                   최근 기록 {sessions.length > 0 ? `(${sessions.length})` : ""}
                 </p>
@@ -146,6 +161,66 @@ export default function ToolMonitor({
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+// 저장된 세션의 한 지표를 시간순 선그래프로.
+function TrendChart({
+  sessions,
+  series,
+  fmtDate,
+}: {
+  sessions: SavedSession[];
+  series: Series;
+  fmtDate: (iso: string) => string;
+}) {
+  const pts = sessions
+    .map((s) => ({ t: s.createdAt, v: Number(s.metrics[series.key]) }))
+    .filter((p) => isFinite(p.v));
+  if (pts.length < 2) return null;
+
+  const W = 600;
+  const H = 130;
+  const PAD = { top: 16, right: 16, bottom: 26, left: 44 };
+  const innerW = W - PAD.left - PAD.right;
+  const innerH = H - PAD.top - PAD.bottom;
+  const color = series.color ?? "var(--primary)";
+
+  const vals = pts.map((p) => p.v);
+  let min = Math.min(...vals);
+  let max = Math.max(...vals);
+  if (min === max) { min -= 1; max += 1; }
+  const pad = (max - min) * 0.15;
+  min -= pad; max += pad;
+
+  const x = (i: number) => PAD.left + (pts.length === 1 ? innerW / 2 : (i / (pts.length - 1)) * innerW);
+  const y = (v: number) => PAD.top + innerH * (1 - (v - min) / (max - min));
+  const path = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${x(i).toFixed(1)} ${y(p.v).toFixed(1)}`).join(" ");
+
+  return (
+    <div style={{ marginBottom: 12, borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface)", padding: 10 }}>
+      <p style={{ margin: "0 0 4px", fontSize: 12, fontWeight: 600, color: "var(--text-soft)" }}>
+        {series.label} 추이 {series.unit ? `(${series.unit})` : ""}
+      </p>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", display: "block" }}>
+        {[max, (max + min) / 2, min].map((gv, i) => {
+          const gy = PAD.top + (innerH * i) / 2;
+          return (
+            <g key={i}>
+              <line x1={PAD.left} x2={W - PAD.right} y1={gy} y2={gy} stroke="#EBE5D6" strokeDasharray="3 3" />
+              <text x={PAD.left - 6} y={gy + 4} textAnchor="end" fontSize={11} fill="var(--text-mute)">{gv.toFixed(1)}</text>
+            </g>
+          );
+        })}
+        <path d={path} fill="none" stroke={color} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+        {pts.map((p, i) => (
+          <circle key={i} cx={x(i)} cy={y(p.v)} r={3.5} fill={color} stroke="white" strokeWidth={1.5} />
+        ))}
+        {/* 처음/마지막 날짜 */}
+        <text x={PAD.left} y={H - 8} textAnchor="start" fontSize={10} fill="var(--text-mute)">{fmtDate(pts[0].t).slice(0, 8)}</text>
+        <text x={W - PAD.right} y={H - 8} textAnchor="end" fontSize={10} fill="var(--text-mute)">{fmtDate(pts[pts.length - 1].t).slice(0, 8)}</text>
+      </svg>
     </div>
   );
 }

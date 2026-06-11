@@ -51,6 +51,7 @@ export default function MptClient() {
   const [liveF0, setLiveF0] = useState<number | null>(null);
   const [trials, setTrials] = useState<Trial[]>([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [subj, setSubj] = useState<{ subject: string | null; clinician: string }>({ subject: null, clinician: "" });
 
   const phaseRef = useRef<Phase>("idle");
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -232,6 +233,7 @@ export default function MptClient() {
     downloadReport({
       title: "MPT — 최대발성지속시간 리포트",
       subtitle: `${trials.length}회 측정`,
+      meta: { subject: subj.subject ?? undefined, clinician: subj.clinician || undefined },
       sections: [
         { heading: "측정 요약", rows: [
           { label: "평균 MPT", value: `${m.toFixed(2)} 초` },
@@ -243,7 +245,7 @@ export default function MptClient() {
       ],
       footnote: "참고 정상범위 — 성인 남 25–35초, 성인 여 15–25초 (Hirano 1981; 보은아 외 2023). 발성을 멈추면 0.5초 후 자동 종료되며 최댓값을 지표로 사용합니다.",
     }, "MPT");
-  }, [trials]);
+  }, [trials, subj]);
 
   const resetAll = useCallback(() => {
     stopMic();
@@ -413,6 +415,8 @@ export default function MptClient() {
         module="mpt"
         getMetrics={() => (trials.length ? { best: Number(maxVal.toFixed(2)), avg: Number(mean.toFixed(2)), count: trials.length } : null)}
         renderSummary={(m) => `평균 ${m.avg ?? "-"}초 · 최고 ${m.best ?? "-"}초 (${m.count ?? "-"}회)`}
+        trend={{ key: "avg", label: "평균 MPT", unit: "초" }}
+        onSubject={(subject, clinician) => setSubj({ subject, clinician })}
       />
 
       <details className="card" style={{ padding: 0 }}>

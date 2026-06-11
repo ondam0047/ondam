@@ -239,6 +239,7 @@ export default function SpeechRateClient() {
   const [selEnd, setSelEnd] = useState(0);
   // 파형 색칠용 전체 신호 세그먼트(선택과 무관)
   const [fullSegments, setFullSegments] = useState<Segment[]>([]);
+  const [subj, setSubj] = useState<{ subject: string | null; clinician: string }>({ subject: null, clinician: "" });
 
   const asr = useKoreanASR();
 
@@ -491,6 +492,7 @@ export default function SpeechRateClient() {
       {
         title: "말속도 측정 리포트",
         subtitle: `전체 ${result.totalDuration.toFixed(2)}초 · 발화 ${result.speechDuration.toFixed(2)}초`,
+        meta: { subject: subj.subject ?? undefined, clinician: subj.clinician || undefined },
         sections: [
           {
             heading: "시간 · 쉼 구간",
@@ -1069,6 +1071,8 @@ export default function SpeechRateClient() {
               : null
           }
           renderSummary={(m) => `${m.sps ?? "-"} SPS · ${m.dur ?? "-"}초${m.syllables ? ` · ${m.syllables}음절` : ""}`}
+          trend={{ key: "sps", label: "말속도", unit: "SPS" }}
+          onSubject={(subject, clinician) => setSubj({ subject, clinician })}
         />
       )}
 

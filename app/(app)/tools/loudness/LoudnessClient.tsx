@@ -103,6 +103,7 @@ export default function LoudnessClient() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [dragging, setDragging] = useState<{ chart: "pitch" | "intensity"; bound: "low" | "high" } | null>(null);
   const [presetId, setPresetId] = useState("custom");
+  const [subj, setSubj] = useState<{ subject: string | null; clinician: string }>({ subject: null, clinician: "" });
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -315,6 +316,7 @@ export default function LoudnessClient() {
     downloadReport({
       title: "음도·강도 분석 리포트",
       subtitle: `${fileDuration > 0 ? `파일: ${fileName ?? ""} · ` : "마이크 녹음 · "}길이 ${dur.toFixed(1)}초`,
+      meta: { subject: subj.subject ?? undefined, clinician: subj.clinician || undefined },
       sections: [
         {
           heading: "음도 (기본주파수 F0)",
@@ -338,7 +340,7 @@ export default function LoudnessClient() {
       ],
       footnote: "강도는 RMS→dBFS+80 추정값으로, 절대값보다 상대 변화 추적에 적합합니다. 목표 강도는 일반적으로 70–85 dB 범위를 권장합니다.",
     }, "음도강도");
-  }, [samples, fileDuration, fileName, duration, pitchStats, dbStats, lowerBound, upperBound, dbLower, dbUpper]);
+  }, [samples, fileDuration, fileName, duration, pitchStats, dbStats, lowerBound, upperBound, dbLower, dbUpper, subj]);
 
   const effDur = fileDuration > 0 ? fileDuration : duration;
   const pitchPath = useMemo(() => buildPath(samples, "f0", pitchScale.toY, effDur), [samples, pitchScale, effDur]);
@@ -465,6 +467,8 @@ export default function LoudnessClient() {
               : null
           }
           renderSummary={(m) => `평균 ${m.meanF0 ?? "-"}Hz · ${m.meanDb ?? "-"}dB · 음역 ${m.rangeSt ?? "-"}st`}
+          trend={{ key: "meanF0", label: "평균 음도", unit: "Hz" }}
+          onSubject={(subject, clinician) => setSubj({ subject, clinician })}
         />
       )}
     </div>
