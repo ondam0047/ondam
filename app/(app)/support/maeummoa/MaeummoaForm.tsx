@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 type Session = { date: string; time: string; content: string };
 type Saved = { id: number; student: string; updatedAt: string; payload: string };
-const MAX = 3;
+const MAX_SESS = 12; // 3회 × 4장 (페이지당 3회)
 
 const emptyForm = (therapist: string, place: string) => ({
   year: "2025", month: "3", domain: "언어치료", therapist, student: "", school: "", place, weekly: "", goal: "",
@@ -27,7 +27,7 @@ export default function MaeummoaForm({
     setForm((f) => ({ ...f, [k]: e.target.value }));
   const setSess = (i: number, k: keyof Session, v: string) =>
     setSessions((arr) => arr.map((s, j) => (j === i ? { ...s, [k]: v } : s)));
-  const addRow = () => setSessions((a) => (a.length < MAX ? [...a, { date: "", time: "", content: "" }] : a));
+  const addRow = () => setSessions((a) => (a.length < MAX_SESS ? [...a, { date: "", time: "", content: "" }] : a));
   const delRow = (i: number) => setSessions((a) => a.filter((_, j) => j !== i));
 
   const payload = () => ({
@@ -55,7 +55,7 @@ export default function MaeummoaForm({
       const ss: Session[] = Array.isArray(d.sessions) && d.sessions.length
         ? d.sessions.map((s: Session) => ({ date: s.date ?? "", time: s.time ?? "", content: s.content ?? "" }))
         : [{ date: "", time: "", content: "" }];
-      setSessions(ss.slice(0, MAX));
+      setSessions(ss);
       setEditingId(r.id); setErr(""); setMsg(`'${r.student}' 불러옴 — 수정 후 저장/출력하세요.`);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch { setErr("저장본을 불러오지 못했어요."); }
@@ -149,29 +149,28 @@ export default function MaeummoaForm({
           {cell("영역", <input className="input" value={form.domain} onChange={set("domain")} />)}
           {cell("치료사", <input className="input" value={form.therapist} onChange={set("therapist")} />)}
           {cell("학생명", <input className="input" value={form.student} onChange={set("student")} placeholder="예: 김도윤" />)}
-          {cell("학교 / 학년", <input className="input" value={form.school} onChange={set("school")} placeholder="예: 가람초 / 3학년" />)}
+          {cell("학교 / 학년", <input className="input" value={form.school} onChange={set("school")} placeholder="예: 바로초 / 3학년" />)}
           {cell("장소", <input className="input" value={form.place} onChange={set("place")} />)}
           {cell("요일 / 시간", <input className="input" value={form.weekly} onChange={set("weekly")} placeholder="예: 화 16:00~16:50" />)}
         </div>
-        {cell("월 치료지원 목표", <input className="input" value={form.goal} onChange={set("goal")} placeholder="예: 기초 어휘 확장, 두 낱말 조합하여 표현하기" />)}
+        {cell("월 치료지원 목표", <input className="input" value={form.goal} onChange={set("goal")} />)}
       </div>
 
       <div className="card" style={{ padding: 20, marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-          <h3 style={{ margin: 0 }}>회기 ({sessions.length}/{MAX})</h3>
-          <button className="btn btn-sm" onClick={addRow} disabled={sessions.length >= MAX}>+ 회기 추가</button>
+          <h3 style={{ margin: 0 }}>회기 ({sessions.length}) <span style={{ fontWeight: 400, fontSize: 12, color: "var(--text-mute)" }}>· 3회마다 다음 장</span></h3>
+          <button className="btn btn-sm" onClick={addRow} disabled={sessions.length >= MAX_SESS}>+ 회기 추가</button>
         </div>
         {sessions.map((s, i) => (
           <div key={i} style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 12, marginBottom: 10 }}>
             <div style={{ display: "flex", gap: 10, marginBottom: 8 }}>
-              <div style={{ flex: 1 }}>{cell("날짜", <input className="input" value={s.date} onChange={(e) => setSess(i, "date", e.target.value)} placeholder="25-03-04" />)}</div>
-              <div style={{ flex: 1 }}>{cell("시간", <input className="input" value={s.time} onChange={(e) => setSess(i, "time", e.target.value)} placeholder="16:00-16:50" />)}</div>
+              <div style={{ flex: 1 }}>{cell("날짜", <input className="input" value={s.date} onChange={(e) => setSess(i, "date", e.target.value)} />)}</div>
+              <div style={{ flex: 1 }}>{cell("시간", <input className="input" value={s.time} onChange={(e) => setSess(i, "time", e.target.value)} />)}</div>
               {sessions.length > 1 && <button className="btn btn-sm btn-ghost" style={{ alignSelf: "end", marginBottom: 12 }} onClick={() => delRow(i)}>삭제</button>}
             </div>
             <label style={L}>내용 (최대 3줄 · 특이사항은 # 로 시작)</label>
             <textarea className="input" rows={3} value={s.content}
               onChange={(e) => setSess(i, "content", e.target.value)}
-              placeholder={"- 어휘 확장 : 사과, 바나나, 포도\n- 두 낱말 조합하여 요구하기\n# 보호자 카드 미소지로 당일 미결제"}
               style={{ resize: "vertical", lineHeight: 1.6 }} />
           </div>
         ))}
@@ -186,7 +185,8 @@ export default function MaeummoaForm({
         </button>
       </div>
       <p style={{ fontSize: 12, color: "var(--text-mute)", marginTop: 10 }}>
-        * 최소본: 한 달·최대 3회기·내용 3줄. 저장하면 위 &lt;저장된 아동&gt;에서 불러와 수정할 수 있어요.
+        * 한 달치 일지. 회기 3개마다 다음 장으로 넘어가요(최대 4장·12회기). 내용은 한 칸에 최대 3줄. 날짜 25-03-04 · 시간 16:00-16:50 형식.
+        저장하면 위 &lt;저장된 아동&gt;에서 불러와 수정할 수 있어요.
       </p>
     </>
   );
