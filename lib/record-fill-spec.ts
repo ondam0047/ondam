@@ -22,6 +22,8 @@ type FillData = {
   sessions: RecordSessionDetail[];
   // 통합 양식: 일정표 라벨 보강(역할→값). 단가·본인부담·관리번호·제공일·횟수 등.
   schedExtra?: Record<string, string>;
+  // 값 칸 글자 통일용 정규화 charPr(검정·동일 크기·굵게/기울임/밑줄 없음).
+  normCharPr?: number;
 };
 
 function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
@@ -135,7 +137,8 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
     }
   }
 
-  return edits;
+  // 모든 값 칸에 정규화 글자속성 적용(검정·동일 크기·굵게/기울임/밑줄 없음).
+  return d.normCharPr != null ? edits.map((e) => ({ ...e, charPr: d.normCharPr })) : edits;
 }
 
 // 저장 양식으로 기록지 .hwpx 생성. 회기 5개 초과면 5개씩 나눠 여러 장.
@@ -153,16 +156,6 @@ export function generateRecordFromForm(
   const chunks: RecordSessionDetail[][] = [];
   for (let i = 0; i < Math.max(1, all.length); i += 5) chunks.push(all.slice(i, i + 5));
 
-  const data = {
-    org: payload.org ?? "",
-    childName: payload.childName ?? "",
-    childBirth: payload.childBirth ?? "",
-    serviceType: payload.serviceType ?? "",
-    therapistName: therapistName ?? "",
-    schedExtra,
-  };
-
-  // 통합 양식 달력 — 회기 날짜("M/D")→해당 월 일자, 시간=시작~종료. 전체 회기 기준(분할 무관).
   const yr = year ?? new Date().getFullYear();
   const calSessions: CalSession[] = all.map((s) => {
     const m = /(\d+)\s*[/.\-]\s*(\d+)/.exec(s.date ?? "");
@@ -173,8 +166,23 @@ export function generateRecordFromForm(
   // 저장 spec 에 달력이 없으면(구버전) 템플릿에서 재탐지
   const cal = spec.scheduleCalendar ?? detectCalendarFromXml(baseXml);
 
-  // 통합 양식 달력: 시간 한 줄(6pt) + 빨간날 색 + 공휴일 이름(빨강·6pt) charPr 주입(1회).
+  // ── 글자속성(charPr) 주입: 값 칸 통일(정규화) + (통합양식) 달력. header 1회 패치. ──
   let header: string | null = null;
+  const inject = (baseId: number | null, opts: { height?: number; textColor?: string; normalize?: boolean }): number | undefined => {
+    if (baseId == null) return undefined;
+    const r = addClonedCharPr(header ?? readHeader(template), baseId, opts);
+    if (!r) return undefined;
+    header = r.xml;
+    return r.id;
+  };
+
+  // 값 칸 글자 통일 — 대표 값 칸의 글자속성을 복제해 검정·동일 크기·굵게/기울임/밑줄 제거.
+  const normBase = spec.date?.[0] ?? spec.name ?? spec.start?.[0] ?? spec.org;
+  const normCharPr = normBase
+    ? inject(getCellRunCharPr(baseXml, normBase[0], normBase[1], normBase[2]), { normalize: true, textColor: "#000000" })
+    : undefined;
+
+  // 통합 양식 달력: 시간 6pt(한 줄) + 빨간날 색 + 공휴일 이름(빨강·6pt).
   let timeCharPr: number | undefined;
   let redCharPr: number | undefined;
   let holidayCharPr: number | undefined;
@@ -182,21 +190,22 @@ export function generateRecordFromForm(
   if (cal && payload.month) {
     const dim = new Date(yr, payload.month, 0).getDate();
     for (let d = 1; d <= dim; d++) { const hn = holiday(yr, payload.month, d); if (hn) monthHolidays.push({ day: d, name: hn }); }
-    header = readHeader(template);
     const conBase = getCellRunCharPr(baseXml, cal.table, cal.weeks[0].contentRow, cal.cols[0].startCol);
-    if (conBase != null) {
-      const r = addClonedCharPr(header, conBase, { height: 600 }); // 6pt → 시간 한 줄
-      if (r) { header = r.xml; timeCharPr = r.id; }
-      const rh = addClonedCharPr(header, conBase, { textColor: "#FF0000", height: 600 }); // 공휴일 이름
-      if (rh) { header = rh.xml; holidayCharPr = rh.id; }
-    }
+    timeCharPr = inject(conBase, { height: 600 });
+    holidayCharPr = inject(conBase, { textColor: "#FF0000", height: 600 });
     const wkCol = cal.cols.find((c) => c.dow !== 0) ?? cal.cols[0];
-    const numBase = getCellRunCharPr(baseXml, cal.table, cal.weeks[0].numberRow, wkCol.startCol);
-    if (numBase != null) {
-      const r = addClonedCharPr(header, numBase, { textColor: "#FF0000" });
-      if (r) { header = r.xml; redCharPr = r.id; }
-    }
+    redCharPr = inject(getCellRunCharPr(baseXml, cal.table, cal.weeks[0].numberRow, wkCol.startCol), { textColor: "#FF0000" });
   }
+
+  const data = {
+    org: payload.org ?? "",
+    childName: payload.childName ?? "",
+    childBirth: payload.childBirth ?? "",
+    serviceType: payload.serviceType ?? "",
+    therapistName: therapistName ?? "",
+    schedExtra,
+    normCharPr,
+  };
 
   return chunks.map((sessionChunk) => {
     let xml = baseXml;

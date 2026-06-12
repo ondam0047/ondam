@@ -33,7 +33,7 @@ export function getCellRunCharPr(sectionXml: string, table: number, row: number,
 export function addClonedCharPr(
   headerXml: string,
   baseId: number,
-  overrides: { height?: number; textColor?: string },
+  overrides: { height?: number; textColor?: string; normalize?: boolean },
 ): { xml: string; id: number } | null {
   const startTag = `<hh:charPr id="${baseId}"`;
   const i = headerXml.indexOf(startTag);
@@ -60,6 +60,11 @@ export function addClonedCharPr(
       : open.replace(/(<hh:charPr id="\d+")/, `$1 textColor="${overrides.textColor}"`);
   }
   el = open + el.slice(openEnd);
+  // 정규화: 굵게·기울임 제거, 밑줄 없음 (값 칸 글자 통일용)
+  if (overrides.normalize) {
+    el = el.replace(/<hh:bold\s*\/>/g, "").replace(/<hh:italic\s*\/>/g, "");
+    el = el.replace(/(<hh:underline\b[^>]*\btype=")[^"]*(")/g, "$1NONE$2");
+  }
 
   // </hh:charProperties> 앞에 삽입 + itemCnt 증가
   const closeIdx = headerXml.indexOf("</hh:charProperties>");

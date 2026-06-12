@@ -26,8 +26,10 @@ export async function GET() {
     opinion: "이건 샘플입니다. 실제로는 회기 일정만 입력하면 이렇게 자동으로 채워집니다.",
     sessions: [
       { date: `${month}/3`,  startTime: "15:10", endTime: "16:00", voucher: "40", extra: "10", amount: "65,000", useDay: "", payDay: `${month}/3`,  apprNumber: "500000000001", result: "고빈도 어휘 산출 활동에서 목표 단어를 정조음하였다." },
-      { date: `${month}/10`, startTime: "15:10", endTime: "16:00", voucher: "40", extra: "10", amount: "65,000", useDay: "", payDay: `${month}/10`, apprNumber: "500000000002", result: "문장 따라말하기에서 어순 오류가 줄었다." },
-      { date: `${month}/17`, startTime: "15:10", endTime: "16:00", voucher: "40", extra: "10", amount: "65,000", useDay: "", payDay: `${month}/17`, apprNumber: "500000000003", result: "이야기 다시말하기에서 핵심 사건을 포함하였다." },
+      { date: `${month}/8`,  startTime: "15:10", endTime: "16:00", voucher: "40", extra: "10", amount: "65,000", useDay: "", payDay: `${month}/8`,  apprNumber: "500000000002", result: "문장 따라말하기에서 어순 오류가 줄었다." },
+      { date: `${month}/15`, startTime: "15:10", endTime: "16:00", voucher: "40", extra: "10", amount: "65,000", useDay: "", payDay: `${month}/15`, apprNumber: "500000000003", result: "이야기 다시말하기에서 핵심 사건을 포함하였다." },
+      { date: `${month}/22`, startTime: "15:10", endTime: "16:00", voucher: "40", extra: "10", amount: "65,000", useDay: "", payDay: `${month}/22`, apprNumber: "500000000004", result: "낱말 카드 분류에서 상위어를 정확히 산출하였다." },
+      { date: `${month}/29`, startTime: "15:10", endTime: "16:00", voucher: "40", extra: "10", amount: "65,000", useDay: "", payDay: `${month}/29`, apprNumber: "500000000005", result: "대화 상황에서 주고받기 차례를 5회 이상 유지하였다." },
     ],
   };
 

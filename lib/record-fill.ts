@@ -71,7 +71,13 @@ function setParagraphText(pXml: string, value: string, charPr?: number): string 
   if (value === "") return p;
   const esc = xmlEscape(value);
   const runIdx = p.indexOf("<hp:run");
-  if (runIdx < 0) return p;
+  if (runIdx < 0) {
+    // run 이 없는 빈 단락 — run 을 만들어 글자를 넣는다(매핑됐지만 입력 안 되던 칸 대응).
+    const pEnd = p.lastIndexOf("</hp:p>");
+    if (pEnd < 0) return p;
+    const run = `<hp:run charPrIDRef="${charPr ?? 0}"><hp:t>${esc}</hp:t></hp:run>`;
+    return p.slice(0, pEnd) + run + p.slice(pEnd);
+  }
   const gt = p.indexOf(">", runIdx);
   if (gt < 0) return p;
   const isSelfClosing = p[gt - 1] === "/";
