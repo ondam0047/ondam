@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
       xml = removeTableRows(xml, spec.resultTable, spec.extraResultRows); trimmed = true;
     }
     if (trimmed) {
-      buf = patchSection0(buf, xml);   // 정리된 템플릿으로 교체 저장
+      buf = patchSection0(buf, xml) as Buffer<ArrayBuffer>;   // 정리된 템플릿으로 교체 저장
       spec = resolveForm(xml).spec;    // 정리된 구조로 다시 인식
     }
     const ovRaw = form.get("overrides");
