@@ -209,7 +209,10 @@ function MonthFocusBanner({ month, unwrittenCount, totalSessions }: { month: num
           <div style={{ fontSize: 15, fontWeight: 800 }}>{title}</div>
           <div className="sub-mute" style={{ fontSize: 13 }}>{desc}</div>
         </div>
-        <Link className={primary ? "btn btn-primary" : "btn"} href={href} style={{ padding: "10px 18px", fontWeight: 700, whiteSpace: "nowrap" }}>{cta}</Link>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", whiteSpace: "nowrap" }}>
+          <Link className={primary ? "btn btn-primary" : "btn"} href={href} style={{ padding: "10px 18px", fontWeight: 700 }}>{cta}</Link>
+          {href !== "/month" && <Link className="btn btn-ghost btn-sm" href="/month">이번 달 현황 →</Link>}
+        </div>
       </div>
     </div>
   );

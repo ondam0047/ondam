@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   WEEK, holiday, pad, parseDaySlots,
@@ -282,6 +283,23 @@ export default function ScheduleClient({
       window.removeEventListener("scroll", onScroll);
       if (to !== null) window.clearTimeout(to);
     };
+  }, [hydrated]);
+
+  // '이번 달'·대시보드에서 ?cs=&ym= 로 넘어오면 해당 아동·월을 자동 선택.
+  const searchParams = useSearchParams();
+  const [autoSelected, setAutoSelected] = useState(false);
+  useEffect(() => {
+    if (!hydrated || autoSelected) return;
+    const cs = searchParams.get("cs");
+    if (!cs) return;
+    const id = Number(cs);
+    if (childrenOpts.some((x) => x.id === id)) {
+      loadChild(String(id));
+      const ymP = searchParams.get("ym");
+      if (ymP && monthOptions.some((o) => o.value === ymP)) setYm(ymP);
+      setAutoSelected(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated]);
 
   function togglePattern(i: number) {

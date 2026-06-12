@@ -113,8 +113,8 @@ export default async function MonthPage({
                         {rc != null ? <Badge ok text={`✓ ${rc}회`} /> : <Badge ok={false} text="미작성" />}
                       </td>
                       <td style={{ padding: "10px 14px", textAlign: "right", whiteSpace: "nowrap" }}>
-                        <Link className="btn btn-sm" href="/schedule" style={{ marginRight: 6 }}>일정</Link>
-                        <Link className="btn btn-sm btn-primary" href="/record">기록지</Link>
+                        <Link className="btn btn-sm" href={`/schedule?cs=${s.id}&ym=${year}-${month}`} style={{ marginRight: 6 }}>일정</Link>
+                        <Link className="btn btn-sm btn-primary" href={`/record?cs=${s.id}&ym=${year}-${month}`}>기록지</Link>
                       </td>
                     </tr>
                   );
