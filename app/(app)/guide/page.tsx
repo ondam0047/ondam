@@ -116,7 +116,7 @@ export default async function GuidePage() {
     { id: "schedule",  label: "일정표 작성" },
     { id: "record",    label: "기록지 작성" },
     { id: "handwrite", label: "수기로 작성하는 분" },
-    { id: "approval",  label: "승인내역 점검" },
+    { id: "approval",  label: "결제 겹침 찾기" },
     { id: "timetable", label: "내 시간표" },
     { id: "bulk",      label: "일괄 다운로드" },
     { id: "persist",   label: "작업 상태 유지" },
@@ -414,15 +414,15 @@ export default async function GuidePage() {
               나중에 같은 아동·월로 다시 들어와도 위 표는 그대로 자동 재생성됩니다.
             </Callout>
             <Callout kind="info">
-              <b>승인내역 점검</b> 메뉴는 수기로 운영하는 분들도 똑같이 유용해요.
+              <b>결제 겹침 찾기</b> 메뉴는 수기로 운영하는 분들도 똑같이 유용해요.
               엑셀만 올리면 결제 시간 겹침을 자동 검출하니까 종이 작성 여부와 무관하게 지자체 점검 전에 한 번씩 돌려보세요.
             </Callout>
           </Detail>
         </Section>
 
-        {/* 8. 승인내역 점검 */}
-        <Section id="approval" num="8" title="승인내역 점검" summary="엑셀만 올리면 결제 시간이 겹치는 회기를 자동으로 잡아줘요.">
-          <GuideVideo slug="guide-07-approval" title="승인내역 점검" />
+        {/* 8. 결제 겹침 찾기 */}
+        <Section id="approval" num="8" title="결제 겹침 찾기" summary="엑셀만 올리면 결제 시간이 겹치는 회기를 자동으로 잡아줘요.">
+          <GuideVideo slug="guide-07-approval" title="결제 겹침 찾기" />
           <Detail>
             <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
               지자체 점검 전에 본인 결제 내역을 미리 자가 점검합니다.
@@ -430,7 +430,7 @@ export default async function GuidePage() {
             </p>
 
             <Step n={1} title="엑셀 업로드">
-              <b>[승인내역 점검]</b> 메뉴 → 서비스제공내역.xls 그대로 업로드.
+              <b>[결제 겹침 찾기]</b> 메뉴 → 서비스제공내역.xls 그대로 업로드.
             </Step>
             <Step n={2} title="자동 점검">
               결제일·시간 기준으로 정렬한 뒤 직전 결제와의 간격을 계산.

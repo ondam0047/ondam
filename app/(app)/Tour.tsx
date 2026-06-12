@@ -29,8 +29,8 @@ const COMMON_STEPS = [
   },
   {
     selector: '[data-tour="appr"]',
-    title: "승인내역 점검",
-    description: "지자체 점검 전 엑셀을 올려서 결제 간격 겹침을 자동 자가 점검.",
+    title: "결제 겹침 찾기",
+    description: "지자체 점검 전 엑셀을 올려서 결제 시간 겹침을 자동 자가 점검.",
   },
   {
     selector: '[data-tour="exp"]',

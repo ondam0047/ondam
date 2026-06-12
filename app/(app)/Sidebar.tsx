@@ -74,7 +74,7 @@ const NAV_GROUPS: NavGroup[] = [
   ] },
   { label: "도구", items: [
     { href: "/export",         label: "일괄 다운로드", icon: DOWNLOAD_ICON, tour: "exp"  },
-    { href: "/approval-check", label: "승인내역 점검", icon: CHECK_ICON,    tour: "appr" },
+    { href: "/approval-check", label: "결제 겹침 찾기", icon: CHECK_ICON,    tour: "appr" },
     { href: "/timetable",      label: "내 시간표",     icon: GRID_ICON,     tour: "time" },
   ] },
   { items: [
