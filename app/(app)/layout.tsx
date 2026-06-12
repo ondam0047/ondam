@@ -4,6 +4,7 @@ import Topbar from "./Topbar";
 import WelcomeTooltip from "./WelcomeTooltip";
 import SessionGuard from "./SessionGuard";
 import Tour from "./Tour";
+import UpdateModal from "./UpdateModal";
 import { getCurrentUser, generateApprovalCode, getEffectiveTherapistId } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { ensureLegacyDataLinked, ensureMyServicesAssigned } from "@/lib/migrate-center";
@@ -66,6 +67,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </div>
       <WelcomeTooltip role={user.role} userId={user.id} />
       <Tour userId={user.id} role={user.role} />
+      <UpdateModal userId={user.id} />
     </div>
   );
 }
