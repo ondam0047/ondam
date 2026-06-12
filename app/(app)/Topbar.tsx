@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 const META: Record<string, { title: string; crumb: string }> = {
   "/dashboard":  { title: "대시보드",    crumb: "센터 운영 현황 한눈에 보기" },
+  "/month":      { title: "이번 달",      crumb: "이 달 전 아동의 일정·기록지 상태 한눈에 + 일괄 받기" },
   "/schedule":   { title: "일정표",      crumb: "아동 선택 → 회기 패턴 → 일정표 생성 → 한글파일 출력" },
   "/record":     { title: "기록지",      crumb: "엑셀 업로드 → 아동별 회기 확인 → 상태/결과 기록 → 한글파일 출력" },
   "/children":   { title: "내 아동",     crumb: "아동 등록 → 기본값 설정 → 일정표에서 한 번에 불러오기" },

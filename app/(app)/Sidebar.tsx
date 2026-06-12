@@ -65,6 +65,7 @@ type NavGroup = { label?: string; items: NavItem[] };
 const NAV_GROUPS: NavGroup[] = [
   { items: [
     { href: "/dashboard", label: "대시보드", icon: IC.dash, tour: "dash" },
+    { href: "/month",     label: "이번 달",  icon: IC.calendar },
   ] },
   { label: "핵심 작업", items: [
     { href: "/schedule", label: "일정표",  icon: IC.calendar, tour: "sched" },
