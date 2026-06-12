@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { WEEK, holiday } from "@/lib/constants";
+import ViewTabs from "../schedule/ViewTabs";
 
 export const dynamic = "force-dynamic";
 
@@ -72,10 +73,11 @@ export default async function TimetablePage({
 
   return (
     <>
+      <ViewTabs active="month" />
       <div className="section-head">
         <div>
-          <h2>내 시간표</h2>
-          <p>{myTherapist?.name ?? "치료사"} · {year}년 {month}월 · 총 {totalSessions}회기</p>
+          <h2>월간 보기</h2>
+          <p>{myTherapist?.name ?? "치료사"} · {year}년 {month}월 · 총 {totalSessions}회기 · 저장된 일정 종합</p>
         </div>
       </div>
 

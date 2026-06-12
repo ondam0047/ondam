@@ -56,6 +56,7 @@ type Tag = {
   time: number; // 점 표시이거나 구간의 시작(sec)
   end?: number; // 구간 표시일 때 끝(sec)
   type: PatternType;
+  count?: number; // 반복(R1/R2) 횟수 — 몇 회 반복했는지
   emphasized: boolean; // 사용자가 특별히 표시한 항목
   source: TagSource;
   reviewed: boolean; // false = 자동 1차 초안(검토 필요)
@@ -163,6 +164,7 @@ export default function FluencyClient() {
             id: tagIdRef.current++,
             time: d.time,
             type: d.type as PatternType,
+            count: d.count,
             emphasized: false,
             source: "transcript",
             reviewed: false,
@@ -261,6 +263,7 @@ export default function FluencyClient() {
       id: tagIdRef.current++,
       time: d.time,
       type: d.type as PatternType,
+      count: d.count,
       emphasized: false,
       source: "transcript" as TagSource,
       reviewed: false,
@@ -361,6 +364,10 @@ export default function FluencyClient() {
     setTags((prev) =>
       prev.map((t) => (t.id === id ? { ...t, type, reviewed: true } : t)),
     );
+  const changeTagCount = (id: number, count: number) =>
+    setTags((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, count: count >= 2 ? count : undefined, reviewed: true } : t)),
+    );
   const confirmTag = (id: number) =>
     setTags((prev) =>
       prev.map((t) => (t.id === id ? { ...t, reviewed: true } : t)),
@@ -375,6 +382,7 @@ export default function FluencyClient() {
         id: tagIdRef.current++,
         time: d.time,
         type: d.type as PatternType,
+        count: d.count,
         emphasized: false,
         source: "transcript" as TagSource,
         reviewed: false,
@@ -467,7 +475,7 @@ export default function FluencyClient() {
                     const meta = TYPES.find((m) => m.id === t.type);
                     return {
                       label: t.end != null ? `${t.time.toFixed(2)}–${t.end.toFixed(2)}s` : `${t.time.toFixed(2)}s`,
-                      value: `${meta?.label ?? t.type}${t.emphasized ? " (강조)" : ""}`,
+                      value: `${meta?.label ?? t.type}${t.count ? ` ${t.count}회` : ""}${t.end != null ? ` (${(t.end - t.time).toFixed(2)}초)` : ""}${t.emphasized ? " (강조)" : ""}`,
                       ref: t.note ?? SOURCE_LABEL[t.source],
                     };
                   }),
@@ -902,6 +910,19 @@ export default function FluencyClient() {
                                   </option>
                                 ))}
                               </select>
+                              {(tag.type === "R1" || tag.type === "R2") && (
+                                <span style={{ marginLeft: 6, display: "inline-flex", alignItems: "center", gap: 2 }} title="반복 횟수(몇 회 반복했는지)">
+                                  <input
+                                    type="number"
+                                    min={2}
+                                    value={tag.count ?? ""}
+                                    onChange={(e) => changeTagCount(tag.id, parseInt(e.target.value, 10) || 0)}
+                                    placeholder="–"
+                                    style={{ width: 42, borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", padding: "3px 5px", fontSize: 12, color: "var(--text)", fontVariantNumeric: "tabular-nums" }}
+                                  />
+                                  <span style={{ fontSize: 11, color: "var(--text-mute)" }}>회</span>
+                                </span>
+                              )}
                               {tag.note && (
                                 <span
                                   style={{
@@ -1264,11 +1285,9 @@ export default function FluencyClient() {
               const total = Number(m.total) || 0;
               if (total <= 0) return null;
               const segs = TYPES.map((t) => ({ label: t.label, count: Number(m[t.id]) || 0, color: t.hex }))
-                .filter((s) => s.count > 0)
-                .map((s) => ({ ...s, pct: (s.count / total) * 100 }));
-              return <TypeBar segs={segs} />;
+                .filter((s) => s.count > 0);
+              return <VBars segs={segs} />;
             }}
-            trend={{ key: "total", label: "비유창 표시 수", unit: "회" }}
             onContext={setSubj}
           />
         </>
@@ -1341,29 +1360,23 @@ export default function FluencyClient() {
   );
 }
 
-// 모니터링 세션별 비유창 유형 분포 막대
-function TypeBar({ segs }: { segs: { label: string; count: number; color: string; pct: number }[] }) {
+// 모니터링 세션별 비유창 유형 분포 — 세로 막대(컬럼) 그래프
+function VBars({ segs }: { segs: { label: string; count: number; color: string }[] }) {
+  if (segs.length === 0) return null;
+  const max = Math.max(1, ...segs.map((s) => s.count));
+  const H = 64; // 막대 영역 높이(px)
   return (
-    <div style={{ display: "grid", gap: 4 }}>
-      <div style={{ display: "flex", height: 16, borderRadius: 6, overflow: "hidden", background: "var(--surface)", border: "1px solid var(--border)" }}>
-        {segs.map((s) => (
+    <div style={{ display: "flex", alignItems: "flex-end", gap: 10, padding: "2px 2px 0" }}>
+      {segs.map((s) => (
+        <div key={s.label} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, minWidth: 26 }}>
+          <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text)", fontVariantNumeric: "tabular-nums" }}>{s.count}</span>
           <div
-            key={s.label}
             title={`${s.label} ${s.count}회`}
-            style={{ width: `${s.pct}%`, background: s.color, display: "flex", alignItems: "center", justifyContent: "center", minWidth: 0 }}
-          >
-            {s.pct >= 14 && <span style={{ fontSize: 9.5, fontWeight: 700, color: "#fff" }}>{s.count}</span>}
-          </div>
-        ))}
-      </div>
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", fontSize: 10.5, color: "var(--text-soft)" }}>
-        {segs.map((s) => (
-          <span key={s.label} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-            <span style={{ width: 9, height: 9, borderRadius: 2, background: s.color, display: "inline-block" }} />
-            {s.label} {s.count}
-          </span>
-        ))}
-      </div>
+            style={{ width: 20, height: Math.max(3, (s.count / max) * H), background: s.color, borderRadius: "3px 3px 0 0" }}
+          />
+          <span style={{ fontSize: 10, color: "var(--text-soft)", textAlign: "center", lineHeight: 1.2 }}>{s.label}</span>
+        </div>
+      ))}
     </div>
   );
 }

@@ -29,18 +29,13 @@ const COMMON_STEPS = [
   },
   {
     selector: '[data-tour="appr"]',
-    title: "승인내역 점검",
-    description: "지자체 점검 전 엑셀을 올려서 결제 간격 겹침을 자동 자가 점검.",
+    title: "결제 겹침 찾기",
+    description: "지자체 점검 전 엑셀을 올려서 결제 시간 겹침을 자동 자가 점검.",
   },
   {
     selector: '[data-tour="exp"]',
     title: "일괄 다운로드",
     description: "월·아동을 골라 저장된 일정표·기록지를 ZIP 한 파일로 받습니다.",
-  },
-  {
-    selector: '[data-tour="time"]',
-    title: "내 시간표",
-    description: "저장된 일정표를 월간 캘린더로 한 눈에. 대시보드 '전체 일정' 버튼도 여기로 연결돼요.",
   },
   {
     selector: '[data-tour="child"]',

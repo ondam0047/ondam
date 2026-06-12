@@ -164,7 +164,7 @@ export default function ApprovalCheckClient() {
     <>
       <div className="section-head">
         <div>
-          <h2>승인내역 점검</h2>
+          <h2>결제 겹침 찾기</h2>
           <p>
             서비스제공내역 엑셀을 올리면 연속 결제 시간 간격(±10분)을 확인합니다.
             지자체 점검 전에 미리 자가 점검하세요.

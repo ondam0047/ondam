@@ -5,12 +5,13 @@ import { usePathname } from "next/navigation";
 
 const META: Record<string, { title: string; crumb: string }> = {
   "/dashboard":  { title: "대시보드",    crumb: "센터 운영 현황 한눈에 보기" },
+  "/month":      { title: "이번 달",      crumb: "이 달 전 아동의 일정·기록지 상태 한눈에 + 일괄 받기" },
   "/schedule":   { title: "일정표",      crumb: "아동 선택 → 회기 패턴 → 일정표 생성 → 한글파일 출력" },
   "/record":     { title: "기록지",      crumb: "엑셀 업로드 → 아동별 회기 확인 → 상태/결과 기록 → 한글파일 출력" },
   "/children":   { title: "내 아동",     crumb: "아동 등록 → 기본값 설정 → 일정표에서 한 번에 불러오기" },
   "/import":     { title: "엑셀 가져오기", crumb: "쓰던 엑셀 → 내 아동으로 일괄 등록" },
   "/center":     { title: "내 설정",     crumb: "내 정보·치료 영역·시간대 관리" },
-  "/timetable":  { title: "내 시간표",   crumb: "요일·시간 회기 현황 + 출석부 엑셀" },
+  "/timetable":  { title: "월간 보기",   crumb: "일정표 · 저장된 회기를 월간 캘린더로 한눈에" },
   "/guide":      { title: "도움말",     crumb: "사용 설명서" },
 };
 

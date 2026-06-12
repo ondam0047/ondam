@@ -116,8 +116,8 @@ export default async function GuidePage() {
     { id: "schedule",  label: "일정표 작성" },
     { id: "record",    label: "기록지 작성" },
     { id: "handwrite", label: "수기로 작성하는 분" },
-    { id: "approval",  label: "승인내역 점검" },
-    { id: "timetable", label: "내 시간표" },
+    { id: "approval",  label: "결제 겹침 찾기" },
+    { id: "timetable", label: "월간 보기" },
     { id: "bulk",      label: "일괄 다운로드" },
     { id: "persist",   label: "작업 상태 유지" },
     { id: "faq",       label: "자주 묻는 질문" },
@@ -188,7 +188,7 @@ export default async function GuidePage() {
             </Step>
             <Step n={2} title="대시보드">
               로그인 첫 화면. <b>이번 주 회기</b>·이번 달 진행률·미작성 기록지 등 본인 작업 현황을 한 눈에.
-              "전체 일정 →" 버튼으로 <b>내 시간표</b> 캘린더로 바로 이동합니다.
+              "전체 일정 →" 버튼으로 <b>월간 보기</b> 캘린더로 바로 이동합니다.
             </Step>
             <Step n={3} title="모바일">
               스마트폰 브라우저로 같은 주소(https://baroilji.com)에 접속하면 작은 화면에 맞게 조정됩니다.
@@ -414,15 +414,15 @@ export default async function GuidePage() {
               나중에 같은 아동·월로 다시 들어와도 위 표는 그대로 자동 재생성됩니다.
             </Callout>
             <Callout kind="info">
-              <b>승인내역 점검</b> 메뉴는 수기로 운영하는 분들도 똑같이 유용해요.
+              <b>결제 겹침 찾기</b> 메뉴는 수기로 운영하는 분들도 똑같이 유용해요.
               엑셀만 올리면 결제 시간 겹침을 자동 검출하니까 종이 작성 여부와 무관하게 지자체 점검 전에 한 번씩 돌려보세요.
             </Callout>
           </Detail>
         </Section>
 
-        {/* 8. 승인내역 점검 */}
-        <Section id="approval" num="8" title="승인내역 점검" summary="엑셀만 올리면 결제 시간이 겹치는 회기를 자동으로 잡아줘요.">
-          <GuideVideo slug="guide-07-approval" title="승인내역 점검" />
+        {/* 8. 결제 겹침 찾기 */}
+        <Section id="approval" num="8" title="결제 겹침 찾기" summary="엑셀만 올리면 결제 시간이 겹치는 회기를 자동으로 잡아줘요.">
+          <GuideVideo slug="guide-07-approval" title="결제 겹침 찾기" />
           <Detail>
             <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
               지자체 점검 전에 본인 결제 내역을 미리 자가 점검합니다.
@@ -430,7 +430,7 @@ export default async function GuidePage() {
             </p>
 
             <Step n={1} title="엑셀 업로드">
-              <b>[승인내역 점검]</b> 메뉴 → 서비스제공내역.xls 그대로 업로드.
+              <b>[결제 겹침 찾기]</b> 메뉴 → 서비스제공내역.xls 그대로 업로드.
             </Step>
             <Step n={2} title="자동 점검">
               결제일·시간 기준으로 정렬한 뒤 직전 결제와의 간격을 계산.
@@ -448,8 +448,8 @@ export default async function GuidePage() {
           </Detail>
         </Section>
 
-        {/* 9. 내 시간표 */}
-        <Section id="timetable" num="9" title="내 시간표" summary="저장된 일정표를 월간 캘린더로 한눈에 봐요.">
+        {/* 9. 월간 보기 */}
+        <Section id="timetable" num="9" title="월간 보기" summary="저장된 일정표를 월간 캘린더로 한눈에 봐요.">
           <Detail>
             <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
               저장된 일정표를 <b>월간 캘린더</b>로 한 눈에 봅니다. 모든 회기가 날짜별·시간순으로 표시되고,
@@ -464,7 +464,7 @@ export default async function GuidePage() {
 
         {/* 10. 일괄 다운로드 */}
         <Section id="bulk" num="10" title="일괄 다운로드" summary="월말 마감, 아동별 한글파일을 ZIP으로 한 번에 받아요.">
-          <GuideVideo slug="guide-08-dashboard" title="대시보드·일괄 다운로드·내 시간표" />
+          <GuideVideo slug="guide-08-dashboard" title="대시보드·일괄 다운로드·월간 보기" />
           <Detail>
             <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
               <b>[일괄 다운로드]</b> 메뉴(또는 대시보드 버튼)에서 월말 마감을 한 번에.
