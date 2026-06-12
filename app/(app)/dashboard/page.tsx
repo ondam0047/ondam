@@ -52,7 +52,7 @@ export default async function DashboardPage() {
 }
 
 type CommonProps = {
-  user: { name: string; therapistId: number | null };
+  user: { id: number; name: string; therapistId: number | null };
   centerId: number;
   year: number;
   month: number;
@@ -64,6 +64,8 @@ type CommonProps = {
 // ─── 치료사 대시보드 ────────────────────────────────────────────────────
 async function TherapistDashboard({ user, centerId, year: y, month: m, todayDay, todayDow, weekDates }: CommonProps) {
   const data = await loadMyStats(centerId, user.therapistId, y, m, weekDates, todayDay);
+  // 저장한 '우리 센터 양식'(기록지) 보유 여부 — 시작 가이드 선택 단계용.
+  const hasForm = (await prisma.recordForm.count({ where: { ownerUserId: user.id, kind: "record" } })) > 0;
 
   return (
     <>
@@ -106,7 +108,7 @@ async function TherapistDashboard({ user, centerId, year: y, month: m, todayDay,
         </div>
       </div>
 
-      <StartChecklist hasChild={data.hasChild} hasSchedule={data.hasSchedule} hasRecord={data.hasRecord} />
+      <StartChecklist hasChild={data.hasChild} hasSchedule={data.hasSchedule} hasRecord={data.hasRecord} hasForm={hasForm} />
       {data.hasChild && data.hasSchedule && data.hasRecord && (
         <MonthFocusBanner month={m} unwrittenCount={data.unwrittenCount} totalSessions={data.totalSessionsThisMonth} />
       )}
@@ -136,7 +138,7 @@ async function TherapistDashboard({ user, centerId, year: y, month: m, todayDay,
 
 // ─── 시작 가이드 체크리스트 ──────────────────────────────────────────────
 // 신규 사용자가 "첫 기록지"까지 가는 골든 패스. 3단계 모두 끝나면 자동으로 사라짐.
-function StartChecklist({ hasChild, hasSchedule, hasRecord }: { hasChild: boolean; hasSchedule: boolean; hasRecord: boolean }) {
+function StartChecklist({ hasChild, hasSchedule, hasRecord, hasForm }: { hasChild: boolean; hasSchedule: boolean; hasRecord: boolean; hasForm: boolean }) {
   const steps = [
     { done: hasChild, title: "첫 아동 등록", desc: "담당 아동을 추가해요.", href: "/children/new", cta: "아동 등록" },
     { done: hasSchedule, title: "이번 달 일정 만들기", desc: "회기 일정을 짜두면 기록지가 자동으로 채워져요.", href: "/schedule", cta: "일정표 가기" },
@@ -160,6 +162,27 @@ function StartChecklist({ hasChild, hasSchedule, hasRecord }: { hasChild: boolea
           <a href="/api/record/sample" style={{ color: "var(--primary)", fontWeight: 700 }}>📄 샘플 기록지 먼저 보기</a>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {!hasForm && (
+            <div style={{
+              display: "flex", alignItems: "center", gap: 12, padding: "10px 12px",
+              borderRadius: "var(--r-md)", background: "var(--surface-2)", border: "1px dashed var(--border)",
+            }}>
+              <div style={{
+                width: 26, height: 26, borderRadius: "50%", flex: "0 0 auto",
+                display: "grid", placeItems: "center", fontSize: 14,
+                background: "var(--surface)", border: "1px solid var(--border)",
+              }}>📄</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>
+                  우리 센터 양식 올리기 <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)" }}>(선택)</span>
+                </div>
+                <div className="sub-mute" style={{ fontSize: 12 }}>
+                  센터 양식이 따로 있으면 <b>먼저</b> 올려두세요 — 첫 기록지부터 그 양식으로 나와요. 없으면 건너뛰어도 돼요(표준 서식).
+                </div>
+              </div>
+              <Link className="btn" href="/forms" style={{ padding: "8px 14px", fontWeight: 700, whiteSpace: "nowrap" }}>양식 올리기</Link>
+            </div>
+          )}
           {steps.map((s, i) => {
             const isNext = i === nextIdx;
             return (
