@@ -374,7 +374,7 @@ function SpectrogramRadar({
   latest: Record<string, unknown>;
   previous: Record<string, unknown> | null;
 }) {
-  const W = 230, H = 190, cx = 115, cy = 98, R = 66;
+  const W = 300, H = 264, cx = 150, cy = 130, R = 98;
   const AX = [
     { key: "pctS", label: "표준", color: TARGETS.s.color, ang: -90 },
     { key: "pctPal", label: "구개음화", color: TARGETS.palatalized.color, ang: 30 },
@@ -396,7 +396,7 @@ function SpectrogramRadar({
       <p style={{ margin: "0 0 2px", fontSize: 12, fontWeight: 600, color: "var(--text-soft)" }}>
         근접 구성 (최신 세션{previous ? " · 점선=직전" : ""})
       </p>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", maxWidth: 300, display: "block", margin: "0 auto" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", maxWidth: 440, display: "block", margin: "0 auto" }}>
         {/* 격자 삼각형 */}
         {rings.map((rv) => (
           <path key={rv} d={AX.map((a) => pt(rv, a.ang)).map(([x, y], i) => `${i ? "L" : "M"} ${x.toFixed(1)} ${y.toFixed(1)}`).join(" ") + " Z"}

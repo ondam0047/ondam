@@ -9,22 +9,16 @@ import {
   getRateFeedback,
   type ChunkMode,
 } from "@/lib/voice/syllables";
+import ToolMonitor from "../ToolMonitor";
 
 /* ──────────────────────────────────────────────
    공용 상수 / 타입
    ────────────────────────────────────────────── */
 
 type Mode = "visual" | "audio" | "mixed";
+type Child = { id: number; name: string; birthDate: string | null };
 
 const CHUNK_MODES: ChunkMode[] = ["1어절씩", "2어절씩", "3어절씩", "4어절씩", "전체 문장"];
-
-type CustomPreset = { id: string; label: string; text: string };
-
-const DEFAULT_PRESETS: CustomPreset[] = [
-  { id: "preset-greet", label: "인사", text: "안녕하세요. 오늘도 좋은 하루 보내세요." },
-  { id: "preset-order", label: "주문", text: "따뜻한 아메리카노 한 잔 주세요." },
-  { id: "preset-ask", label: "요청", text: "잠깐만요. 제가 천천히 다시 말해 볼게요." },
-];
 
 const MODE_DEFAULT_TEXT: Record<Mode, string> = {
   visual: "오늘은 천천히 또박또박 말해 볼게요.",
@@ -37,9 +31,26 @@ const DEFAULT_CHUNK_MODE: ChunkMode = "2어절씩";
 const DEFAULT_PAUSE_SEC = 0.5;
 const DEFAULT_FONT_SIZE = 18;
 
-// 미리 써두는 문장 목록 (오른쪽 칸) — 5개, localStorage 유지
-const SENTENCE_SLOTS = 5;
-const SENTENCE_LIST_KEY = "pd-pacing-sentence-list";
+// 아동별 문장 목록 — localStorage 자동 저장. 키: 아동 id 별로 분리.
+const SENTENCE_KEY = (childId: number | null) => `pd-pacing-sentences:${childId ?? "none"}`;
+const DEFAULT_SENTENCE_ROWS = 3;
+const MAX_SENTENCE_ROWS = 12;
+
+function loadSentences(childId: number | null): string[] {
+  try {
+    const raw = window.localStorage.getItem(SENTENCE_KEY(childId));
+    if (raw) {
+      const arr: unknown = JSON.parse(raw);
+      if (Array.isArray(arr)) {
+        const list = arr.filter((x) => typeof x === "string") as string[];
+        return list.length > 0 ? list : Array(DEFAULT_SENTENCE_ROWS).fill("");
+      }
+    }
+  } catch {
+    /* noop */
+  }
+  return Array(DEFAULT_SENTENCE_ROWS).fill("");
+}
 
 /* 측정 피드백 배지 색상 (baroilji 토큰 기반) */
 function feedbackBadgeStyle(feedback: string): { bg: string; fg: string } {
@@ -79,27 +90,28 @@ const textareaStyle: React.CSSProperties = {
    공용 페이싱 훅 — 시각/청각/혼합이 공유하는 동작
    - withBall  : 시각 진행 막대(공) 사용
    - withCue   : 구 시작 청각 cue 사용
+   childId/childName : 상단 드롭다운에서 선택한 대상자(문장 목록·저장 기준)
    ────────────────────────────────────────────── */
 
-function usePacingTrainer(moduleType: ModuleType, opts: { withBall: boolean; withCue: boolean }) {
+function usePacingTrainer(
+  moduleType: ModuleType,
+  opts: { withBall: boolean; withCue: boolean },
+  childId: number | null,
+  childName: string,
+) {
   const { withBall, withCue } = opts;
 
-  const [clientName, setClientName] = useState("");
   const [sessionNote, setSessionNote] = useState("");
 
   const [practiceText, setPracticeText] = useState(MODE_DEFAULT_TEXT[moduleType]);
-  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
   const [targetSps, setTargetSps] = useState(DEFAULT_TARGET_SPS);
   const [chunkMode, setChunkMode] = useState<ChunkMode>(DEFAULT_CHUNK_MODE);
   const [pauseSec, setPauseSec] = useState(DEFAULT_PAUSE_SEC);
   const [displayFontSize, setDisplayFontSize] = useState(DEFAULT_FONT_SIZE);
 
-  const [presets, setPresets] = useState<CustomPreset[]>(DEFAULT_PRESETS);
-  const [presetLabelInput, setPresetLabelInput] = useState("");
-  const [presetTextInput, setPresetTextInput] = useState("");
-
-  // 미리 써두는 문장 목록 (5개)
-  const [sentenceList, setSentenceList] = useState<string[]>(() => Array(SENTENCE_SLOTS).fill(""));
+  // 아동별 문장 목록 (추가/제거 가능). SSR 안전 위해 초기값은 빈 줄, 로드는 effect 에서.
+  const [sentenceList, setSentenceList] = useState<string[]>(() => Array(DEFAULT_SENTENCE_ROWS).fill(""));
+  const loadedChildRef = useRef<number | null | undefined>(undefined);
 
   const [isRunning, setIsRunning] = useState(false);
   const [activeChunkIndex, setActiveChunkIndex] = useState(-1);
@@ -125,11 +137,12 @@ function usePacingTrainer(moduleType: ModuleType, opts: { withBall: boolean; wit
     return totalSyllables / targetSps;
   }, [totalSyllables, targetSps]);
 
-  /* 현재 세션(이름/메모) 읽기 — 표시용 */
+  const clientName = childName.trim();
+
+  /* 현재 세션(메모) 읽기 — 표시·기록용 */
   useEffect(() => {
     const sync = () => {
       const current = getCurrentSession();
-      setClientName((current.clientName ?? "").trim());
       setSessionNote(current.sessionNote ?? "");
     };
     sync();
@@ -137,40 +150,48 @@ function usePacingTrainer(moduleType: ModuleType, opts: { withBall: boolean; wit
     return () => window.removeEventListener("pd-current-session-updated", sync);
   }, []);
 
-  /* 미리 써둔 문장 목록 — localStorage 로드/저장 */
+  /* 마운트 + 대상자 변경 시 그 아동의 문장 목록 로드 (effect 내에서만 localStorage 접근) */
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(SENTENCE_LIST_KEY);
-      if (!raw) return;
-      const arr: unknown = JSON.parse(raw);
-      if (Array.isArray(arr)) {
-        setSentenceList(
-          Array.from({ length: SENTENCE_SLOTS }, (_, i) =>
-            typeof arr[i] === "string" ? (arr[i] as string) : "",
-          ),
-        );
-      }
-    } catch {
-      /* noop */
-    }
-  }, []);
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(SENTENCE_LIST_KEY, JSON.stringify(sentenceList));
-    } catch {
-      /* noop */
-    }
-  }, [sentenceList]);
+    if (loadedChildRef.current === childId) return;
+    loadedChildRef.current = childId;
+    setSentenceList(loadSentences(childId));
+  }, [childId]);
 
+  // 변경 즉시 현재 아동 키로 저장 (effect 저장은 대상자 전환 시 경쟁이 생겨 함수에서 직접)
+  function persist(list: string[]) {
+    try {
+      window.localStorage.setItem(SENTENCE_KEY(childId), JSON.stringify(list));
+    } catch {
+      /* noop */
+    }
+  }
   function updateSentence(index: number, value: string) {
-    setSentenceList((prev) => prev.map((s, i) => (i === index ? value : s)));
+    setSentenceList((prev) => {
+      const next = prev.map((s, i) => (i === index ? value : s));
+      persist(next);
+      return next;
+    });
+  }
+  function addSentence() {
+    setSentenceList((prev) => {
+      if (prev.length >= MAX_SENTENCE_ROWS) return prev;
+      const next = [...prev, ""];
+      persist(next);
+      return next;
+    });
+  }
+  function removeSentence(index: number) {
+    setSentenceList((prev) => {
+      const next = prev.length <= 1 ? [""] : prev.filter((_, i) => i !== index);
+      persist(next);
+      return next;
+    });
   }
   function applySentence(text: string) {
     if (isRunning) return;
     const v = text.trim();
     if (!v) return;
     setPracticeText(v);
-    setSelectedPresetId(null);
   }
 
   /* 정리 */
@@ -198,65 +219,10 @@ function usePacingTrainer(moduleType: ModuleType, opts: { withBall: boolean; wit
   function resetSettingsToDefault() {
     if (isRunning) return;
     setPracticeText(MODE_DEFAULT_TEXT[moduleType]);
-    setSelectedPresetId(null);
     setTargetSps(DEFAULT_TARGET_SPS);
     setChunkMode(DEFAULT_CHUNK_MODE);
     setPauseSec(DEFAULT_PAUSE_SEC);
     setDisplayFontSize(DEFAULT_FONT_SIZE);
-  }
-
-  /* 프리셋 동작 */
-  function handleSelectPreset(preset: CustomPreset) {
-    if (isRunning) return;
-    setSelectedPresetId(preset.id);
-    setPracticeText(preset.text);
-    setPresetLabelInput(preset.label);
-    setPresetTextInput(preset.text);
-  }
-
-  function handleNewPreset() {
-    setSelectedPresetId(null);
-    setPresetLabelInput("");
-    setPresetTextInput(practiceText.trim() || "");
-  }
-
-  function handleSavePreset() {
-    const nextLabel = presetLabelInput.trim();
-    const nextText = presetTextInput.trim();
-    if (!nextLabel || !nextText) {
-      alert("문구 이름과 내용을 입력해주세요.");
-      return;
-    }
-    const id = selectedPresetId ?? crypto.randomUUID();
-    const nextPreset: CustomPreset = { id, label: nextLabel, text: nextText };
-    setPresets((prev) => {
-      const exists = prev.some((p) => p.id === id);
-      return exists ? prev.map((p) => (p.id === id ? nextPreset : p)) : [...prev, nextPreset];
-    });
-    setSelectedPresetId(id);
-    setPracticeText(nextText);
-    setPresetLabelInput(nextLabel);
-    setPresetTextInput(nextText);
-  }
-
-  function handleDeletePreset() {
-    if (!selectedPresetId) {
-      alert("삭제할 문구를 먼저 선택해주세요.");
-      return;
-    }
-    if (!window.confirm("선택한 문구를 삭제할까요?")) return;
-    setPresets((prev) => prev.filter((p) => p.id !== selectedPresetId));
-    setSelectedPresetId(null);
-    setPresetLabelInput("");
-    setPresetTextInput("");
-  }
-
-  function handleResetPresets() {
-    if (!window.confirm("저장된 문구를 기본값으로 되돌릴까요?")) return;
-    setPresets(DEFAULT_PRESETS);
-    setSelectedPresetId(null);
-    setPresetLabelInput("");
-    setPresetTextInput("");
   }
 
   /* 청각 cue — 880Hz sine, gain 0.08, 120ms */
@@ -323,7 +289,7 @@ function usePacingTrainer(moduleType: ModuleType, opts: { withBall: boolean; wit
               id: crypto.randomUUID(),
               savedAt: new Date().toISOString(),
               moduleType,
-              clientName: clientName.trim(),
+              clientName: clientName,
               sessionNote: sessionNote.trim(),
               practiceText: practiceText.trim(),
               targetSps,
@@ -451,17 +417,13 @@ function usePacingTrainer(moduleType: ModuleType, opts: { withBall: boolean; wit
     clientName, sessionNote,
     // 설정
     practiceText, setPracticeText,
-    selectedPresetId, setSelectedPresetId,
     targetSps, setTargetSps,
     chunkMode, setChunkMode,
     pauseSec, setPauseSec,
     displayFontSize, increaseFontSize, decreaseFontSize,
-    // 프리셋
-    presets, presetLabelInput, setPresetLabelInput, presetTextInput, setPresetTextInput,
-    handleSelectPreset, handleNewPreset, handleSavePreset, handleDeletePreset, handleResetPresets,
     resetSettingsToDefault,
-    // 미리 써둔 문장 목록
-    sentenceList, updateSentence, applySentence,
+    // 문장 목록
+    sentenceList, updateSentence, addSentence, removeSentence, applySentence,
     // 실행 상태
     isRunning, activeChunkIndex, ballProgress, statusText,
     measuredSps, feedback, recordingSec, recordedAudioUrl,
@@ -469,22 +431,23 @@ function usePacingTrainer(moduleType: ModuleType, opts: { withBall: boolean; wit
     chunks, totalSyllables, targetTotalSec,
     // 액션
     startTraining, stopTrainingManually,
+    // 모듈
+    moduleType,
   };
 }
 
 /* ──────────────────────────────────────────────
-   공용 프리젠테이션 — 설정 + 요약 + 어절 표시
-   accent: 청각/혼합 테마 강조색(없으면 primary)
-   extraNote: 단서 안내 문구
-   showBall: 진행 막대 표시 여부
+   공용 프리젠테이션 — 설정 + 요약 + 어절 표시 + 모니터링
    ────────────────────────────────────────────── */
 
 function TrainerView({
   t,
+  childId,
   showBall,
   extraNote,
 }: {
   t: ReturnType<typeof usePacingTrainer>;
+  childId: number | null;
   showBall: boolean;
   extraNote: string;
 }) {
@@ -493,118 +456,37 @@ function TrainerView({
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
-      {/* 세션 정보 (읽기 전용) */}
-      {(t.clientName || t.sessionNote) && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {t.clientName && (
-            <span className="badge badge-primary">대상자: {t.clientName}</span>
-          )}
-          {t.sessionNote && (
-            <span className="badge">메모: {t.sessionNote}</span>
-          )}
-        </div>
-      )}
-
       {/* 설정 카드 */}
       <div className="card">
         <div className="card-body" style={{ display: "grid", gap: 18 }}>
-          {/* 연습 문구 고르기 — 왼쪽: 저장된 문구 / 오른쪽: 미리 써둔 문장 5개 */}
+          {/* 문장 목록 (아동별 · 추가/제거 · 자동 저장) — 전체 폭 */}
           <div style={{ display: "grid", gap: 10 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-              <strong style={{ fontSize: 13, color: "var(--text)" }}>연습 문구 고르기</strong>
-              <button type="button" className="btn btn-sm" onClick={t.resetSettingsToDefault} disabled={t.isRunning}>
-                설정 초기화
-              </button>
+              <strong style={{ fontSize: 13, color: "var(--text)" }}>
+                문장 목록 {t.clientName ? `· ${t.clientName}` : ""}
+                <span style={{ fontWeight: 400, color: "var(--text-mute)", marginLeft: 6 }}>자동 저장</span>
+              </strong>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button type="button" className="btn btn-sm" onClick={t.addSentence} disabled={t.isRunning}>＋ 문장 추가</button>
+                <button type="button" className="btn btn-sm" onClick={t.resetSettingsToDefault} disabled={t.isRunning}>설정 초기화</button>
+              </div>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
-              {/* 왼쪽: 저장된 문구(프리셋) */}
-              <div style={{ display: "grid", gap: 8, alignContent: "start" }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)" }}>저장된 문구</span>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {t.presets.map((preset) => {
-                    const on = t.selectedPresetId === preset.id;
-                    return (
-                      <button
-                        key={preset.id}
-                        type="button"
-                        onClick={() => t.handleSelectPreset(preset)}
-                        disabled={t.isRunning}
-                        style={{
-                          padding: "8px 12px",
-                          borderRadius: 999,
-                          border: "none",
-                          background: on ? "var(--primary)" : "var(--surface-2)",
-                          color: on ? "#fff" : "var(--text-soft)",
-                          cursor: t.isRunning ? "not-allowed" : "pointer",
-                          fontWeight: on ? 700 : 500,
-                          fontSize: 13,
-                        }}
-                      >
-                        {preset.label}
-                      </button>
-                    );
-                  })}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 340px), 1fr))", gap: 8 }}>
+              {t.sentenceList.map((s, i) => (
+                <div key={i} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <span style={{ fontSize: 12, color: "var(--text-mute)", width: 16, textAlign: "right", flexShrink: 0 }}>{i + 1}</span>
+                  <input
+                    type="text"
+                    value={s}
+                    onChange={(e) => t.updateSentence(i, e.target.value)}
+                    placeholder={`문장 ${i + 1}`}
+                    disabled={t.isRunning}
+                    style={{ ...inputStyle, flex: 1, minWidth: 0 }}
+                  />
+                  <button type="button" className="btn btn-sm" onClick={() => t.applySentence(s)} disabled={t.isRunning || !s.trim()} style={{ flexShrink: 0 }}>사용</button>
+                  <button type="button" className="btn btn-sm" onClick={() => t.removeSentence(i)} disabled={t.isRunning} title="이 문장 삭제" style={{ flexShrink: 0, padding: "6px 9px" }}>✕</button>
                 </div>
-              </div>
-
-              {/* 오른쪽: 미리 써둔 문장 5개 */}
-              <div style={{ display: "grid", gap: 8, alignContent: "start" }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-mute)" }}>문장 목록 (미리 5개 작성 · 자동 저장)</span>
-                {t.sentenceList.map((s, i) => (
-                  <div key={i} style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                    <span style={{ fontSize: 12, color: "var(--text-mute)", width: 14, textAlign: "right", flexShrink: 0 }}>{i + 1}</span>
-                    <input
-                      type="text"
-                      value={s}
-                      onChange={(e) => t.updateSentence(i, e.target.value)}
-                      placeholder={`문장 ${i + 1}`}
-                      disabled={t.isRunning}
-                      style={{ ...inputStyle, flex: 1, minWidth: 0 }}
-                    />
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      onClick={() => t.applySentence(s)}
-                      disabled={t.isRunning || !s.trim()}
-                      style={{ flexShrink: 0 }}
-                    >
-                      사용
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* 프리셋 편집 */}
-          <div style={{ border: "1px solid var(--border)", borderRadius: 12, padding: 16, background: "var(--surface-2)" }}>
-            <div style={{ display: "grid", gap: 12 }}>
-              <div className="field">
-                <label>문구 이름</label>
-                <input
-                  type="text"
-                  value={t.presetLabelInput}
-                  onChange={(e) => t.setPresetLabelInput(e.target.value)}
-                  placeholder="예: 주문 문구"
-                  style={inputStyle}
-                />
-              </div>
-              <div className="field">
-                <label>문구 내용</label>
-                <textarea
-                  value={t.presetTextInput}
-                  onChange={(e) => t.setPresetTextInput(e.target.value)}
-                  rows={3}
-                  placeholder="자주 쓰는 문구를 저장하세요"
-                  style={textareaStyle}
-                />
-              </div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <button type="button" className="btn btn-sm" onClick={t.handleNewPreset}>새 문구</button>
-                <button type="button" className="btn btn-primary btn-sm" onClick={t.handleSavePreset}>문구 저장</button>
-                <button type="button" className="btn btn-sm" onClick={t.handleDeletePreset}>선택 문구 삭제</button>
-                <button type="button" className="btn btn-sm" onClick={t.handleResetPresets}>기본값 복원</button>
-              </div>
+              ))}
             </div>
           </div>
 
@@ -613,12 +495,9 @@ function TrainerView({
             <label>연습 문구</label>
             <textarea
               value={t.practiceText}
-              onChange={(e) => {
-                t.setPracticeText(e.target.value);
-                t.setSelectedPresetId(null);
-              }}
+              onChange={(e) => t.setPracticeText(e.target.value)}
               disabled={t.isRunning}
-              rows={4}
+              rows={3}
               style={textareaStyle}
             />
           </div>
@@ -776,6 +655,24 @@ function TrainerView({
           )}
         </div>
       </div>
+
+      {/* 모니터링 — 상단에서 고른 대상자 기준 */}
+      <ToolMonitor
+        module="pacing"
+        lockedChildId={childId}
+        getMetrics={() =>
+          t.measuredSps !== null
+            ? { measuredSps: t.measuredSps, targetSps: Number(t.targetSps.toFixed(1)), feedback: t.feedback || "-", mode: t.moduleType }
+            : null
+        }
+        renderSummary={(m) =>
+          `측정 ${m.measuredSps ?? "-"} / 목표 ${m.targetSps ?? "-"} 음절·초${m.feedback ? ` · ${m.feedback}` : ""}${m.mode ? ` (${m.mode})` : ""}`
+        }
+        trends={[
+          { key: "measuredSps", label: "측정 말속도", unit: "음절/초", color: "#2563EB" },
+          { key: "targetSps", label: "목표 말속도", unit: "음절/초", color: "#5A6E3D" },
+        ]}
+      />
     </div>
   );
 }
@@ -784,33 +681,36 @@ function TrainerView({
    3개 변형
    ────────────────────────────────────────────── */
 
-function PacingVisual() {
-  const t = usePacingTrainer("visual", { withBall: true, withCue: false });
+function PacingVisual({ childId, childName }: { childId: number | null; childName: string }) {
+  const t = usePacingTrainer("visual", { withBall: true, withCue: false }, childId, childName);
   return (
     <TrainerView
       t={t}
+      childId={childId}
       showBall
       extraNote="움직이는 공이 묶음을 지나가는 속도에 맞춰, 강조된 묶음을 목표 속도로 읽어요."
     />
   );
 }
 
-function PacingAudio() {
-  const t = usePacingTrainer("audio", { withBall: false, withCue: true });
+function PacingAudio({ childId, childName }: { childId: number | null; childName: string }) {
+  const t = usePacingTrainer("audio", { withBall: false, withCue: true }, childId, childName);
   return (
     <TrainerView
       t={t}
+      childId={childId}
       showBall={false}
       extraNote="각 묶음 시작 시점에 짧은 청각 신호(삐)가 울려요. 신호에 맞춰 한 묶음씩 읽어요."
     />
   );
 }
 
-function PacingMixed() {
-  const t = usePacingTrainer("mixed", { withBall: true, withCue: true });
+function PacingMixed({ childId, childName }: { childId: number | null; childName: string }) {
+  const t = usePacingTrainer("mixed", { withBall: true, withCue: true }, childId, childName);
   return (
     <TrainerView
       t={t}
+      childId={childId}
       showBall
       extraNote="시각 진행 막대와 묶음 시작 청각 신호(삐)를 함께 사용해 목표 속도로 읽어요."
     />
@@ -818,11 +718,24 @@ function PacingMixed() {
 }
 
 /* ──────────────────────────────────────────────
-   루트 — 모드 토글 + 해당 트레이너
+   루트 — 모드 토글 + 대상자 드롭다운 + 해당 트레이너
    ────────────────────────────────────────────── */
 
 export default function PacingClient() {
   const [mode, setMode] = useState<Mode>("visual");
+  const [children, setChildren] = useState<Child[]>([]);
+  const [childId, setChildId] = useState<number | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/tools/children")
+      .then((r) => (r.ok ? r.json() : { children: [] }))
+      .then((d) => { if (alive) setChildren(d.children ?? []); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  const childName = children.find((c) => c.id === childId)?.name ?? "";
 
   const TABS: { key: Mode; label: string }[] = [
     { key: "visual", label: "시각" },
@@ -832,37 +745,54 @@ export default function PacingClient() {
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
-      {/* 세그먼트 토글 */}
-      <div style={{ display: "flex", gap: 6, background: "var(--surface-2)", padding: 4, borderRadius: 12, width: "fit-content" }}>
-        {TABS.map((tab) => {
-          const on = mode === tab.key;
-          return (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setMode(tab.key)}
-              style={{
-                border: "none",
-                borderRadius: 9,
-                padding: "8px 20px",
-                fontSize: 14,
-                fontWeight: on ? 700 : 500,
-                background: on ? "var(--primary)" : "var(--surface)",
-                color: on ? "#fff" : "var(--text-soft)",
-                cursor: "pointer",
-                transition: "background 0.12s, color 0.12s",
-              }}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
+      {/* 모드 토글 + 대상자 드롭다운 */}
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 6, background: "var(--surface-2)", padding: 4, borderRadius: 12, width: "fit-content" }}>
+          {TABS.map((tab) => {
+            const on = mode === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setMode(tab.key)}
+                style={{
+                  border: "none",
+                  borderRadius: 9,
+                  padding: "8px 20px",
+                  fontSize: 14,
+                  fontWeight: on ? 700 : 500,
+                  background: on ? "var(--primary)" : "var(--surface)",
+                  color: on ? "#fff" : "var(--text-soft)",
+                  cursor: "pointer",
+                  transition: "background 0.12s, color 0.12s",
+                }}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-soft)" }}>대상자</span>
+          <select
+            value={childId ?? ""}
+            onChange={(e) => setChildId(e.target.value ? Number(e.target.value) : null)}
+            style={{ padding: "9px 12px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface)", fontSize: 14, color: "var(--text)", minWidth: 160 }}
+          >
+            <option value="">선택 안 함</option>
+            {children.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}{c.birthDate ? ` (${c.birthDate})` : ""}</option>
+            ))}
+          </select>
+          <span style={{ fontSize: 12, color: "var(--text-mute)" }}>문장 목록·기록이 대상자별로 저장돼요</span>
+        </div>
       </div>
 
       {/* mode를 key로 줘서 전환 시 각 트레이너 상태를 깔끔히 초기화 */}
-      {mode === "visual" && <PacingVisual key="visual" />}
-      {mode === "audio" && <PacingAudio key="audio" />}
-      {mode === "mixed" && <PacingMixed key="mixed" />}
+      {mode === "visual" && <PacingVisual key="visual" childId={childId} childName={childName} />}
+      {mode === "audio" && <PacingAudio key="audio" childId={childId} childName={childName} />}
+      {mode === "mixed" && <PacingMixed key="mixed" childId={childId} childName={childName} />}
     </div>
   );
 }

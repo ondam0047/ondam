@@ -21,6 +21,7 @@ export default function ToolMonitor({
   renderOverview,
   trend,
   trends,
+  lockedChildId,
   onContext,
 }: {
   module: string;
@@ -30,11 +31,16 @@ export default function ToolMonitor({
   renderOverview?: (sessions: SavedSession[]) => ReactNode;
   trend?: Series;
   trends?: Series[]; // 여러 지표 추이(예: 음도+강도, 말속도+조음속도)
+  lockedChildId?: number | null; // 외부에서 대상자를 제어할 때(내부 드롭다운 숨김)
   onContext?: (ctx: { subject: string | null; clinician: string; chartSvg: string }) => void;
 }) {
   const [children, setChildren] = useState<Child[] | null>(null);
   const [therapist, setTherapist] = useState("");
-  const [childId, setChildId] = useState<number | null>(null);
+  const [internalChildId, setInternalChildId] = useState<number | null>(null);
+  // lockedChildId 가 주어지면 그것을 사용(외부 제어), 아니면 내부 선택값.
+  const locked = lockedChildId !== undefined;
+  const childId = locked ? (lockedChildId ?? null) : internalChildId;
+  const setChildId = setInternalChildId;
   const [sessions, setSessions] = useState<SavedSession[]>([]);
   const [loadingList, setLoadingList] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -141,19 +147,22 @@ export default function ToolMonitor({
         ) : (
           <>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-              <select
-                value={childId ?? ""}
-                onChange={(e) => setChildId(e.target.value ? Number(e.target.value) : null)}
-                style={{ padding: "9px 12px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface)", fontSize: 14, color: "var(--text)", minWidth: 180 }}
-              >
-                <option value="">대상자 선택…</option>
-                {children.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}{c.birthDate ? ` (${c.birthDate})` : ""}</option>
-                ))}
-              </select>
+              {!locked && (
+                <select
+                  value={childId ?? ""}
+                  onChange={(e) => setChildId(e.target.value ? Number(e.target.value) : null)}
+                  style={{ padding: "9px 12px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface)", fontSize: 14, color: "var(--text)", minWidth: 180 }}
+                >
+                  <option value="">대상자 선택…</option>
+                  {children.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}{c.birthDate ? ` (${c.birthDate})` : ""}</option>
+                  ))}
+                </select>
+              )}
               <button className="btn btn-primary" onClick={save} disabled={saving || childId == null}>
-                {saving ? "저장 중…" : "이 대상자에 저장"}
+                {saving ? "저장 중…" : locked ? "측정 결과 저장" : "이 대상자에 저장"}
               </button>
+              {locked && childId == null && <span style={{ fontSize: 13, color: "var(--text-mute)" }}>위에서 대상자를 선택하세요</span>}
               {msg && <span style={{ fontSize: 13, color: "var(--primary)" }}>{msg}</span>}
             </div>
 
@@ -168,7 +177,7 @@ export default function ToolMonitor({
 
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, margin: "0 0 6px" }}>
                   <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: "var(--text-soft)" }}>
-                    최근 기록 {sessions.length > 0 ? `(${sessions.length})` : ""}
+                    최근 기록 {sessions.length > 0 ? `(최근 ${Math.min(5, sessions.length)}${sessions.length > 5 ? ` / 총 ${sessions.length}` : ""})` : ""}
                     {sessions.length > 0 && <span style={{ fontWeight: 400, color: "var(--text-mute)" }}> · 잘못된 점은 삭제로 수정</span>}
                   </p>
                   {sessions.length > 0 && (
@@ -182,8 +191,8 @@ export default function ToolMonitor({
                 ) : sessions.length === 0 ? (
                   <p style={{ margin: 0, fontSize: 13, color: "var(--text-mute)" }}>아직 저장된 기록이 없어요.</p>
                 ) : (
-                  <div style={{ display: "grid", gap: 6 }}>
-                    {[...sessions].reverse().map((s) => (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 250px), 1fr))", gap: 8, alignItems: "start" }}>
+                    {[...sessions].reverse().slice(0, 5).map((s) => (
                       <div key={s.id} style={{ display: "grid", gap: 6, borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface-2)", padding: "8px 12px" }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
                           <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
