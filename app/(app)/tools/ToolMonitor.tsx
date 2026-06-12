@@ -10,7 +10,11 @@ type SavedSession = {
   note: string | null;
   metrics: Record<string, unknown>;
 };
-type Series = { key: string; label: string; unit?: string; color?: string; categories?: string[] };
+type Series = {
+  key: string; label: string; unit?: string; color?: string; categories?: string[];
+  // 같은 차트에 겹쳐 그릴 기준선(예: 목표 말속도). 같은 축·단위일 때만.
+  refKey?: string; refLabel?: string; refColor?: string;
+};
 
 // 바로툴 모듈 공용 — 담당 대상자 선택 + 측정 결과 저장 + 최근 기록 + 추이 그래프.
 export default function ToolMonitor({
@@ -134,7 +138,12 @@ export default function ToolMonitor({
     <div className="card">
       <div className="card-body" style={{ display: "grid", gap: 14 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>대상자 모니터링</h3>
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>
+            대상자 모니터링
+            {locked && childId != null && (
+              <span style={{ marginLeft: 6, color: "var(--primary)" }}>· {children?.find((c) => c.id === childId)?.name ?? ""}</span>
+            )}
+          </h3>
           <span style={{ fontSize: 12, color: "var(--text-mute)" }}>측정 결과를 대상자별로 저장해 추이를 봐요</span>
         </div>
 
@@ -227,8 +236,14 @@ function TrendChart({
 }) {
   const [hover, setHover] = useState<number | null>(null);
 
+  const refKey = series.refKey;
+  const refColor = series.refColor ?? "#B7956A";
   const pts = sessions
-    .map((s) => ({ t: s.createdAt, v: Number(s.metrics[series.key]) }))
+    .map((s) => ({
+      t: s.createdAt,
+      v: Number(s.metrics[series.key]),
+      ref: refKey ? Number(s.metrics[refKey]) : NaN,
+    }))
     .filter((p) => isFinite(p.v));
   if (pts.length < 2) return null;
 
@@ -244,7 +259,7 @@ function TrendChart({
   if (cats && cats.length > 0) {
     min = 0.5; max = cats.length + 0.5;
   } else {
-    const vals = pts.map((p) => p.v);
+    const vals = pts.map((p) => p.v).concat(refKey ? pts.map((p) => p.ref).filter((r) => isFinite(r)) : []);
     min = Math.min(...vals);
     max = Math.max(...vals);
     if (min === max) { min -= 1; max += 1; }
@@ -255,6 +270,9 @@ function TrendChart({
   const x = (i: number) => PAD.left + (pts.length === 1 ? innerW / 2 : (i / (pts.length - 1)) * innerW);
   const y = (v: number) => PAD.top + innerH * (1 - (v - min) / (max - min));
   const path = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${x(i).toFixed(1)} ${y(p.v).toFixed(1)}`).join(" ");
+  const refPath = refKey
+    ? pts.map((p, i) => (isFinite(p.ref) ? `${i === 0 ? "M" : "L"} ${x(i).toFixed(1)} ${y(p.ref).toFixed(1)}` : "")).filter(Boolean).join(" ")
+    : "";
 
   // 값 표기: 범주형이면 범주 라벨, 아니면 숫자(+단위)
   const valLabel = (v: number) =>
@@ -270,7 +288,14 @@ function TrendChart({
     <div style={{ marginBottom: 12, borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface)", padding: 10 }}>
       <p style={{ margin: "0 0 4px", fontSize: 12, fontWeight: 600, color: "var(--text-soft)" }}>
         {series.label} 추이 {series.unit && !cats ? `(${series.unit})` : ""}
-        <span style={{ marginLeft: 6, fontWeight: 400, color: "var(--text-mute)" }}>· 점에 마우스를 올리면 수치가 나와요</span>
+        {refKey && series.refLabel ? (
+          <span style={{ marginLeft: 8, fontWeight: 600 }}>
+            <span style={{ color }}>━ {series.label}</span>
+            <span style={{ marginLeft: 8, color: refColor }}>┈ {series.refLabel}</span>
+          </span>
+        ) : (
+          <span style={{ marginLeft: 6, fontWeight: 400, color: "var(--text-mute)" }}>· 점에 마우스를 올리면 수치가 나와요</span>
+        )}
       </p>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", display: "block" }}>
         {gridLevels.map(({ gy, label }, i) => (
@@ -279,6 +304,9 @@ function TrendChart({
             <text x={PAD.left - 6} y={gy + 4} textAnchor="end" fontSize={11} fill="var(--text-mute)">{label}</text>
           </g>
         ))}
+        {/* 기준선(목표 등) — 점선 */}
+        {refPath && <path d={refPath} fill="none" stroke={refColor} strokeWidth={2} strokeDasharray="5 4" strokeLinejoin="round" strokeLinecap="round" />}
+        {refKey && pts.map((p, i) => (isFinite(p.ref) ? <circle key={`r-${i}`} cx={x(i)} cy={y(p.ref)} r={2.5} fill={refColor} /> : null))}
         <path d={path} fill="none" stroke={color} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
         {pts.map((p, i) => (
           <circle key={i} cx={x(i)} cy={y(p.v)} r={hover === i ? 5 : 3.5} fill={color} stroke="white" strokeWidth={1.5} />
@@ -292,7 +320,8 @@ function TrendChart({
           const p = pts[hover];
           const cx = x(hover);
           const cy = y(p.v);
-          const text = `${fmtDate(p.t).slice(0, 8)} · ${valLabel(p.v)}`;
+          const refTxt = refKey && isFinite(p.ref) ? ` · ${series.refLabel ?? "기준"} ${valLabel(p.ref)}` : "";
+          const text = `${fmtDate(p.t).slice(0, 8)} · ${valLabel(p.v)}${refTxt}`;
           const tw = Math.max(64, text.length * 6.6 + 14);
           const tx = Math.min(W - PAD.right - tw, Math.max(PAD.left, cx - tw / 2));
           const ty = Math.max(2, cy - 30);

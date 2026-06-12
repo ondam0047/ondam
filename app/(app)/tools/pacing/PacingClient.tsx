@@ -668,10 +668,15 @@ function TrainerView({
         renderSummary={(m) =>
           `측정 ${m.measuredSps ?? "-"} / 목표 ${m.targetSps ?? "-"} 음절·초${m.feedback ? ` · ${m.feedback}` : ""}${m.mode ? ` (${m.mode})` : ""}`
         }
-        trends={[
-          { key: "measuredSps", label: "측정 말속도", unit: "음절/초", color: "#2563EB" },
-          { key: "targetSps", label: "목표 말속도", unit: "음절/초", color: "#5A6E3D" },
-        ]}
+        trend={{
+          key: "measuredSps",
+          label: "측정 말속도",
+          unit: "음절/초",
+          color: "#2563EB",
+          refKey: "targetSps",
+          refLabel: "목표 말속도",
+          refColor: "#B7956A",
+        }}
       />
     </div>
   );
