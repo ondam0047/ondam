@@ -82,6 +82,7 @@ model User {
   records      Record[]   @relation("RecordCreatedBy")
   passwordResets PasswordReset[]
   recordForms    RecordForm[]
+  supportRecords SupportRecord[]
 }
 
 model PasswordReset {
@@ -184,6 +185,20 @@ model RecordForm {
   updatedAt   DateTime @updatedAt
 
   @@index([ownerUserId, kind])
+}
+
+// 기타지원사업 작성 저장본 — 한 번 작성한 아동을 불러오기/수정.
+model SupportRecord {
+  id          Int      @id @default(autoincrement())
+  ownerUserId Int
+  ownerUser   User     @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  program     String   // 지원사업 키 (예: "maeummoa")
+  student     String   // 아동 이름 (목록 표시용)
+  payload     String   // 폼 전체 데이터(JSON: 헤더 + 회기)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([ownerUserId, program])
 }
 
 // ChildService = 한 아동이 받는 한 서비스. (아동 × 서비스 종류 × 치료사)

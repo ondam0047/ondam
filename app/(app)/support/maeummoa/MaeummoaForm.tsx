@@ -2,55 +2,100 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 type Session = { date: string; time: string; content: string };
+type Saved = { id: number; student: string; updatedAt: string; payload: string };
 const MAX = 3;
 
-export default function MaeummoaForm({ therapist, place }: { therapist: string; place: string }) {
-  const [form, setForm] = useState({
-    year: "2025",
-    month: "3",
-    domain: "언어치료",
-    therapist,
-    student: "",
-    school: "",
-    place,
-    weekly: "",
-    goal: "",
-  });
+const emptyForm = (therapist: string, place: string) => ({
+  year: "2025", month: "3", domain: "언어치료", therapist, student: "", school: "", place, weekly: "", goal: "",
+});
+
+export default function MaeummoaForm({
+  therapist, place, saved = [],
+}: { therapist: string; place: string; saved?: Saved[] }) {
+  const router = useRouter();
+  const [form, setForm] = useState(emptyForm(therapist, place));
   const [sessions, setSessions] = useState<Session[]>([{ date: "", time: "", content: "" }]);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
-
   const setSess = (i: number, k: keyof Session, v: string) =>
     setSessions((arr) => arr.map((s, j) => (j === i ? { ...s, [k]: v } : s)));
-
   const addRow = () => setSessions((a) => (a.length < MAX ? [...a, { date: "", time: "", content: "" }] : a));
   const delRow = (i: number) => setSessions((a) => a.filter((_, j) => j !== i));
 
+  const payload = () => ({
+    year: Number(form.year) || 2025, month: Number(form.month) || 1,
+    domain: form.domain, therapist: form.therapist, student: form.student,
+    school: form.school, place: form.place, weekly: form.weekly, goal: form.goal,
+    sessions: sessions.filter((s) => s.date || s.time || s.content),
+  });
+
+  function newDoc() {
+    setForm(emptyForm(therapist, place));
+    setSessions([{ date: "", time: "", content: "" }]);
+    setEditingId(null); setMsg(""); setErr("");
+  }
+
+  function loadRecord(r: Saved) {
+    try {
+      const d = JSON.parse(r.payload);
+      setForm({
+        year: String(d.year ?? "2025"), month: String(d.month ?? "3"),
+        domain: d.domain ?? "언어치료", therapist: d.therapist ?? therapist,
+        student: d.student ?? r.student, school: d.school ?? "",
+        place: d.place ?? place, weekly: d.weekly ?? "", goal: d.goal ?? "",
+      });
+      const ss: Session[] = Array.isArray(d.sessions) && d.sessions.length
+        ? d.sessions.map((s: Session) => ({ date: s.date ?? "", time: s.time ?? "", content: s.content ?? "" }))
+        : [{ date: "", time: "", content: "" }];
+      setSessions(ss.slice(0, MAX));
+      setEditingId(r.id); setErr(""); setMsg(`'${r.student}' 불러옴 — 수정 후 저장/출력하세요.`);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch { setErr("저장본을 불러오지 못했어요."); }
+  }
+
+  async function save() {
+    setErr(""); setMsg("");
+    if (!form.student.trim()) { setErr("학생명을 입력하세요."); return; }
+    setBusy(true);
+    try {
+      const res = await fetch("/api/support/maeummoa/save", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: editingId ?? undefined, student: form.student, payload: payload() }),
+      });
+      if (!res.ok) { setErr("저장 실패 (" + res.status + ")"); return; }
+      const { id } = await res.json();
+      setEditingId(id); setMsg("저장됐어요.");
+      router.refresh();
+    } catch { setErr("저장 중 오류가 발생했어요."); }
+    finally { setBusy(false); }
+  }
+
+  async function remove(id: number) {
+    if (!confirm("이 저장본을 삭제할까요?")) return;
+    await fetch("/api/support/maeummoa/delete", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    if (editingId === id) newDoc();
+    router.refresh();
+  }
+
   async function download() {
-    setErr("");
+    setErr(""); setMsg("");
     if (!form.student.trim()) { setErr("학생명을 입력하세요."); return; }
     setBusy(true);
     try {
       const res = await fetch("/api/support/maeummoa/hwpx", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          year: Number(form.year) || 2025,
-          month: Number(form.month) || 1,
-          domain: form.domain,
-          therapist: form.therapist,
-          student: form.student,
-          school: form.school,
-          place: form.place,
-          weekly: form.weekly,
-          goal: form.goal,
-          sessions: sessions.filter((s) => s.date || s.time || s.content),
-        }),
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload()),
       });
       if (!res.ok) { setErr("출력 실패 (" + res.status + ")"); return; }
       const blob = await res.blob();
@@ -58,13 +103,9 @@ export default function MaeummoaForm({ therapist, place }: { therapist: string; 
       const a = document.createElement("a");
       a.href = url;
       a.download = `${form.student || "치료지원일지"}_${String(form.month).padStart(2, "0")}월_치료지원일지.hwpx`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      setErr("출력 중 오류가 발생했어요.");
-    } finally {
-      setBusy(false);
-    }
+      a.click(); URL.revokeObjectURL(url);
+    } catch { setErr("출력 중 오류가 발생했어요."); }
+    finally { setBusy(false); }
   }
 
   const L: React.CSSProperties = { display: "block", fontSize: 13, fontWeight: 700, marginBottom: 4, color: "var(--text-soft)" };
@@ -77,12 +118,31 @@ export default function MaeummoaForm({ therapist, place }: { therapist: string; 
       <div className="section-head">
         <div>
           <h2>교육청 치료지원 일지 (마음모아)</h2>
-          <p>작성 후 한글(.hwpx)로 출력해요. <Link href="/support">← 기타지원사업</Link></p>
+          <p>작성 후 한글(.hwpx) 출력. 저장하면 다음에 불러와 수정할 수 있어요. <Link href="/support">← 기타지원사업</Link></p>
         </div>
+        <button className="btn btn-sm" style={{ alignSelf: "center" }} onClick={newDoc}>+ 새로 작성</button>
       </div>
 
+      {saved.length > 0 && (
+        <div className="card" style={{ padding: 16, marginBottom: 16 }}>
+          <h3 style={{ marginTop: 0, marginBottom: 10 }}>저장된 아동 ({saved.length})</h3>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {saved.map((r) => (
+              <div key={r.id}
+                style={{ display: "flex", alignItems: "center", gap: 6, border: "1px solid var(--border)", borderRadius: 999, padding: "4px 6px 4px 12px",
+                  background: editingId === r.id ? "var(--primary-soft)" : "var(--surface)" }}>
+                <button className="btn btn-sm btn-ghost" style={{ padding: "2px 4px" }} onClick={() => loadRecord(r)}>
+                  <b>{r.student}</b> <span style={{ color: "var(--text-mute)", fontSize: 11 }}>{r.updatedAt}</span>
+                </button>
+                <button className="btn btn-sm btn-ghost" title="삭제" style={{ padding: "2px 6px", color: "var(--danger, #B8453A)" }} onClick={() => remove(r.id)}>×</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="card" style={{ padding: 20, marginBottom: 16 }}>
-        <h3 style={{ marginTop: 0 }}>기본 정보</h3>
+        <h3 style={{ marginTop: 0 }}>기본 정보 {editingId && <span className="badge badge-primary" style={{ marginLeft: 6 }}>수정 중</span>}</h3>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
           {cell("학년도", <input className="input" value={form.year} onChange={set("year")} />)}
           {cell("월", <input className="input" value={form.month} onChange={set("month")} />)}
@@ -109,22 +169,24 @@ export default function MaeummoaForm({ therapist, place }: { therapist: string; 
               {sessions.length > 1 && <button className="btn btn-sm btn-ghost" style={{ alignSelf: "end", marginBottom: 12 }} onClick={() => delRow(i)}>삭제</button>}
             </div>
             <label style={L}>내용 (최대 3줄 · 특이사항은 # 로 시작)</label>
-            <textarea
-              className="input" rows={3} value={s.content}
+            <textarea className="input" rows={3} value={s.content}
               onChange={(e) => setSess(i, "content", e.target.value)}
               placeholder={"- 어휘 확장 : 사과, 바나나, 포도\n- 두 낱말 조합하여 요구하기\n# 보호자 카드 미소지로 당일 미결제"}
-              style={{ resize: "vertical", lineHeight: 1.6 }}
-            />
+              style={{ resize: "vertical", lineHeight: 1.6 }} />
           </div>
         ))}
       </div>
 
       {err && <div className="flash warn" style={{ marginBottom: 12 }}>{err}</div>}
-      <button className="btn btn-primary" onClick={download} disabled={busy} style={{ minWidth: 200 }}>
-        {busy ? "생성 중…" : "한글(.hwpx) 출력 ↓"}
-      </button>
+      {msg && <div className="flash" style={{ marginBottom: 12 }}>{msg}</div>}
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <button className="btn" onClick={save} disabled={busy}>{editingId ? "저장(수정)" : "저장"}</button>
+        <button className="btn btn-primary" onClick={download} disabled={busy} style={{ minWidth: 180 }}>
+          {busy ? "처리 중…" : "한글(.hwpx) 출력 ↓"}
+        </button>
+      </div>
       <p style={{ fontSize: 12, color: "var(--text-mute)", marginTop: 10 }}>
-        * 최소본(v1): 한 달·최대 3회기·내용 3줄. (다중 월·일정 자동 불러오기는 추후)
+        * 최소본: 한 달·최대 3회기·내용 3줄. 저장하면 위 &lt;저장된 아동&gt;에서 불러와 수정할 수 있어요.
       </p>
     </>
   );
