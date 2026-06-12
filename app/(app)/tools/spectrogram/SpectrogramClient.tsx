@@ -354,15 +354,11 @@ export default function SpectrogramClient() {
             const zl = ZONE_LABELS[Number(m.zone)] ?? "-";
             return `근접 ${zl} · 중심 ${m.centroid ?? "-"}Hz · 목표 체류 ${m.targetPct ?? "-"}%`;
           }}
-          renderRowChart={(m) => (
-            <ZoneBar
-              segs={[
-                { label: "왜곡", pct: Number(m.pctSh) || 0, color: TARGETS.sh.color },
-                { label: "구개음화", pct: Number(m.pctPal) || 0, color: TARGETS.palatalized.color },
-                { label: "표준", pct: Number(m.pctS) || 0, color: TARGETS.s.color },
-              ]}
-            />
-          )}
+          renderOverview={(sessions) => {
+            const z = sessions.filter((s) => s.metrics.pctS != null || s.metrics.pctPal != null || s.metrics.pctSh != null);
+            if (z.length === 0) return null;
+            return <SpectrogramRadar latest={z[z.length - 1].metrics} previous={z.length >= 2 ? z[z.length - 2].metrics : null} />;
+          }}
           trend={{ key: "zone", label: "근접 구간", categories: ZONE_LABELS.slice(1) }}
           onContext={setSubj}
         />
@@ -371,31 +367,61 @@ export default function SpectrogramClient() {
   );
 }
 
-// 모니터링 세션별 근접 분포 막대 (왜곡·구개음화·표준)
-function ZoneBar({ segs }: { segs: { label: string; pct: number; color: string }[] }) {
+// 모니터링 개요 — 왜곡/구개음화/표준 비율을 삼각 레이더로(최신 채움 + 이전 점선)
+function SpectrogramRadar({
+  latest,
+  previous,
+}: {
+  latest: Record<string, unknown>;
+  previous: Record<string, unknown> | null;
+}) {
+  const W = 230, H = 190, cx = 115, cy = 98, R = 66;
+  const AX = [
+    { key: "pctS", label: "표준", color: TARGETS.s.color, ang: -90 },
+    { key: "pctPal", label: "구개음화", color: TARGETS.palatalized.color, ang: 30 },
+    { key: "pctSh", label: "왜곡", color: TARGETS.sh.color, ang: 150 },
+  ] as const;
+  const pt = (v: number, ang: number): [number, number] => {
+    const r = (Math.max(0, Math.min(100, v)) / 100) * R;
+    const a = (ang * Math.PI) / 180;
+    return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+  };
+  const polyFrom = (m: Record<string, unknown>) =>
+    AX.map((a) => pt(Number(m[a.key]) || 0, a.ang)).map(([x, y], i) => `${i ? "L" : "M"} ${x.toFixed(1)} ${y.toFixed(1)}`).join(" ") + " Z";
+
+  const rings = [25, 50, 75, 100];
+  const latestVals = AX.map((a) => Number(latest[a.key]) || 0);
+
   return (
-    <div style={{ display: "grid", gap: 4 }}>
-      <div style={{ display: "flex", height: 16, borderRadius: 6, overflow: "hidden", background: "var(--surface)", border: "1px solid var(--border)" }}>
-        {segs.map((s) =>
-          s.pct > 0 ? (
-            <div
-              key={s.label}
-              title={`${s.label} ${s.pct}%`}
-              style={{ width: `${s.pct}%`, background: s.color, display: "flex", alignItems: "center", justifyContent: "center", minWidth: 0 }}
-            >
-              {s.pct >= 12 && <span style={{ fontSize: 9.5, fontWeight: 700, color: "#fff" }}>{Math.round(s.pct)}%</span>}
-            </div>
-          ) : null,
-        )}
-      </div>
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", fontSize: 10.5, color: "var(--text-soft)" }}>
-        {segs.map((s) => (
-          <span key={s.label} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-            <span style={{ width: 9, height: 9, borderRadius: 2, background: s.color, display: "inline-block" }} />
-            {s.label} {s.pct}%
-          </span>
+    <div style={{ marginBottom: 12, borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface)", padding: "10px 10px 4px" }}>
+      <p style={{ margin: "0 0 2px", fontSize: 12, fontWeight: 600, color: "var(--text-soft)" }}>
+        근접 구성 (최신 세션{previous ? " · 점선=직전" : ""})
+      </p>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", maxWidth: 300, display: "block", margin: "0 auto" }}>
+        {/* 격자 삼각형 */}
+        {rings.map((rv) => (
+          <path key={rv} d={AX.map((a) => pt(rv, a.ang)).map(([x, y], i) => `${i ? "L" : "M"} ${x.toFixed(1)} ${y.toFixed(1)}`).join(" ") + " Z"}
+            fill="none" stroke="#E4DCC9" strokeWidth={1} />
         ))}
-      </div>
+        {/* 축선 + 라벨 + 값 */}
+        {AX.map((a, i) => {
+          const [ex, ey] = pt(100, a.ang);
+          const [lx, ly] = (() => { const rr = R + 16; const ar = (a.ang * Math.PI) / 180; return [cx + rr * Math.cos(ar), cy + rr * Math.sin(ar)]; })();
+          const anchor = a.ang === -90 ? "middle" : a.ang === 30 ? "start" : "end";
+          return (
+            <g key={a.key}>
+              <line x1={cx} y1={cy} x2={ex} y2={ey} stroke="#D9CFB6" strokeWidth={1} />
+              <text x={lx} y={a.ang === -90 ? ly - 2 : ly + 4} textAnchor={anchor} fontSize={11.5} fontWeight={700} fill={a.color}>{a.label}</text>
+              <text x={lx} y={a.ang === -90 ? ly + 11 : ly + 16} textAnchor={anchor} fontSize={10.5} fill="var(--text-mute)">{Math.round(latestVals[i])}%</text>
+            </g>
+          );
+        })}
+        {/* 이전 세션 (점선) */}
+        {previous && <path d={polyFrom(previous)} fill="none" stroke="#B7AE97" strokeWidth={1.5} strokeDasharray="4 3" />}
+        {/* 최신 세션 (채움) */}
+        <path d={polyFrom(latest)} fill="#5A6E3D" fillOpacity={0.18} stroke="#3D4A2A" strokeWidth={2} strokeLinejoin="round" />
+        {AX.map((a, i) => { const [x, y] = pt(latestVals[i], a.ang); return <circle key={a.key} cx={x} cy={y} r={3} fill={a.color} stroke="#fff" strokeWidth={1} />; })}
+      </svg>
     </div>
   );
 }

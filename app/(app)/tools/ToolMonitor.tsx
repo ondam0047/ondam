@@ -18,6 +18,7 @@ export default function ToolMonitor({
   getMetrics,
   renderSummary,
   renderRowChart,
+  renderOverview,
   trend,
   onContext,
 }: {
@@ -25,6 +26,7 @@ export default function ToolMonitor({
   getMetrics: () => Record<string, number | string> | null;
   renderSummary: (m: Record<string, unknown>) => string;
   renderRowChart?: (m: Record<string, unknown>) => ReactNode;
+  renderOverview?: (sessions: SavedSession[]) => ReactNode;
   trend?: Series;
   onContext?: (ctx: { subject: string | null; clinician: string; chartSvg: string }) => void;
 }) {
@@ -144,6 +146,8 @@ export default function ToolMonitor({
 
             {childId != null && (
               <div>
+                {/* 개요 그래프(레이더 등) */}
+                {renderOverview && renderOverview(sessions)}
                 {/* 추이 그래프 */}
                 {trend && <TrendChart sessions={sessions} series={trend} fmtDate={fmtDate} />}
 
