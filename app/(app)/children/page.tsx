@@ -139,7 +139,7 @@ export default async function ChildrenPage({
               <thead>
                 <tr>
                   <th>아동</th>
-                  <th>받는 치료</th>
+                  <th>상세 내용</th>
                   <th></th>
                 </tr>
               </thead>
@@ -150,44 +150,49 @@ export default async function ChildrenPage({
                   return (
                     <tr key={c.id} style={c.active ? undefined : { opacity: 0.55 }}>
                       <td>
-                        <div className="row-name">
-                          <span className="avatar-sm">{initial}</span>
-                          <div>
-                            <div style={{ fontWeight: 600 }}>{c.name}</div>
-                            {c.birthDate && (
-                              <div className="sub-mute" style={{ fontSize: 11.5 }}>{c.birthDate}</div>
-                            )}
+                        <Link href={`/children/${c.id}/edit`} title="눌러서 수정" style={{ textDecoration: "none", color: "inherit", display: "block" }}>
+                          <div className="row-name">
+                            <span className="avatar-sm">{initial}</span>
+                            <div>
+                              <div style={{ fontWeight: 600 }}>{c.name}</div>
+                              {c.birthDate && (
+                                <div className="sub-mute" style={{ fontSize: 11.5 }}>{c.birthDate}</div>
+                              )}
+                            </div>
                           </div>
-                        </div>
+                        </Link>
                       </td>
                       <td>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                          {visibleServices.map((s) => {
-                            const days = (s.defaultDays ?? "").split(",").filter(Boolean).map(Number);
-                            return (
-                              <div key={s.id} style={{
-                                background: "var(--surface-2)",
-                                border: "1px solid var(--border)",
-                                borderRadius: "var(--r-sm)",
-                                padding: "6px 10px",
-                                fontSize: 12.5,
-                              }}>
-                                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-                                  <span className="badge badge-primary">{s.serviceType}</span>
-                                  <span style={{ color: "var(--text-mute)", fontSize: 11.5 }}>
-                                    {days.length > 0 ? days.map((d) => WEEK[d]).join(" ") : "요일 미정"}
-                                    {s.defaultSlot ? ` · ${s.defaultSlot}` : ""}
-                                    {` · 목표 ${s.defaultTarget}회`}
-                                  </span>
+                        <Link href={`/children/${c.id}/edit`} title="눌러서 수정" style={{ textDecoration: "none", color: "inherit", display: "block" }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                            {visibleServices.map((s) => {
+                              const days = (s.defaultDays ?? "").split(",").filter(Boolean).map(Number);
+                              const copay = s.monthlyCopay != null ? `${s.monthlyCopay.toLocaleString("ko-KR")}원` : "미설정";
+                              return (
+                                <div key={s.id} style={{
+                                  background: "var(--surface-2)",
+                                  border: "1px solid var(--border)",
+                                  borderRadius: "var(--r-sm)",
+                                  padding: "6px 10px",
+                                  fontSize: 12.5,
+                                }}>
+                                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+                                    <span className="badge badge-primary">{s.serviceType}</span>
+                                    <span style={{ color: "var(--text-mute)", fontSize: 11.5 }}>
+                                      기본 {s.defaultSlot || "시간대 미정"}
+                                      {` · 월 목표 ${s.defaultTarget}회`}
+                                      {` · 본인부담 ${copay}`}
+                                      {days.length > 0 ? ` · ${days.map((d) => WEEK[d]).join(" ")}` : ""}
+                                    </span>
+                                  </div>
                                 </div>
-                              </div>
-                            );
-                          })}
-                        </div>
+                              );
+                            })}
+                          </div>
+                        </Link>
                       </td>
                       <td style={{ textAlign: "right" }}>
                         <div style={{ display: "inline-flex", gap: 6 }}>
-                          <Link className="btn btn-ghost btn-sm" href={`/children/${c.id}/edit`}>수정</Link>
                           <form
                             action={async () => {
                               "use server";
