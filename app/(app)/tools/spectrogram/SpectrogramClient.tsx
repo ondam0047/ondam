@@ -359,7 +359,6 @@ export default function SpectrogramClient() {
             if (z.length === 0) return null;
             return <SpectrogramRadar latest={z[z.length - 1].metrics} previous={z.length >= 2 ? z[z.length - 2].metrics : null} />;
           }}
-          trend={{ key: "zone", label: "근접 구간", categories: ZONE_LABELS.slice(1) }}
           onContext={setSubj}
         />
       )}

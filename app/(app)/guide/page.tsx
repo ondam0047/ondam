@@ -117,7 +117,7 @@ export default async function GuidePage() {
     { id: "record",    label: "기록지 작성" },
     { id: "handwrite", label: "수기로 작성하는 분" },
     { id: "approval",  label: "결제 겹침 찾기" },
-    { id: "timetable", label: "내 시간표" },
+    { id: "timetable", label: "월간 보기" },
     { id: "bulk",      label: "일괄 다운로드" },
     { id: "persist",   label: "작업 상태 유지" },
     { id: "faq",       label: "자주 묻는 질문" },
@@ -188,7 +188,7 @@ export default async function GuidePage() {
             </Step>
             <Step n={2} title="대시보드">
               로그인 첫 화면. <b>이번 주 회기</b>·이번 달 진행률·미작성 기록지 등 본인 작업 현황을 한 눈에.
-              "전체 일정 →" 버튼으로 <b>내 시간표</b> 캘린더로 바로 이동합니다.
+              "전체 일정 →" 버튼으로 <b>월간 보기</b> 캘린더로 바로 이동합니다.
             </Step>
             <Step n={3} title="모바일">
               스마트폰 브라우저로 같은 주소(https://baroilji.com)에 접속하면 작은 화면에 맞게 조정됩니다.
@@ -448,8 +448,8 @@ export default async function GuidePage() {
           </Detail>
         </Section>
 
-        {/* 9. 내 시간표 */}
-        <Section id="timetable" num="9" title="내 시간표" summary="저장된 일정표를 월간 캘린더로 한눈에 봐요.">
+        {/* 9. 월간 보기 */}
+        <Section id="timetable" num="9" title="월간 보기" summary="저장된 일정표를 월간 캘린더로 한눈에 봐요.">
           <Detail>
             <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
               저장된 일정표를 <b>월간 캘린더</b>로 한 눈에 봅니다. 모든 회기가 날짜별·시간순으로 표시되고,
@@ -464,7 +464,7 @@ export default async function GuidePage() {
 
         {/* 10. 일괄 다운로드 */}
         <Section id="bulk" num="10" title="일괄 다운로드" summary="월말 마감, 아동별 한글파일을 ZIP으로 한 번에 받아요.">
-          <GuideVideo slug="guide-08-dashboard" title="대시보드·일괄 다운로드·내 시간표" />
+          <GuideVideo slug="guide-08-dashboard" title="대시보드·일괄 다운로드·월간 보기" />
           <Detail>
             <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
               <b>[일괄 다운로드]</b> 메뉴(또는 대시보드 버튼)에서 월말 마감을 한 번에.

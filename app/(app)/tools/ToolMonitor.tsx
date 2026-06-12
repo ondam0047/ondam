@@ -20,6 +20,7 @@ export default function ToolMonitor({
   renderRowChart,
   renderOverview,
   trend,
+  trends,
   onContext,
 }: {
   module: string;
@@ -28,6 +29,7 @@ export default function ToolMonitor({
   renderRowChart?: (m: Record<string, unknown>) => ReactNode;
   renderOverview?: (sessions: SavedSession[]) => ReactNode;
   trend?: Series;
+  trends?: Series[]; // 여러 지표 추이(예: 음도+강도, 말속도+조음속도)
   onContext?: (ctx: { subject: string | null; clinician: string; chartSvg: string }) => void;
 }) {
   const [children, setChildren] = useState<Child[] | null>(null);
@@ -69,10 +71,11 @@ export default function ToolMonitor({
   // 선택 대상자·치료사·최근5회 그래프 SVG 를 모듈(리포트)로 전달
   useEffect(() => {
     const name = children?.find((c) => c.id === childId)?.name ?? null;
+    const mainTrend = trend ?? trends?.[0];
     let chartSvg = "";
-    if (trend && childId != null && sessions.length >= 2) {
-      const points = sessions.map((s) => ({ t: s.createdAt, v: Number(s.metrics[trend.key]) }));
-      chartSvg = trendSvg(points, trend);
+    if (mainTrend && childId != null && sessions.length >= 2) {
+      const points = sessions.map((s) => ({ t: s.createdAt, v: Number(s.metrics[mainTrend.key]) }));
+      chartSvg = trendSvg(points, mainTrend);
     }
     onContext?.({ subject: name, clinician: therapist, chartSvg });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -105,6 +108,16 @@ export default function ToolMonitor({
     await fetch(`/api/tools/session?id=${id}`, { method: "DELETE" }).catch(() => {});
     if (childId != null) loadSessions(childId);
   }, [childId, loadSessions]);
+
+  // 이 대상자·이 도구의 추이(기록) 전체 초기화
+  const resetAll = useCallback(async () => {
+    if (childId == null || sessions.length === 0) return;
+    if (!window.confirm("이 대상자의 이 도구 추이(저장 기록)를 모두 삭제할까요? 되돌릴 수 없어요.")) return;
+    await Promise.all(
+      sessions.map((s) => fetch(`/api/tools/session?id=${s.id}`, { method: "DELETE" }).catch(() => {})),
+    );
+    loadSessions(childId);
+  }, [childId, sessions, loadSessions]);
 
   const fmtDate = (iso: string) => {
     const d = new Date(iso);
@@ -148,12 +161,22 @@ export default function ToolMonitor({
               <div>
                 {/* 개요 그래프(레이더 등) */}
                 {renderOverview && renderOverview(sessions)}
-                {/* 추이 그래프 */}
-                {trend && <TrendChart sessions={sessions} series={trend} fmtDate={fmtDate} />}
+                {/* 추이 그래프 (단일 또는 다중 지표) */}
+                {trends
+                  ? trends.map((s) => <TrendChart key={s.key} sessions={sessions} series={s} fmtDate={fmtDate} />)
+                  : trend && <TrendChart sessions={sessions} series={trend} fmtDate={fmtDate} />}
 
-                <p style={{ margin: "0 0 6px", fontSize: 12, fontWeight: 600, color: "var(--text-soft)" }}>
-                  최근 기록 {sessions.length > 0 ? `(${sessions.length})` : ""}
-                </p>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, margin: "0 0 6px" }}>
+                  <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: "var(--text-soft)" }}>
+                    최근 기록 {sessions.length > 0 ? `(${sessions.length})` : ""}
+                    {sessions.length > 0 && <span style={{ fontWeight: 400, color: "var(--text-mute)" }}> · 잘못된 점은 삭제로 수정</span>}
+                  </p>
+                  {sessions.length > 0 && (
+                    <button onClick={resetAll} style={{ background: "none", border: "1px solid var(--border)", borderRadius: 8, padding: "3px 10px", fontSize: 12, color: "var(--text-soft)", cursor: "pointer" }}>
+                      추이 전체 초기화
+                    </button>
+                  )}
+                </div>
                 {loadingList ? (
                   <p style={{ margin: 0, fontSize: 13, color: "var(--text-mute)" }}>불러오는 중…</p>
                 ) : sessions.length === 0 ? (

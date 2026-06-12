@@ -34,7 +34,6 @@ function analyzeSpeechRate(
     trimEnds?: boolean;
   },
 ): SpeechRateResult {
-  const threshold = options?.threshold ?? 0.012;
   const minPauseMs = options?.minPauseMs ?? 100;
   const longPauseMs = options?.longPauseMs ?? 250;
   // trimEnds=false 면 선행/후행 침묵을 제거하지 않음(사용자가 구간을 직접 지정한 경우).
@@ -43,18 +42,30 @@ function analyzeSpeechRate(
   const frameSize = Math.round(sampleRate * 0.025);
   const hopSize = Math.round(sampleRate * 0.01);
 
+  // 1차: 프레임별 RMS
   const frameTimes: number[] = [];
-  const isVoiced: boolean[] = [];
+  const rmsArr: number[] = [];
   for (let start = 0; start + frameSize <= signal.length; start += hopSize) {
     let sumSq = 0;
     for (let i = 0; i < frameSize; i++) {
       const s = signal[start + i];
       sumSq += s * s;
     }
-    const rms = Math.sqrt(sumSq / frameSize);
     frameTimes.push(start / sampleRate);
-    isVoiced.push(rms > threshold);
+    rmsArr.push(Math.sqrt(sumSq / frameSize));
   }
+
+  // 적응형 임계: 녹음 레벨이 작아도 쉼/발화를 구분하도록 잡음바닥+여유로 자동 설정.
+  // (고정 임계 0.012 는 소리가 작은 녹음에서 전부 '쉼'으로 잡혀 조음속도가 0이 되는 문제가 있었음)
+  let threshold = options?.threshold;
+  if (threshold == null) {
+    const sorted = [...rmsArr].sort((a, b) => a - b);
+    const pct = (p: number) => (sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))] : 0);
+    const noise = pct(0.15);
+    const peak = pct(0.95);
+    threshold = Math.max(0.006, noise + 0.12 * Math.max(0, peak - noise));
+  }
+  const isVoiced: boolean[] = rmsArr.map((r) => r > (threshold as number));
 
   if (isVoiced.length === 0) {
     return {
@@ -821,7 +832,7 @@ export default function SpeechRateClient() {
               >
                 <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, margin: "0 0 8px", flexWrap: "wrap" }}>
                   <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: "var(--text-soft)" }}>
-                    파형 · 양끝 손잡이를 끌어 분석 구간을 정하세요 (초록 = 발화, 회색 = 쉼)
+                    파형 · 양끝 손잡이를 끌거나 Shift+드래그로 분석 구간을 정하세요 (초록 = 발화, 회색 = 쉼)
                   </p>
                   <span style={{ fontSize: 12, color: "var(--text-mute)", display: "inline-flex", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
                     분석 구간 <b style={{ color: "var(--text)" }}>{(selEnd - selStart).toFixed(2)}초</b>
@@ -1108,11 +1119,6 @@ export default function SpeechRateClient() {
                     value={`${articulationSPS.toFixed(2)} SPS`}
                     sub={"쉼 제외"}
                   />
-                  <ResultBox
-                    label="속도 비율"
-                    value={`${((overallSPS / articulationSPS) * 100 || 0).toFixed(0)}%`}
-                    sub={"전체/조음"}
-                  />
                 </div>
               </div>
             )}
@@ -1128,8 +1134,11 @@ export default function SpeechRateClient() {
               ? { sps: Number(overallSPS.toFixed(2)), artSps: Number(articulationSPS.toFixed(2)), dur: Number(result.totalDuration.toFixed(2)), syllables: syllablesNum }
               : null
           }
-          renderSummary={(m) => `${m.sps ?? "-"} SPS · ${m.dur ?? "-"}초${m.syllables ? ` · ${m.syllables}음절` : ""}`}
-          trend={{ key: "sps", label: "말속도", unit: "SPS" }}
+          renderSummary={(m) => `말속도 ${m.sps ?? "-"} · 조음 ${m.artSps ?? "-"} SPS · ${m.dur ?? "-"}초${m.syllables ? ` · ${m.syllables}음절` : ""}`}
+          trends={[
+            { key: "sps", label: "말속도(전체)", unit: "SPS", color: "#2563EB" },
+            { key: "artSps", label: "조음속도(쉼 제외)", unit: "SPS", color: "#5A6E3D" },
+          ]}
           onContext={setSubj}
         />
       )}
@@ -1209,7 +1218,8 @@ function SpeechWaveform({
 }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const dragRef = useRef<"start" | "end" | null>(null);
+  const dragRef = useRef<"start" | "end" | "region" | null>(null);
+  const regionAnchorRef = useRef<number>(0);
 
   // 파형 그리기 (전체 신호, 선택과 무관)
   useEffect(() => {
@@ -1267,7 +1277,12 @@ function SpeechWaveform({
       const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
       const t = ratio * rawDuration;
       const MIN = 0.2; // 최소 구간 0.2초
-      if (which === "start") onChange(Math.min(t, selEnd - MIN), selEnd);
+      if (which === "region") {
+        const anchor = regionAnchorRef.current;
+        const a = Math.min(anchor, t);
+        const b = Math.max(anchor, t);
+        onChange(a, Math.max(b, a + MIN));
+      } else if (which === "start") onChange(Math.min(t, selEnd - MIN), selEnd);
       else onChange(selStart, Math.max(t, selStart + MIN));
     };
     const onMouseMove = (e: MouseEvent) => move(e.clientX);
@@ -1299,6 +1314,19 @@ function SpeechWaveform({
   return (
     <div
       ref={wrapRef}
+      onMouseDown={(e) => {
+        // Shift+드래그 → 새 구간 선택 (손잡이가 아닌 빈 영역)
+        if (!e.shiftKey || rawDuration <= 0) return;
+        const wrap = wrapRef.current;
+        if (!wrap) return;
+        e.preventDefault();
+        const rect = wrap.getBoundingClientRect();
+        const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        const t = ratio * rawDuration;
+        regionAnchorRef.current = t;
+        dragRef.current = "region";
+        onChange(t, Math.min(rawDuration, t + 0.2));
+      }}
       style={{ position: "relative", width: "100%", overflow: "hidden", borderRadius: 8, border: "1px solid var(--border-strong)", height: WAVE_H, userSelect: "none" }}
     >
       <canvas ref={canvasRef} style={{ display: "block" }} />

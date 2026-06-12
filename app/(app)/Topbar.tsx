@@ -10,7 +10,7 @@ const META: Record<string, { title: string; crumb: string }> = {
   "/children":   { title: "내 아동",     crumb: "아동 등록 → 기본값 설정 → 일정표에서 한 번에 불러오기" },
   "/import":     { title: "엑셀 가져오기", crumb: "쓰던 엑셀 → 내 아동으로 일괄 등록" },
   "/center":     { title: "내 설정",     crumb: "내 정보·치료 영역·시간대 관리" },
-  "/timetable":  { title: "내 시간표",   crumb: "요일·시간 회기 현황 + 출석부 엑셀" },
+  "/timetable":  { title: "월간 보기",   crumb: "일정표 · 저장된 회기를 월간 캘린더로 한눈에" },
   "/guide":      { title: "도움말",     crumb: "사용 설명서" },
 };
 

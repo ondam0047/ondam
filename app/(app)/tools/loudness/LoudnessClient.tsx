@@ -502,7 +502,10 @@ export default function LoudnessClient() {
               : null
           }
           renderSummary={(m) => `평균 ${m.meanF0 ?? "-"}Hz · ${m.meanDb ?? "-"}dB · 음역 ${m.rangeSt ?? "-"}st`}
-          trend={{ key: "meanF0", label: "평균 음도", unit: "Hz" }}
+          trends={[
+            ...(showPitch ? [{ key: "meanF0", label: "평균 음도", unit: "Hz", color: PITCH_COLOR }] : []),
+            ...(showDb ? [{ key: "meanDb", label: "평균 강도", unit: "dB", color: DB_COLOR }] : []),
+          ]}
           onContext={setSubj}
         />
       )}

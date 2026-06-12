@@ -38,11 +38,6 @@ const COMMON_STEPS = [
     description: "월·아동을 골라 저장된 일정표·기록지를 ZIP 한 파일로 받습니다.",
   },
   {
-    selector: '[data-tour="time"]',
-    title: "내 시간표",
-    description: "저장된 일정표를 월간 캘린더로 한 눈에. 대시보드 '전체 일정' 버튼도 여기로 연결돼요.",
-  },
-  {
     selector: '[data-tour="child"]',
     title: "내 아동",
     description: "담당 아동을 등록·수정. 일정표에서 + 새 아동 으로도 즉시 등록할 수 있어요.",

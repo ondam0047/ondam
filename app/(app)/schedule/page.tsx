@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import ScheduleClient from "./ScheduleClient";
+import ViewTabs from "./ViewTabs";
 import { bulkGenerateSchedules } from "./bulk-actions";
 import { requireRole, getEffectiveTherapistId } from "@/lib/auth";
 import { parseSlots, THERAPIST_TO_SERVICE } from "@/lib/constants";
@@ -82,6 +83,7 @@ export default async function SchedulePage({
 
   return (
     <>
+      <ViewTabs active="edit" />
       {sp.bulk && <div className="flash ok" style={{ marginBottom: 14 }}>{sp.bulk}</div>}
       {sp.berr && <div className="flash warn" style={{ marginBottom: 14 }}>{sp.berr}</div>}
 
