@@ -4,9 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-type Session = { date: string; time: string; content: string };
+type Session = { date: string; time: string; content: string; memo: string };
 type Saved = { id: number; student: string; updatedAt: string; payload: string };
-const MAX_SESS = 12; // 3회 × 4장 (페이지당 3회)
+const MAX_SESS = 16; // 4회 × 4장 (페이지당 4회)
 
 const emptyForm = (therapist: string, place: string) => ({
   year: "2025", month: "3", domain: "언어치료", therapist, student: "", school: "", place, weekly: "", goal: "",
@@ -17,7 +17,7 @@ export default function MaeummoaForm({
 }: { therapist: string; place: string; saved?: Saved[] }) {
   const router = useRouter();
   const [form, setForm] = useState(emptyForm(therapist, place));
-  const [sessions, setSessions] = useState<Session[]>([{ date: "", time: "", content: "" }]);
+  const [sessions, setSessions] = useState<Session[]>([{ date: "", time: "", content: "", memo: "" }]);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
@@ -27,19 +27,19 @@ export default function MaeummoaForm({
     setForm((f) => ({ ...f, [k]: e.target.value }));
   const setSess = (i: number, k: keyof Session, v: string) =>
     setSessions((arr) => arr.map((s, j) => (j === i ? { ...s, [k]: v } : s)));
-  const addRow = () => setSessions((a) => (a.length < MAX_SESS ? [...a, { date: "", time: "", content: "" }] : a));
+  const addRow = () => setSessions((a) => (a.length < MAX_SESS ? [...a, { date: "", time: "", content: "", memo: "" }] : a));
   const delRow = (i: number) => setSessions((a) => a.filter((_, j) => j !== i));
 
   const payload = () => ({
     year: Number(form.year) || 2025, month: Number(form.month) || 1,
     domain: form.domain, therapist: form.therapist, student: form.student,
     school: form.school, place: form.place, weekly: form.weekly, goal: form.goal,
-    sessions: sessions.filter((s) => s.date || s.time || s.content),
+    sessions: sessions.filter((s) => s.date || s.time || s.content || s.memo),
   });
 
   function newDoc() {
     setForm(emptyForm(therapist, place));
-    setSessions([{ date: "", time: "", content: "" }]);
+    setSessions([{ date: "", time: "", content: "", memo: "" }]);
     setEditingId(null); setMsg(""); setErr("");
   }
 
@@ -53,8 +53,8 @@ export default function MaeummoaForm({
         place: d.place ?? place, weekly: d.weekly ?? "", goal: d.goal ?? "",
       });
       const ss: Session[] = Array.isArray(d.sessions) && d.sessions.length
-        ? d.sessions.map((s: Session) => ({ date: s.date ?? "", time: s.time ?? "", content: s.content ?? "" }))
-        : [{ date: "", time: "", content: "" }];
+        ? d.sessions.map((s: Session) => ({ date: s.date ?? "", time: s.time ?? "", content: s.content ?? "", memo: s.memo ?? "" }))
+        : [{ date: "", time: "", content: "", memo: "" }];
       setSessions(ss);
       setEditingId(r.id); setErr(""); setMsg(`'${r.student}' 불러옴 — 수정 후 저장/출력하세요.`);
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -158,7 +158,7 @@ export default function MaeummoaForm({
 
       <div className="card" style={{ padding: 20, marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-          <h3 style={{ margin: 0 }}>회기 ({sessions.length}) <span style={{ fontWeight: 400, fontSize: 12, color: "var(--text-mute)" }}>· 3회마다 다음 장</span></h3>
+          <h3 style={{ margin: 0 }}>회기 ({sessions.length}) <span style={{ fontWeight: 400, fontSize: 12, color: "var(--text-mute)" }}>· 4회마다 다음 장</span></h3>
           <button className="btn btn-sm" onClick={addRow} disabled={sessions.length >= MAX_SESS}>+ 회기 추가</button>
         </div>
         {sessions.map((s, i) => (
@@ -168,7 +168,8 @@ export default function MaeummoaForm({
               <div style={{ flex: 1 }}>{cell("시간", <input className="input" value={s.time} onChange={(e) => setSess(i, "time", e.target.value)} />)}</div>
               {sessions.length > 1 && <button className="btn btn-sm btn-ghost" style={{ alignSelf: "end", marginBottom: 12 }} onClick={() => delRow(i)}>삭제</button>}
             </div>
-            <label style={L}>내용 (최대 3줄 · 특이사항은 # 로 시작)</label>
+            {cell("특이사항 (일시칸 시간 아래 # 로)", <input className="input" value={s.memo} onChange={(e) => setSess(i, "memo", e.target.value)} placeholder="없으면 비워두세요" />)}
+            <label style={L}>내용 (활동, 최대 3줄)</label>
             <textarea className="input" rows={3} value={s.content}
               onChange={(e) => setSess(i, "content", e.target.value)}
               style={{ resize: "vertical", lineHeight: 1.6 }} />
@@ -185,7 +186,7 @@ export default function MaeummoaForm({
         </button>
       </div>
       <p style={{ fontSize: 12, color: "var(--text-mute)", marginTop: 10 }}>
-        * 한 달치 일지. 회기 3개마다 다음 장으로 넘어가요(최대 4장·12회기). 내용은 한 칸에 최대 3줄. 날짜 25-03-04 · 시간 16:00-16:50 형식.
+        * 한 달치 일지. 회기 4개마다 다음 장으로 넘어가요(최대 4장·16회기). 내용은 한 칸에 최대 3줄. 날짜 25-03-04 · 시간 16:00-16:50 형식.
         저장하면 위 &lt;저장된 아동&gt;에서 불러와 수정할 수 있어요.
       </p>
     </>
