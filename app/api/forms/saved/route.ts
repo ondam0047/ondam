@@ -1,8 +1,9 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { readSection0 } from "@/lib/hwpx";
+import { readSection0, patchSection0 } from "@/lib/hwpx";
 import { resolveForm, applyOverrides } from "@/lib/record-resolver";
+import { removeTableColumns, removeTableRows } from "@/lib/record-trim";
 
 const KINDS = new Set(["record", "schedule"]);
 
@@ -31,11 +32,24 @@ export async function POST(req: NextRequest) {
   if (!name) return Response.json({ error: "이름을 입력하세요." }, { status: 400 });
   if (!KINDS.has(kind)) return Response.json({ error: "종류(기록지/일정표)를 선택하세요." }, { status: 400 });
 
-  const buf = Buffer.from(await file.arrayBuffer());
+  let buf = Buffer.from(await file.arrayBuffer());
   let specJson: string;
   try {
-    const xml = readSection0(buf);
-    const { spec } = resolveForm(xml);
+    let xml = readSection0(buf);
+    let spec = resolveForm(xml).spec;
+    // 회기 칸·결과표 행이 5개를 넘으면 저장 시 자동으로 5칸/5행으로 정리.
+    // → 출력이 항상 5회기 기준이 되고, 6회기 이상이면 자동으로 두 장으로 나뉜다.
+    let trimmed = false;
+    if (spec.dateTable != null && spec.extraSessionCols?.length) {
+      xml = removeTableColumns(xml, spec.dateTable, spec.extraSessionCols); trimmed = true;
+    }
+    if (spec.resultTable != null && spec.extraResultRows?.length) {
+      xml = removeTableRows(xml, spec.resultTable, spec.extraResultRows); trimmed = true;
+    }
+    if (trimmed) {
+      buf = patchSection0(buf, xml);   // 정리된 템플릿으로 교체 저장
+      spec = resolveForm(xml).spec;    // 정리된 구조로 다시 인식
+    }
     const ovRaw = form.get("overrides");
     if (typeof ovRaw === "string" && ovRaw.length > 1) {
       try { applyOverrides(spec, JSON.parse(ovRaw)); } catch { /* noop */ }
