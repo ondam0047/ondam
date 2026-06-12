@@ -76,7 +76,7 @@ export default async function MonthPage({
       <div className="card" style={{ marginBottom: 14 }}>
         <div className="card-body sub-mute" style={{ fontSize: 13 }}>
           담당 아동 <b style={{ color: "var(--text)" }}>{services.length}명</b> · 일정 작성 <b style={{ color: "var(--text)" }}>{schedDone}</b> · 기록지 작성 <b style={{ color: "var(--text)" }}>{recDone}</b>
-          {" — "}이 달의 일정·기록지를 한 화면에서 확인하고 바로 작성·다운로드하세요.
+          {" — "}<b style={{ color: "var(--text)" }}>일정·기록지 칸</b>을 누르면 그 아동 작성 화면으로 바로 이동해요.
         </div>
       </div>
 
@@ -101,7 +101,7 @@ export default async function MonthPage({
           ) : (
             <div className="month-list">
               <div className="month-row head">
-                <div>아동</div><div>일정</div><div>기록지</div><div style={{ textAlign: "right" }}>작성</div>
+                <div>아동</div><div>일정</div><div>기록지</div>
               </div>
               {services.map((s) => {
                 const sc = schedMap.get(s.id);
@@ -113,14 +113,14 @@ export default async function MonthPage({
                       <span className="sub-mute" style={{ fontSize: 11, marginLeft: 6 }}>{s.serviceType}</span>
                     </div>
                     <div className="m-cell"><span className="m-label">일정</span>
-                      {sc != null ? <Badge ok text={`✓ ${sc}회`} /> : <Badge ok={false} text="미생성" />}
+                      <Link className="month-badge" href={`/schedule?cs=${s.id}&ym=${year}-${month}`}>
+                        {sc != null ? <Badge ok text={`✓ ${sc}회`} /> : <Badge ok={false} text="미생성 →" />}
+                      </Link>
                     </div>
                     <div className="m-cell"><span className="m-label">기록지</span>
-                      {rc != null ? <Badge ok text={`✓ ${rc}회`} /> : <Badge ok={false} text="미작성" />}
-                    </div>
-                    <div className="m-actions">
-                      <Link className="btn btn-sm" href={`/schedule?cs=${s.id}&ym=${year}-${month}`}>일정</Link>
-                      <Link className="btn btn-sm btn-primary" href={`/record?cs=${s.id}&ym=${year}-${month}`}>기록지</Link>
+                      <Link className="month-badge" href={`/record?cs=${s.id}&ym=${year}-${month}`}>
+                        {rc != null ? <Badge ok text={`✓ ${rc}회`} /> : <Badge ok={false} text="미작성 →" />}
+                      </Link>
                     </div>
                   </div>
                 );
