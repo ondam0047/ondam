@@ -56,6 +56,8 @@ const CHECK_ICON = "M9 12l2 2 4-4 M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z";
 const DOWNLOAD_ICON = "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3";
 // 바로툴(음성·학습 모듈) — 사운드 이퀄라이저 막대
 const WAVE_ICON = "M4 9v6 M8 5v14 M12 8v8 M16 4v16 M20 10v4";
+// 기타지원사업 — 클립보드/서류
+const SUPPORT_ICON = "M9 2h6a1 1 0 0 1 1 1v1h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2V3a1 1 0 0 1 1-1z M9 4v2h6V4 M8 11h8 M8 15h5";
 
 type NavItem = { href: string; label: string; icon: string; tour?: string };
 type NavGroup = { label?: string; items: NavItem[] };
@@ -73,7 +75,9 @@ const NAV_GROUPS: NavGroup[] = [
     { href: "/children", label: "내 아동", icon: IC.user,     tour: "child" },
   ] },
   { label: "도구", items: [
-    { href: "/approval-check", label: "결제 겹침 찾기", icon: CHECK_ICON, tour: "appr" },
+    { href: "/approval-check", label: "결제 겹침 찾기", icon: CHECK_ICON,   tour: "appr"  },
+    { href: "/tools",          label: "바로툴",        icon: WAVE_ICON,    tour: "tools" },
+    { href: "/support",        label: "기타지원사업",   icon: SUPPORT_ICON },
   ] },
   { items: [
     { href: "/center", label: "내 설정",        icon: COG_ICON,  tour: "set" },
@@ -83,7 +87,6 @@ const NAV_GROUPS: NavGroup[] = [
 ];
 
 const BETA_GEAR_ICON = "M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z";
-const SUPPORT_ICON = "M9 2h6a1 1 0 0 1 1 1v1h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2V3a1 1 0 0 1 1-1z M9 4v2h6V4 M8 11h8 M8 15h5";
 
 // 로그아웃 시 일정표·기록지 임시 작성본 등 작업 캐시를 비움.
 // (환영 모달·투어 1회 표시 기록은 사용자별이라 유지)
@@ -110,14 +113,9 @@ export default function Sidebar({ user, isBetaAdmin = false }: { user: SessionUs
   // 그룹·내부 배열 복사(원본 불변 유지)
   const groups: NavGroup[] = NAV_GROUPS.map((g) => ({ ...g, items: [...g.items] }));
   if (isBetaAdmin) {
-    // 바로툴·베타 운영은 '도구' 그룹에 (운영자에게만 노출).
+    // 베타 운영(관리자)만 운영자에게 노출. 바로툴·기타지원사업은 전체 공개라 기본 메뉴에 있음.
     const tools = groups.find((g) => g.label === "도구");
-    tools?.items.push({ href: "/tools", label: "바로툴", icon: WAVE_ICON, tour: "tools" });
     tools?.items.push({ href: "/admin/beta", label: "베타 운영", icon: BETA_GEAR_ICON });
-    // '운영' 그룹 = 기타지원사업만 (yj2000102 운영자 계정에만).
-    if (user.email.toLowerCase() === "yj2000102@gmail.com") {
-      groups.splice(groups.length - 1, 0, { label: "운영", items: [{ href: "/support", label: "기타지원사업", icon: SUPPORT_ICON }] });
-    }
   }
   const initial = user.name.charAt(0) || "?";
 
