@@ -80,6 +80,18 @@ export default async function MonthPage({
         </div>
       </div>
 
+      {services.length > 0 && schedDone === 0 && (
+        <div className="card" style={{ marginBottom: 14, borderColor: "var(--primary)" }}>
+          <div className="card-body" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 800 }}>{month}월 일정이 아직 없어요</div>
+              <div className="sub-mute" style={{ fontSize: 13 }}>아동마다 등록된 반복 요일·시간대로 한 번에 만들 수 있어요.</div>
+            </div>
+            <Link className="btn btn-primary" href="/schedule" style={{ padding: "10px 18px", fontWeight: 700, whiteSpace: "nowrap" }}>일정 일괄 생성 →</Link>
+          </div>
+        </div>
+      )}
+
       <div className="card">
         <div className="card-body" style={{ padding: 0 }}>
           {services.length === 0 ? (
