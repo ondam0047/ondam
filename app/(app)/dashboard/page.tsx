@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { WEEK } from "@/lib/constants";
 import { requireUser, getEffectiveTherapistId } from "@/lib/auth";
+import DashboardSearch from "./DashboardSearch";
 
 export const dynamic = "force-dynamic";
 
@@ -107,6 +108,8 @@ async function TherapistDashboard({ user, centerId, year: y, month: m, todayDay,
           </Link>
         </div>
       </div>
+
+      <DashboardSearch />
 
       <StartChecklist hasChild={data.hasChild} hasSchedule={data.hasSchedule} hasRecord={data.hasRecord} hasForm={hasForm} />
       {data.hasChild && data.hasSchedule && data.hasRecord && (
