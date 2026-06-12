@@ -75,8 +75,10 @@ const NAV_GROUPS: NavGroup[] = [
     { href: "/children", label: "내 아동", icon: IC.user,     tour: "child" },
   ] },
   { label: "도구", items: [
-    { href: "/approval-check", label: "결제 겹침 찾기", icon: CHECK_ICON,   tour: "appr"  },
-    { href: "/tools",          label: "바로툴",        icon: WAVE_ICON,    tour: "tools" },
+    { href: "/approval-check", label: "결제 겹침 찾기", icon: CHECK_ICON, tour: "appr"  },
+    { href: "/tools",          label: "바로툴",        icon: WAVE_ICON,  tour: "tools" },
+  ] },
+  { label: "운영", items: [
     { href: "/support",        label: "기타지원사업",   icon: SUPPORT_ICON },
   ] },
   { items: [
@@ -113,9 +115,9 @@ export default function Sidebar({ user, isBetaAdmin = false }: { user: SessionUs
   // 그룹·내부 배열 복사(원본 불변 유지)
   const groups: NavGroup[] = NAV_GROUPS.map((g) => ({ ...g, items: [...g.items] }));
   if (isBetaAdmin) {
-    // 베타 운영(관리자)만 운영자에게 노출. 바로툴·기타지원사업은 전체 공개라 기본 메뉴에 있음.
-    const tools = groups.find((g) => g.label === "도구");
-    tools?.items.push({ href: "/admin/beta", label: "베타 운영", icon: BETA_GEAR_ICON });
+    // 베타 운영(관리자)은 '운영' 그룹에, 운영자에게만 추가 노출.
+    const op = groups.find((g) => g.label === "운영");
+    op?.items.push({ href: "/admin/beta", label: "베타 운영", icon: BETA_GEAR_ICON });
   }
   const initial = user.name.charAt(0) || "?";
 
