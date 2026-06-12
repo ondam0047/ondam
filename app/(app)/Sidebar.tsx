@@ -109,15 +109,15 @@ export default function Sidebar({ user, isBetaAdmin = false }: { user: SessionUs
   const pathname = usePathname();
   // 그룹·내부 배열 복사(원본 불변 유지)
   const groups: NavGroup[] = NAV_GROUPS.map((g) => ({ ...g, items: [...g.items] }));
-  // 운영자 전용 메뉴는 '운영' 그룹으로 묶어 하단(도움말 그룹) 바로 위에 삽입.
   if (isBetaAdmin) {
-    const opItems: NavItem[] = [{ href: "/tools", label: "바로툴", icon: WAVE_ICON, tour: "tools" }];
-    // 기타지원사업 — yj2000102 운영자 계정에만.
+    // 바로툴·베타 운영은 '도구' 그룹에 (운영자에게만 노출).
+    const tools = groups.find((g) => g.label === "도구");
+    tools?.items.push({ href: "/tools", label: "바로툴", icon: WAVE_ICON, tour: "tools" });
+    tools?.items.push({ href: "/admin/beta", label: "베타 운영", icon: BETA_GEAR_ICON });
+    // '운영' 그룹 = 기타지원사업만 (yj2000102 운영자 계정에만).
     if (user.email.toLowerCase() === "yj2000102@gmail.com") {
-      opItems.push({ href: "/support", label: "기타지원사업", icon: SUPPORT_ICON });
+      groups.splice(groups.length - 1, 0, { label: "운영", items: [{ href: "/support", label: "기타지원사업", icon: SUPPORT_ICON }] });
     }
-    opItems.push({ href: "/admin/beta", label: "베타 운영", icon: BETA_GEAR_ICON });
-    groups.splice(groups.length - 1, 0, { label: "운영", items: opItems });
   }
   const initial = user.name.charAt(0) || "?";
 
