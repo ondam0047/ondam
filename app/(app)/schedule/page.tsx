@@ -110,7 +110,7 @@ export default async function SchedulePage({
           <div className="sub-mute" style={{ fontSize: 12, marginTop: 10, lineHeight: 1.6 }}>
             아동마다 등록된 <b>기본 반복 요일·시간대</b>(공휴일 제외)로 자동 생성·저장돼요.
             요일이나 시간대가 없는 아동은 건너뜁니다. 기본값은 <b>[내 아동]</b>에서 설정.
-            생성 후 아래에서 개별 수정·한글파일 다운로드, 또는 <b>[일괄 다운로드]</b>로 한 번에 받을 수 있어요.
+            생성 후 아래에서 개별 수정·한글파일 다운로드, 또는 <b>[이번 달]</b>에서 한 번에 받을 수 있어요.
           </div>
         </div>
       </div>

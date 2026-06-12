@@ -467,7 +467,7 @@ export default async function GuidePage() {
           <GuideVideo slug="guide-08-dashboard" title="대시보드·일괄 다운로드·월간 보기" />
           <Detail>
             <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
-              <b>[일괄 다운로드]</b> 메뉴(또는 대시보드 버튼)에서 월말 마감을 한 번에.
+              <b>[이번 달]</b> 화면(또는 대시보드 '이번 달 마감' 버튼)에서 월말 마감을 한 번에. 특정 아동만 고를 땐 '골라 받기'로.
             </p>
             <Step n={1} title="일정표 / 기록지 선택">
               먼저 일정표를 받을지 기록지를 받을지 고릅니다.

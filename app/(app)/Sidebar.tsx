@@ -64,8 +64,8 @@ type NavGroup = { label?: string; items: NavItem[] };
 // 무엇부터 할지 헷갈리지 않도록 평면 메뉴를 그룹·라벨로 정리.
 const NAV_GROUPS: NavGroup[] = [
   { items: [
-    { href: "/dashboard", label: "대시보드", icon: IC.dash, tour: "dash" },
-    { href: "/month",     label: "이번 달",  icon: IC.calendar },
+    { href: "/dashboard", label: "대시보드", icon: IC.dash,        tour: "dash"  },
+    { href: "/month",     label: "이번 달",  icon: DOWNLOAD_ICON,  tour: "month" },
   ] },
   { label: "핵심 작업", items: [
     { href: "/schedule", label: "일정표",  icon: IC.calendar, tour: "sched" },
@@ -73,8 +73,7 @@ const NAV_GROUPS: NavGroup[] = [
     { href: "/children", label: "내 아동", icon: IC.user,     tour: "child" },
   ] },
   { label: "도구", items: [
-    { href: "/export",         label: "일괄 다운로드", icon: DOWNLOAD_ICON, tour: "exp"  },
-    { href: "/approval-check", label: "결제 겹침 찾기", icon: CHECK_ICON,    tour: "appr" },
+    { href: "/approval-check", label: "결제 겹침 찾기", icon: CHECK_ICON, tour: "appr" },
   ] },
   { items: [
     { href: "/center", label: "내 설정",        icon: COG_ICON,  tour: "set" },
@@ -110,15 +109,15 @@ export default function Sidebar({ user, isBetaAdmin = false }: { user: SessionUs
   const pathname = usePathname();
   // 그룹·내부 배열 복사(원본 불변 유지)
   const groups: NavGroup[] = NAV_GROUPS.map((g) => ({ ...g, items: [...g.items] }));
-  // 운영자 전용 메뉴는 '운영' 그룹으로 묶어 하단(도움말 그룹) 바로 위에 삽입.
   if (isBetaAdmin) {
-    const opItems: NavItem[] = [{ href: "/tools", label: "바로툴", icon: WAVE_ICON, tour: "tools" }];
-    // 기타지원사업 — yj2000102 운영자 계정에만.
+    // 바로툴·베타 운영은 '도구' 그룹에 (운영자에게만 노출).
+    const tools = groups.find((g) => g.label === "도구");
+    tools?.items.push({ href: "/tools", label: "바로툴", icon: WAVE_ICON, tour: "tools" });
+    tools?.items.push({ href: "/admin/beta", label: "베타 운영", icon: BETA_GEAR_ICON });
+    // '운영' 그룹 = 기타지원사업만 (yj2000102 운영자 계정에만).
     if (user.email.toLowerCase() === "yj2000102@gmail.com") {
-      opItems.push({ href: "/support", label: "기타지원사업", icon: SUPPORT_ICON });
+      groups.splice(groups.length - 1, 0, { label: "운영", items: [{ href: "/support", label: "기타지원사업", icon: SUPPORT_ICON }] });
     }
-    opItems.push({ href: "/admin/beta", label: "베타 운영", icon: BETA_GEAR_ICON });
-    groups.splice(groups.length - 1, 0, { label: "운영", items: opItems });
   }
   const initial = user.name.charAt(0) || "?";
 
