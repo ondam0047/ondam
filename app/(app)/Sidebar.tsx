@@ -64,8 +64,8 @@ type NavGroup = { label?: string; items: NavItem[] };
 // 무엇부터 할지 헷갈리지 않도록 평면 메뉴를 그룹·라벨로 정리.
 const NAV_GROUPS: NavGroup[] = [
   { items: [
-    { href: "/dashboard", label: "대시보드", icon: IC.dash, tour: "dash" },
-    { href: "/month",     label: "이번 달",  icon: IC.calendar },
+    { href: "/dashboard", label: "대시보드", icon: IC.dash,        tour: "dash"  },
+    { href: "/month",     label: "이번 달",  icon: DOWNLOAD_ICON,  tour: "month" },
   ] },
   { label: "핵심 작업", items: [
     { href: "/schedule", label: "일정표",  icon: IC.calendar, tour: "sched" },
@@ -73,8 +73,7 @@ const NAV_GROUPS: NavGroup[] = [
     { href: "/children", label: "내 아동", icon: IC.user,     tour: "child" },
   ] },
   { label: "도구", items: [
-    { href: "/export",         label: "일괄 다운로드", icon: DOWNLOAD_ICON, tour: "exp"  },
-    { href: "/approval-check", label: "결제 겹침 찾기", icon: CHECK_ICON,    tour: "appr" },
+    { href: "/approval-check", label: "결제 겹침 찾기", icon: CHECK_ICON, tour: "appr" },
   ] },
   { items: [
     { href: "/center", label: "내 설정",        icon: COG_ICON,  tour: "set" },

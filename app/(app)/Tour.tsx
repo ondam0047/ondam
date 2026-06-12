@@ -33,9 +33,9 @@ const COMMON_STEPS = [
     description: "지자체 점검 전 엑셀을 올려서 결제 시간 겹침을 자동 자가 점검.",
   },
   {
-    selector: '[data-tour="exp"]',
-    title: "일괄 다운로드",
-    description: "월·아동을 골라 저장된 일정표·기록지를 ZIP 한 파일로 받습니다.",
+    selector: '[data-tour="month"]',
+    title: "이번 달",
+    description: "이 달 전 아동의 일정·기록지 상태를 한눈에 보고, 전체를 ZIP으로 한 번에 받아요.",
   },
   {
     selector: '[data-tour="child"]',

@@ -66,9 +66,10 @@ export default async function MonthPage({
           <Link className="btn btn-sm" href={shift(1)}>▶</Link>
           {!isThisMonth && <Link className="btn btn-sm" href="/month">이번 달로</Link>}
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <a className="btn" href={`/api/schedule/hwpx-bulk?year=${year}&month=${month}`}>전체 일정 ZIP</a>
           <a className="btn" href={`/api/record/hwpx-bulk?year=${year}&month=${month}`}>전체 기록지 ZIP</a>
+          <Link className="btn btn-ghost btn-sm" href="/export">특정 아동만 골라 받기 →</Link>
         </div>
       </div>
 

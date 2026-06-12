@@ -78,7 +78,7 @@ async function TherapistDashboard({ user, centerId, year: y, month: m, todayDay,
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <Link
             className="btn"
-            href="/export"
+            href="/month"
             style={{
               background: "linear-gradient(135deg, #9FD6C0, #1F7A52)",
               color: "#fff", border: "1px solid #1F7A52",
@@ -86,7 +86,7 @@ async function TherapistDashboard({ user, centerId, year: y, month: m, todayDay,
               boxShadow: "0 2px 6px rgba(31,122,82,0.25)",
             }}
           >
-            일괄 다운로드
+            이번 달 마감
           </Link>
           <Link
             className="btn"
@@ -219,7 +219,7 @@ function MonthFocusBanner({ month, unwrittenCount, totalSessions }: { month: num
   if (unwrittenCount > 0) {
     return wrap("var(--danger)", <>이번 달 기록지 <span style={{ color: "var(--danger)" }}>{unwrittenCount}명</span> 작성 남음</>, `${month}월 회기 중 아직 기록지가 없는 아동이에요.`, "/record", "이어서 작성");
   }
-  return wrap("var(--success)", "이번 달 기록지 모두 작성 완료 🎉", `${month}월 작업이 끝났어요. 여러 명을 한 번에 내려받을 수 있어요.`, "/export", "일괄 다운로드", false);
+  return wrap("var(--success)", "이번 달 기록지 모두 작성 완료 🎉", `${month}월 작업이 끝났어요. 여러 명을 한 번에 내려받을 수 있어요.`, "/month", "이번 달 마감", false);
 }
 
 // ─── 데이터 로딩 헬퍼 ────────────────────────────────────────────────────
