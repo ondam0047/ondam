@@ -59,26 +59,29 @@ const DOWNLOAD_ICON = "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M
 const WAVE_ICON = "M4 9v6 M8 5v14 M12 8v8 M16 4v16 M20 10v4";
 
 type NavItem = { href: string; label: string; icon: string; tour?: string };
+type NavGroup = { label?: string; items: NavItem[] };
 
-// 메뉴는 그룹 단위로 묶고, 그룹 사이는 구분선으로 한 줄 띄움.
-// 1인 사물함 — 모든 사용자 동일 메뉴.
-const NAV_GROUPS: NavItem[][] = [
-  [
-    { href: "/dashboard",      label: "대시보드",       icon: IC.dash,       tour: "dash"  },
-    { href: "/schedule",        label: "일정표",         icon: IC.calendar,   tour: "sched" },
-    { href: "/record",          label: "기록지",         icon: IC.doc,        tour: "rec"   },
-    { href: "/export",          label: "일괄 다운로드",  icon: DOWNLOAD_ICON, tour: "exp"   },
-    { href: "/approval-check",  label: "승인내역 점검",  icon: CHECK_ICON,    tour: "appr"  },
-  ],
-  [
-    { href: "/timetable",       label: "내 시간표",      icon: GRID_ICON,     tour: "time"  },
-    { href: "/children",        label: "내 아동",        icon: IC.user,       tour: "child" },
-    { href: "/center",          label: "내 설정",        icon: COG_ICON,      tour: "set"   },
-    { href: "/forms",           label: "우리 센터 양식", icon: IC.doc },
-  ],
-  [
-    { href: "/guide",           label: "도움말",         icon: HELP_ICON,     tour: "help"  },
-  ],
+// 사용 빈도로 2계층화: '핵심 작업'(매일) vs '도구'(가끔). 신규 사용자가
+// 무엇부터 할지 헷갈리지 않도록 평면 메뉴를 그룹·라벨로 정리.
+const NAV_GROUPS: NavGroup[] = [
+  { items: [
+    { href: "/dashboard", label: "대시보드", icon: IC.dash, tour: "dash" },
+  ] },
+  { label: "핵심 작업", items: [
+    { href: "/schedule", label: "일정표",  icon: IC.calendar, tour: "sched" },
+    { href: "/record",   label: "기록지",  icon: IC.doc,      tour: "rec"   },
+    { href: "/children", label: "내 아동", icon: IC.user,     tour: "child" },
+  ] },
+  { label: "도구", items: [
+    { href: "/export",         label: "일괄 다운로드", icon: DOWNLOAD_ICON, tour: "exp"  },
+    { href: "/approval-check", label: "승인내역 점검", icon: CHECK_ICON,    tour: "appr" },
+    { href: "/timetable",      label: "내 시간표",     icon: GRID_ICON,     tour: "time" },
+  ] },
+  { items: [
+    { href: "/center", label: "내 설정",        icon: COG_ICON,  tour: "set" },
+    { href: "/forms",  label: "우리 센터 양식", icon: IC.doc },
+    { href: "/guide",  label: "도움말",         icon: HELP_ICON, tour: "help" },
+  ] },
 ];
 
 const BETA_GEAR_ICON = "M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z";
@@ -106,19 +109,17 @@ function clearWorkCache() {
 
 export default function Sidebar({ user, isBetaAdmin = false }: { user: SessionUser; isBetaAdmin?: boolean }) {
   const pathname = usePathname();
-  // 그룹별 내부 배열까지 복사(원본 NAV_GROUPS 불변 유지)
-  const groups: NavItem[][] = NAV_GROUPS.map((g) => [...g]);
+  // 그룹·내부 배열 복사(원본 불변 유지)
+  const groups: NavGroup[] = NAV_GROUPS.map((g) => ({ ...g, items: [...g.items] }));
+  // 운영자 전용 메뉴는 '운영' 그룹으로 묶어 하단(도움말 그룹) 바로 위에 삽입.
   if (isBetaAdmin) {
-    // 바로툴(준비중) — 운영 검증 단계라 운영자에게만. "승인내역 점검" 바로 아래.
-    groups[0].push({ href: "/tools", label: "바로툴", icon: WAVE_ICON, tour: "tools" });
-    // 운영 메뉴 — 도움말(마지막 그룹) 바로 위에 끼워넣음
-    groups.splice(groups.length - 1, 0, [
-      { href: "/admin/beta", label: "베타 운영", icon: BETA_GEAR_ICON },
-    ]);
-  }
-  // 기타지원사업 — yj2000102 운영자 계정에만. 바로툴(있으면) 바로 아래.
-  if (user.email.toLowerCase() === "yj2000102@gmail.com") {
-    groups[0].push({ href: "/support", label: "기타지원사업", icon: SUPPORT_ICON });
+    const opItems: NavItem[] = [{ href: "/tools", label: "바로툴", icon: WAVE_ICON, tour: "tools" }];
+    // 기타지원사업 — yj2000102 운영자 계정에만.
+    if (user.email.toLowerCase() === "yj2000102@gmail.com") {
+      opItems.push({ href: "/support", label: "기타지원사업", icon: SUPPORT_ICON });
+    }
+    opItems.push({ href: "/admin/beta", label: "베타 운영", icon: BETA_GEAR_ICON });
+    groups.splice(groups.length - 1, 0, { label: "운영", items: opItems });
   }
   const initial = user.name.charAt(0) || "?";
 
@@ -132,13 +133,14 @@ export default function Sidebar({ user, isBetaAdmin = false }: { user: SessionUs
         </div>
       </Link>
 
-      <div className="nav-section">메뉴</div>
       {groups.map((group, gi) => (
         <div key={gi}>
-          {gi > 0 && (
+          {group.label ? (
+            <div className="nav-section" style={{ marginTop: gi > 0 ? 14 : 0 }}>{group.label}</div>
+          ) : gi > 0 ? (
             <div style={{ height: 1, background: "var(--border)", margin: "10px 14px" }} />
-          )}
-          {group.map((it) => {
+          ) : null}
+          {group.items.map((it) => {
             const active = pathname === it.href || pathname.startsWith(it.href + "/");
             return (
               <Link

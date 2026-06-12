@@ -106,14 +106,9 @@ async function TherapistDashboard({ user, centerId, year: y, month: m, todayDay,
         </div>
       </div>
 
-      {data.myChildrenCount === 0 && (
-        <div className="tip">
-          아직 담당 아동이 없어요.{" "}
-          <Link href="/children/new" style={{ color: "var(--primary)", fontWeight: 700 }}>
-            아동 등록
-          </Link>{" "}
-          으로 시작하세요.
-        </div>
+      <StartChecklist hasChild={data.hasChild} hasSchedule={data.hasSchedule} hasRecord={data.hasRecord} />
+      {data.hasChild && data.hasSchedule && data.hasRecord && (
+        <MonthFocusBanner month={m} unwrittenCount={data.unwrittenCount} totalSessions={data.totalSessionsThisMonth} />
       )}
 
       <MyStats data={data} />
@@ -137,6 +132,94 @@ async function TherapistDashboard({ user, centerId, year: y, month: m, todayDay,
       </div>
     </>
   );
+}
+
+// ─── 시작 가이드 체크리스트 ──────────────────────────────────────────────
+// 신규 사용자가 "첫 기록지"까지 가는 골든 패스. 3단계 모두 끝나면 자동으로 사라짐.
+function StartChecklist({ hasChild, hasSchedule, hasRecord }: { hasChild: boolean; hasSchedule: boolean; hasRecord: boolean }) {
+  const steps = [
+    { done: hasChild, title: "첫 아동 등록", desc: "담당 아동을 추가해요.", href: "/children/new", cta: "아동 등록" },
+    { done: hasSchedule, title: "이번 달 일정 만들기", desc: "회기 일정을 짜두면 기록지가 자동으로 채워져요.", href: "/schedule", cta: "일정표 가기" },
+    { done: hasRecord, title: "첫 기록지 받기", desc: "일정에서 기록지를 자동 생성해 내려받아요.", href: "/record", cta: "기록지 가기" },
+  ];
+  const doneCount = steps.filter((s) => s.done).length;
+  if (doneCount >= steps.length) return null;
+  const nextIdx = steps.findIndex((s) => !s.done);
+
+  return (
+    <div className="card" style={{ borderColor: "var(--primary)" }}>
+      <div className="card-body">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+          <div style={{ fontSize: 15, fontWeight: 800 }}>🚀 시작 가이드</div>
+          <div className="sub-mute" style={{ fontSize: 12 }}>{doneCount}/{steps.length} 완료</div>
+        </div>
+        <div className="sub-mute" style={{ fontSize: 12, marginBottom: 12 }}>
+          처음이세요? 먼저{" "}
+          <Link href="/center" style={{ color: "var(--primary)", fontWeight: 700 }}>내 설정</Link>
+          에서 센터·회기 시간대를 확인하고, 아래 순서대로 따라오시면 첫 기록지까지 끝나요.{" "}
+          <a href="/api/record/sample" style={{ color: "var(--primary)", fontWeight: 700 }}>📄 샘플 기록지 먼저 보기</a>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {steps.map((s, i) => {
+            const isNext = i === nextIdx;
+            return (
+              <div
+                key={i}
+                style={{
+                  display: "flex", alignItems: "center", gap: 12, padding: "10px 12px",
+                  borderRadius: "var(--r-md)",
+                  background: isNext ? "var(--primary-soft)" : "transparent",
+                  opacity: s.done ? 0.55 : 1,
+                }}
+              >
+                <div style={{
+                  width: 26, height: 26, borderRadius: "50%", flex: "0 0 auto",
+                  display: "grid", placeItems: "center", fontSize: 13, fontWeight: 800,
+                  color: s.done || isNext ? "#fff" : "var(--text-mute)",
+                  background: s.done ? "var(--success)" : isNext ? "var(--primary)" : "var(--border)",
+                }}>
+                  {s.done ? "✓" : i + 1}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, textDecoration: s.done ? "line-through" : "none" }}>{s.title}</div>
+                  {!s.done && <div className="sub-mute" style={{ fontSize: 12 }}>{s.desc}</div>}
+                </div>
+                {isNext && (
+                  <Link className="btn btn-primary" href={s.href} style={{ padding: "8px 14px", fontWeight: 700, whiteSpace: "nowrap" }}>
+                    {s.cta}
+                  </Link>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── 이번 달 행동 배너 (온보딩 끝난 사용자 홈) ────────────────────────────
+// 지표판 대신 "지금 할 일"을 맨 위에. 이번 달 일정 없음 → 일정 만들기 /
+// 미작성 있음 → 이어서 작성 / 다 됨 → 일괄 다운로드.
+function MonthFocusBanner({ month, unwrittenCount, totalSessions }: { month: number; unwrittenCount: number; totalSessions: number }) {
+  const wrap = (accent: string, title: React.ReactNode, desc: string, href: string, cta: string, primary = true) => (
+    <div className="card" style={{ borderColor: accent }}>
+      <div className="card-body" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 800 }}>{title}</div>
+          <div className="sub-mute" style={{ fontSize: 13 }}>{desc}</div>
+        </div>
+        <Link className={primary ? "btn btn-primary" : "btn"} href={href} style={{ padding: "10px 18px", fontWeight: 700, whiteSpace: "nowrap" }}>{cta}</Link>
+      </div>
+    </div>
+  );
+  if (totalSessions === 0) {
+    return wrap("var(--primary)", `${month}월 일정을 만들어 시작하세요`, "회기 일정을 짜두면 기록지가 자동으로 채워져요.", "/schedule", "일정표 만들기");
+  }
+  if (unwrittenCount > 0) {
+    return wrap("var(--danger)", <>이번 달 기록지 <span style={{ color: "var(--danger)" }}>{unwrittenCount}명</span> 작성 남음</>, `${month}월 회기 중 아직 기록지가 없는 아동이에요.`, "/record", "이어서 작성");
+  }
+  return wrap("var(--success)", "이번 달 기록지 모두 작성 완료 🎉", `${month}월 작업이 끝났어요. 여러 명을 한 번에 내려받을 수 있어요.`, "/export", "일괄 다운로드", false);
 }
 
 // ─── 데이터 로딩 헬퍼 ────────────────────────────────────────────────────
@@ -219,7 +302,15 @@ async function loadMyStats(
     return { day: weekday, date: `${d.getMonth() + 1}.${d.getDate()}`, isToday, items };
   });
 
+  const [everScheduleCount, everRecordCount] = await Promise.all([
+    prisma.schedule.count({ where: { childService: { therapistId: tid, child: { centerId } } } }),
+    prisma.record.count({ where: { childService: { therapistId: tid, child: { centerId } } } }),
+  ]);
+
   return {
+    hasChild: myServices.length > 0,
+    hasSchedule: everScheduleCount > 0,
+    hasRecord: everRecordCount > 0,
     myChildrenCount: new Set(myServices.map((s) => s.childId)).size,
     todaySessions,
     todaySessionList,
