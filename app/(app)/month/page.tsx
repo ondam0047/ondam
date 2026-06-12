@@ -81,46 +81,39 @@ export default async function MonthPage({
       </div>
 
       <div className="card">
-        <div className="card-body" style={{ padding: 0, overflowX: "auto" }}>
+        <div className="card-body" style={{ padding: 0 }}>
           {services.length === 0 ? (
             <div className="sub-mute" style={{ padding: 20, fontSize: 14 }}>
               담당 아동이 없어요. <Link href="/children/new" style={{ color: "var(--primary)", fontWeight: 700 }}>아동 등록</Link>으로 시작하세요.
             </div>
           ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ background: "var(--surface-2)", textAlign: "left" }}>
-                  <th style={{ padding: "10px 14px", fontSize: 12, fontWeight: 700 }}>아동</th>
-                  <th style={{ padding: "10px 14px", fontSize: 12, fontWeight: 700 }}>일정</th>
-                  <th style={{ padding: "10px 14px", fontSize: 12, fontWeight: 700 }}>기록지</th>
-                  <th style={{ padding: "10px 14px", fontSize: 12, fontWeight: 700, textAlign: "right" }}>작성</th>
-                </tr>
-              </thead>
-              <tbody>
-                {services.map((s) => {
-                  const sc = schedMap.get(s.id);
-                  const rc = recMap.get(s.id);
-                  return (
-                    <tr key={s.id} style={{ borderTop: "1px solid var(--border)" }}>
-                      <td style={{ padding: "10px 14px", fontSize: 14, fontWeight: 600 }}>
-                        {s.child.name}
-                        <span className="sub-mute" style={{ fontSize: 11, marginLeft: 6 }}>{s.serviceType}</span>
-                      </td>
-                      <td style={{ padding: "10px 14px" }}>
-                        {sc != null ? <Badge ok text={`✓ ${sc}회`} /> : <Badge ok={false} text="미생성" />}
-                      </td>
-                      <td style={{ padding: "10px 14px" }}>
-                        {rc != null ? <Badge ok text={`✓ ${rc}회`} /> : <Badge ok={false} text="미작성" />}
-                      </td>
-                      <td style={{ padding: "10px 14px", textAlign: "right", whiteSpace: "nowrap" }}>
-                        <Link className="btn btn-sm" href={`/schedule?cs=${s.id}&ym=${year}-${month}`} style={{ marginRight: 6 }}>일정</Link>
-                        <Link className="btn btn-sm btn-primary" href={`/record?cs=${s.id}&ym=${year}-${month}`}>기록지</Link>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <div className="month-list">
+              <div className="month-row head">
+                <div>아동</div><div>일정</div><div>기록지</div><div style={{ textAlign: "right" }}>작성</div>
+              </div>
+              {services.map((s) => {
+                const sc = schedMap.get(s.id);
+                const rc = recMap.get(s.id);
+                return (
+                  <div className="month-row" key={s.id}>
+                    <div style={{ fontSize: 14, fontWeight: 600 }}>
+                      {s.child.name}
+                      <span className="sub-mute" style={{ fontSize: 11, marginLeft: 6 }}>{s.serviceType}</span>
+                    </div>
+                    <div className="m-cell"><span className="m-label">일정</span>
+                      {sc != null ? <Badge ok text={`✓ ${sc}회`} /> : <Badge ok={false} text="미생성" />}
+                    </div>
+                    <div className="m-cell"><span className="m-label">기록지</span>
+                      {rc != null ? <Badge ok text={`✓ ${rc}회`} /> : <Badge ok={false} text="미작성" />}
+                    </div>
+                    <div className="m-actions">
+                      <Link className="btn btn-sm" href={`/schedule?cs=${s.id}&ym=${year}-${month}`}>일정</Link>
+                      <Link className="btn btn-sm btn-primary" href={`/record?cs=${s.id}&ym=${year}-${month}`}>기록지</Link>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
       </div>

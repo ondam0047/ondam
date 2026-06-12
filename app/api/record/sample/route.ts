@@ -2,6 +2,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { isRecordFormKey } from "@/lib/record-forms";
 import { buildRecordSheets, readRecordTemplate, type RecordPayload } from "@/lib/record-hwpx";
+import { generateRecordFromForm } from "@/lib/record-fill-spec";
 
 // 첫 로그인 사용자가 "결과물"을 미리 보도록, 더미 데이터로 채운 샘플 기록지 1장.
 //   GET /api/record/sample  → .hwpx 다운로드 (센터가 고른 서식으로)
@@ -30,13 +31,29 @@ export async function GET() {
     ],
   };
 
-  let buf: Buffer;
-  try {
-    buf = await readRecordTemplate(form);
-  } catch {
-    return Response.json({ error: "샘플 템플릿을 찾을 수 없어요." }, { status: 500 });
+  // 저장한 '우리 센터 양식'(기록지)이 있으면 그걸로 샘플 — "내 양식이 이렇게 채워지는구나".
+  const savedForm = await prisma.recordForm.findFirst({
+    where: { ownerUserId: user.id, kind: "record" },
+    orderBy: { createdAt: "asc" },
+    select: { template: true, spec: true },
+  });
+
+  let sheet: Buffer;
+  if (savedForm) {
+    try {
+      sheet = generateRecordFromForm(Buffer.from(savedForm.template), savedForm.spec, sample, user.name, undefined, now.getFullYear())[0];
+    } catch {
+      return Response.json({ error: "샘플 생성 중 문제가 생겼어요." }, { status: 500 });
+    }
+  } else {
+    let buf: Buffer;
+    try {
+      buf = await readRecordTemplate(form);
+    } catch {
+      return Response.json({ error: "샘플 템플릿을 찾을 수 없어요." }, { status: 500 });
+    }
+    sheet = buildRecordSheets(buf, sample, form)[0];
   }
-  const sheet = buildRecordSheets(buf, sample, form)[0];
   const filename = encodeURIComponent("샘플_기록지.hwpx");
   return new Response(new Uint8Array(sheet), {
     headers: {
