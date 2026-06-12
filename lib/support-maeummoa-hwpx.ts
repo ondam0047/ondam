@@ -32,15 +32,10 @@ export const MAX_SESSIONS = 3;
 // 템플릿 신율 샘플의 <hp:t> 런 인덱스 맵 (4개월 × 헤더 + 3회기).
 type Slot = { date: number; time: number; note: number | null; lines: [number, number, number] };
 type MonthIdx = { title: number; dom: number; ther: number; stu: number; sch: number; wk: number; place: number; goal: number; sessions: Slot[] };
+// 단일 월(한 장) 템플릿 — 월1 슬롯만 사용.
 const MONTHS: MonthIdx[] = [
   { title: 1, dom: 3, ther: 5, stu: 7, sch: 9, wk: 11, place: 13, goal: 15,
     sessions: [ { date: 18, time: 19, note: 20, lines: [21, 22, 23] }, { date: 24, time: 25, note: null, lines: [26, 27, 28] }, { date: 29, time: 30, note: null, lines: [31, 32, 33] } ] },
-  { title: 35, dom: 37, ther: 39, stu: 41, sch: 43, wk: 45, place: 47, goal: 49,
-    sessions: [ { date: 52, time: 53, note: null, lines: [54, 55, 56] }, { date: 57, time: 58, note: null, lines: [59, 60, 61] }, { date: 62, time: 63, note: null, lines: [64, 65, 66] } ] },
-  { title: 68, dom: 70, ther: 72, stu: 74, sch: 76, wk: 78, place: 80, goal: 82,
-    sessions: [ { date: 85, time: 86, note: 87, lines: [88, 89, 90] }, { date: 91, time: 92, note: 93, lines: [94, 95, 96] }, { date: 97, time: 98, note: null, lines: [99, 100, 101] } ] },
-  { title: 103, dom: 105, ther: 107, stu: 109, sch: 111, wk: 113, place: 115, goal: 117,
-    sessions: [ { date: 120, time: 121, note: null, lines: [122, 123, 124] }, { date: 125, time: 126, note: null, lines: [127, 128, 129] }, { date: 130, time: 131, note: null, lines: [132, 133, 134] } ] },
 ];
 
 function buildIndexMap(p: MaeummoaPayload): Map<number, string> {
@@ -65,16 +60,6 @@ function buildIndexMap(p: MaeummoaPayload): Map<number, string> {
       if (slot.note !== null) m.set(slot.note, ""); // 특이사항 전용 런은 비우고, 내용은 아래 3줄에
       for (let j = 0; j < 3; j++) m.set(slot.lines[j], lines[j] ?? "");
     } else {
-      m.set(slot.date, ""); m.set(slot.time, "");
-      if (slot.note !== null) m.set(slot.note, "");
-      for (const li of slot.lines) m.set(li, "");
-    }
-  }
-  // 나머지 달(월2~4) 전부 비움
-  for (let i = 1; i < MONTHS.length; i++) {
-    const X = MONTHS[i];
-    for (const idx of [X.title, X.dom, X.ther, X.stu, X.sch, X.wk, X.place, X.goal]) m.set(idx, "");
-    for (const slot of X.sessions) {
       m.set(slot.date, ""); m.set(slot.time, "");
       if (slot.note !== null) m.set(slot.note, "");
       for (const li of slot.lines) m.set(li, "");
