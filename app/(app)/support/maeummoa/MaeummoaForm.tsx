@@ -148,7 +148,7 @@ export default function MaeummoaForm({
           {cell("월", <input className="input" value={form.month} onChange={set("month")} />)}
           {cell("영역", <input className="input" value={form.domain} onChange={set("domain")} />)}
           {cell("치료사", <input className="input" value={form.therapist} onChange={set("therapist")} />)}
-          {cell("학생명", <input className="input" value={form.student} onChange={set("student")} placeholder="예: 김도윤" />)}
+          {cell("학생명", <input className="input" value={form.student} onChange={set("student")} />)}
           {cell("학교 / 학년", <input className="input" value={form.school} onChange={set("school")} placeholder="예: 바로초 / 3학년" />)}
           {cell("장소", <input className="input" value={form.place} onChange={set("place")} />)}
           {cell("요일 / 시간", <input className="input" value={form.weekly} onChange={set("weekly")} placeholder="예: 화 16:00~16:50" />)}
