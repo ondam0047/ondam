@@ -1022,6 +1022,10 @@ export default function ScheduleClient({
                 {downloadingHwpx ? "생성 중..." : "한글파일(.hwpx) 다운로드"}
               </button>
             </div>
+            <div className="sub-mute" style={{ fontSize: 12, marginTop: 8, lineHeight: 1.6 }}>
+              💾 <b>[저장]</b>해두면 다른 컴퓨터(집·센터 등)에서도 위에서 <b>같은 아동·월</b>을 고르면 이어서 작성할 수 있어요.
+              저장 전 임시 작성본은 <b>이 컴퓨터에만</b> 남습니다.
+            </div>
           </div>
         </div>
       )}
