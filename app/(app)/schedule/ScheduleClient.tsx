@@ -832,7 +832,7 @@ export default function ScheduleClient({
             <div className="field">
               <label>목표 회기 수</label>
               <select className="select" value={target} onChange={(e) => setTarget(Number(e.target.value))}>
-                {[4, 5, 6, 7, 8].map((i) => <option key={i} value={i}>{i}회</option>)}
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => <option key={i} value={i}>{i}회</option>)}
               </select>
             </div>
           </div>
