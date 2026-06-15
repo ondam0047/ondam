@@ -615,6 +615,8 @@ function RecordSheet({
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
   const [loadedRecordId, setLoadedRecordId] = useState<number | null>(null);
+  const [autoStatus, setAutoStatus] = useState<"" | "saving" | "saved">("");
+  const recordTouched = useRef(false); // 사용자가 실제 입력했을 때만 자동저장(빈 기록 생성·덮어쓰기 방지)
   // 저장한 우리 센터 양식 — 있으면 출력 양식 선택
   const [savedForms, setSavedForms] = useState<Array<{ id: number; name: string }>>([]);
   const [outFormId, setOutFormId] = useState<number | "">("");
@@ -650,6 +652,8 @@ function RecordSheet({
 
   useEffect(() => {
     if (!childServiceId || !monthNumForLoad) return;
+    // 아동/월 전환 — 자동저장 게이트 초기화(이전 아동 데이터로 잘못 저장 방지)
+    recordTouched.current = false; setLoadedRecordId(null); setAutoStatus("");
     let cancelled = false;
     (async () => {
       try {
@@ -884,6 +888,40 @@ function RecordSheet({
     return matched.map((d, i) => d ?? (parseYMD(rows[i].use)?.d ?? null));
   }, [scheduleDays, rows]);
 
+  // 작업 중 자동 저장 — 사용자가 실제 입력했거나(이미 저장된 기록 편집 중) 일 때만 조용히 서버 저장.
+  // (다른 컴퓨터에서도 같은 아동·월을 고르면 자동으로 불러와짐)
+  async function autoSaveRecord() {
+    if (!childServiceId) return;
+    if (loadedRecordId === null && !recordTouched.current) return;
+    setAutoStatus("saving");
+    try {
+      const payload = {
+        childServiceId, year, month: monthNumForLoad, org, childName: child, childBirth: birth, opinion,
+        sessions: rows.map((s, i) => {
+          const pu = parseYMD(s.use); const pp = parseYMD(s.pay); const useDayNum = useDays[i];
+          return {
+            ordinal: i + 1, date: pu ? `${pu.mo}/${pu.d}` : "", startTime: times[i].start, endTime: times[i].end,
+            voucher: vouchers[i], extra: extras[i], amount: amounts[i],
+            useDay: useDayNum !== null ? String(useDayNum) : "", payDay: pp ? String(pp.d) : "",
+            apprNumber: s.appr, result: results[i], resultExtra: mismatchReasons[i] || undefined, status: statuses[i] || undefined,
+          };
+        }),
+        formId: outFormId || undefined,
+      };
+      const res = await fetch("/api/record/save", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (res.ok) { const j = await res.json(); setLoadedRecordId(j.recordId); setAutoStatus("saved"); }
+      else setAutoStatus("");
+    } catch { setAutoStatus(""); }
+  }
+
+  useEffect(() => {
+    if (!childServiceId) return;
+    if (loadedRecordId === null && !recordTouched.current) return;
+    const t = window.setTimeout(() => { void autoSaveRecord(); }, 1800);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [childServiceId, year, monthNumForLoad, rows, times, vouchers, extras, amounts, results, statuses, mismatchReasons, opinion, useDays, outFormId, loadedRecordId]);
+
   const topCols = rows.map((s, i) => {
     const ud = useDays[i];
     const monthForCol = typeof month === "number" ? month : (parseYMD(s.use)?.mo ?? "");
@@ -892,7 +930,7 @@ function RecordSheet({
   });
 
   return (
-    <div className="sheet">
+    <div className="sheet" onChangeCapture={() => { recordTouched.current = true; }}>
       <div className="sheet-title">발달재활서비스 제공 기록지 ({month}월)</div>
       <table className="meta-tbl">
         <tbody>
@@ -1096,8 +1134,8 @@ function RecordSheet({
         </button>
       </div>
       <div className="sub-mute" style={{ fontSize: 12, marginTop: 8, lineHeight: 1.6 }}>
-        💾 <b>[현재 내용 저장]</b>해두면 다른 컴퓨터(집·센터 등)에서도 위에서 <b>같은 아동·월</b>을 고르면 이어서 작성할 수 있어요.
-        저장 전 임시 작성본은 <b>이 컴퓨터에만</b> 남습니다.
+        💾 작성하면 <b>자동으로 저장</b>돼요{autoStatus === "saving" ? " (저장 중…)" : autoStatus === "saved" ? " ✓ 저장됨" : ""}.
+        다른 컴퓨터(집·센터 등)에서도 위에서 <b>같은 아동·월</b>을 고르면 이어서 작성할 수 있어요.
       </div>
     </div>
   );

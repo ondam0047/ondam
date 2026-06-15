@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   WEEK, holiday, pad, parseDaySlots,
 } from "@/lib/constants";
@@ -110,6 +110,8 @@ export default function ScheduleClient({
   const [downloadingHwpx, setDownloadingHwpx] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
+  const [autoStatus, setAutoStatus] = useState<"" | "saving" | "saved">("");
+  const schedTouched = useRef(false); // 사용자가 실제 편집했을 때만 자동저장(로컬 임시본이 서버 최신본 덮어쓰기 방지)
   // 저장한 우리 센터 일정표 양식 — 있으면 출력 양식 선택
   const [savedForms, setSavedForms] = useState<Array<{ id: number; name: string }>>([]);
   const [outFormId, setOutFormId] = useState<number | "">("");
@@ -310,6 +312,8 @@ export default function ScheduleClient({
     const id = idStr === "" ? "" : Number(idStr);
     setSelectedChildId(id);
     setLoadedScheduleId(null);
+    setSessions(null);   // 아동 바꾸면 캘린더 비움(이전 아동 세션 자동저장 오염 방지)
+    schedTouched.current = false;
     setSavedMsg("");
     if (id === "") {
       setSavedList([]);
@@ -399,6 +403,7 @@ export default function ScheduleClient({
         }
       }
     }
+    schedTouched.current = true; // 전월 복사 = 사용자 동작
     setSessions(next);
     setGenY(y);
     setGenM(m);
@@ -433,6 +438,7 @@ export default function ScheduleClient({
     for (const sess of s.sessions) {
       sessMap[sess.day] = { time: sess.time, makeup: sess.makeup };
     }
+    schedTouched.current = false; // 서버에서 불러옴 — 편집 전까지 자동저장 안 함(되쓰기 방지)
     setSessions(sessMap);
     setGenY(s.year);
     setGenM(s.month);
@@ -509,6 +515,7 @@ export default function ScheduleClient({
         count++;
       }
     }
+    schedTouched.current = true; // 일정표 생성 = 사용자 동작
     setSessions(next);
     setGenY(y);
     setGenM(m);
@@ -526,6 +533,7 @@ export default function ScheduleClient({
       localStorage.removeItem(LS_DRAFT);
       localStorage.removeItem(LS_SCROLL);
     } catch {}
+    schedTouched.current = false;
     setSessions(null);
     setSelectedChildId("");
     setName("");
@@ -558,12 +566,14 @@ export default function ScheduleClient({
 
   function saveEditor() {
     if (editDay === null || sessions === null) return;
+    schedTouched.current = true; // 회기 시간 수정 = 사용자 동작
     setSessions({ ...sessions, [editDay]: { time: editTime, makeup: editMakeup } });
     closeEditor();
   }
 
   function removeEditor() {
     if (editDay === null || sessions === null) return;
+    schedTouched.current = true; // 회기 삭제 = 사용자 동작
     const next = { ...sessions };
     delete next[editDay];
     setSessions(next);
@@ -576,6 +586,32 @@ export default function ScheduleClient({
     [sessions]
   );
   const totalCount = days.length;
+
+  // 작업 중 자동 저장 — 회기가 있고 아동이 선택돼 있으면 편집이 멈춘 뒤 서버에 저장.
+  // (다른 컴퓨터에서도 같은 아동·월을 고르면 이어서 작성 가능)
+  const autoSave = useCallback(async () => {
+    if (!sessions || typeof selectedChildId !== "number" || days.length === 0 || !schedTouched.current) return;
+    setAutoStatus("saving");
+    try {
+      const payload = {
+        childServiceId: selectedChildId, year: genY, month: genM,
+        therapist, serviceType, target, mgmtNumber: mgmt,
+        pvOrg, pvTel, pvCharge, pvType, costUnit, costSelf, writeDate,
+        formId: outFormId || undefined,
+        sessions: days.map((d) => ({ day: d, time: sessions[d].time, makeup: sessions[d].makeup })),
+      };
+      const res = await fetch("/api/schedule/save", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (res.ok) { const j = await res.json(); setLoadedScheduleId(j.scheduleId); setAutoStatus("saved"); }
+      else setAutoStatus("");
+    } catch { setAutoStatus(""); }
+  }, [sessions, selectedChildId, genY, genM, therapist, serviceType, target, mgmt, pvOrg, pvTel, pvCharge, pvType, costUnit, costSelf, writeDate, outFormId, days]);
+
+  useEffect(() => {
+    if (!hydrated || !sessions || typeof selectedChildId !== "number" || days.length === 0 || !schedTouched.current) return;
+    const t = window.setTimeout(() => { void autoSave(); }, 1800);
+    return () => window.clearTimeout(t);
+  }, [hydrated, autoSave, sessions, selectedChildId, days.length]);
+
   const cycle = useMemo(() => {
     if (!sessions) return "";
     const wds = [...new Set(days.map((d) => new Date(genY, genM - 1, d).getDay()))].sort();
@@ -910,7 +946,7 @@ export default function ScheduleClient({
       </div>
 
       {sessions && (
-        <div className="card" id="schedCard">
+        <div className="card" id="schedCard" onChangeCapture={() => { schedTouched.current = true; }}>
           <div className="card-header">
             <span className="step">2</span>
             <h2>일정표 미리보기 — {genY}년 {genM}월</h2>
@@ -1023,8 +1059,8 @@ export default function ScheduleClient({
               </button>
             </div>
             <div className="sub-mute" style={{ fontSize: 12, marginTop: 8, lineHeight: 1.6 }}>
-              💾 <b>[저장]</b>해두면 다른 컴퓨터(집·센터 등)에서도 위에서 <b>같은 아동·월</b>을 고르면 이어서 작성할 수 있어요.
-              저장 전 임시 작성본은 <b>이 컴퓨터에만</b> 남습니다.
+              💾 작업 중 <b>자동으로 저장</b>돼요{autoStatus === "saving" ? " (저장 중…)" : autoStatus === "saved" ? " ✓ 저장됨" : ""}.
+              다른 컴퓨터(집·센터 등)에서도 위에서 <b>같은 아동·월</b>을 고르면 이어서 작성할 수 있어요.
             </div>
           </div>
         </div>
