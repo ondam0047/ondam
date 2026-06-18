@@ -44,13 +44,11 @@ export default function ToolChildManager() {
   }
 
   return (
-    <section style={{ marginTop: 40 }}>
+    <section style={{ marginTop: 40, paddingTop: 32, borderTop: "1px solid var(--border)" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 14 }}>
         <div>
-          <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "var(--text-soft)", letterSpacing: "0.05em", textTransform: "uppercase" }}>
-            바로툴 대상자
-          </p>
-          <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--text-mute)" }}>
+          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>바로툴 대상자</h2>
+          <p style={{ margin: "4px 0 0", fontSize: 12.5, color: "var(--text-mute)" }}>
             내 아동과 별개로 관리하는 개인 명단 — 바로툴 모니터링에 사용해요
           </p>
         </div>

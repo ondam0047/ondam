@@ -91,6 +91,11 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
   // ── 삭제 확인 ───────────────────────────────────────────────
   const [delConfirm, setDelConfirm] = useState(false);
 
+  // ── 미리보기 ────────────────────────────────────────────────
+  type PreviewCell = { r: number; c: number; rs: number; cs: number; text: string; value: string };
+  const [preview,    setPreview]    = useState<{ tables: PreviewCell[][] } | null>(null);
+  const [previewBusy, setPreviewBusy] = useState(false);
+
   // ── 세션 헬퍼 ───────────────────────────────────────────────
   const setSess = (i: number, k: keyof Session, v: string) =>
     setSessions((a) => a.map((s, j) => (j === i ? { ...s, [k]: v } : s)));
@@ -173,6 +178,37 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
       router.refresh();
     } catch { setErr("출력 중 오류가 발생했어요."); }
     finally { setBusy(false); }
+  }
+
+  // ── 미리보기 요청 ───────────────────────────────────────────
+  async function showPreview() {
+    setErr(""); setMsg("");
+    if (!studentName.trim()) { setErr("아동 이름을 입력해야 미리보기가 가능해요."); return; }
+    if (!localHasForm) { setErr("기록지 양식이 등록되어 있지 않습니다."); return; }
+    setPreviewBusy(true);
+    try {
+      const res = await fetch(`/api/support/programs/${programId}/preview`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentName: studentName.trim(), therapistName: therapistName.trim(),
+          org: orgName.trim(),
+          year:  Number(year)  || new Date().getFullYear(),
+          month: Number(month) || new Date().getMonth() + 1,
+          school:       school.trim()       || undefined,
+          grade:        grade.trim()        || undefined,
+          dayOfWeek:    dayOfWeek.trim()    || undefined,
+          sessionTime:  sessionTime.trim()  || undefined,
+          goal:         goal.trim()         || undefined,
+          currentLevel: currentLevel.trim() || undefined,
+          sessions: sessions.filter((s) => s.date || s.content),
+        }),
+      });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); setErr(d.error ?? "미리보기 오류"); return; }
+      const d = await res.json();
+      setPreview(d);
+    } catch { setErr("미리보기 중 오류가 발생했어요."); }
+    finally { setPreviewBusy(false); }
   }
 
   // ── 양식 파일 선택 → 자동분석 ──────────────────────────────
@@ -353,6 +389,46 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
         )}
       </div>
 
+      {/* ── 저장된 아동 (마음모아 스타일) ── */}
+      {saved.length > 0 && (
+        <div className="card" style={{ padding: "12px 16px", marginBottom: 24 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <h3 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "var(--text-soft)", letterSpacing: "0.05em", textTransform: "uppercase" }}>
+              저장된 아동 ({saved.length})
+            </h3>
+            <button className="btn btn-sm btn-ghost" onClick={newDoc}>+ 새로 작성</button>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {saved.map((r) => (
+              <div key={r.id} style={{
+                display: "flex", alignItems: "center", gap: 0,
+                border: `1px solid ${editingId === r.id ? "var(--primary)" : "var(--border)"}`,
+                borderRadius: 999, padding: "4px 6px 4px 12px",
+                background: editingId === r.id ? "var(--primary-soft)" : "var(--surface)",
+              }}>
+                <button
+                  className="btn btn-sm btn-ghost"
+                  style={{ padding: "2px 4px", borderRadius: 999 }}
+                  onClick={() => loadRecord(r)}
+                >
+                  <b>{r.student}</b>
+                  <span style={{ color: "var(--text-mute)", fontSize: 11, marginLeft: 5 }}>{r.updatedAt}</span>
+                </button>
+                {r.toolChildId && (
+                  <Link
+                    href={`/monitor/${r.toolChildId}`}
+                    style={{ fontSize: 11, color: "var(--primary)", textDecoration: "none", padding: "2px 8px 2px 4px" }}
+                    title="모니터링 보기"
+                  >
+                    📊
+                  </Link>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ── 기록지 작성 ── */}
       <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 32, alignItems: "start" }}>
 
@@ -440,7 +516,10 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
           {msg && <p style={{ fontSize: 12, color: "var(--success, green)", marginBottom: 6 }}>{msg}</p>}
           {err && <p style={{ fontSize: 12, color: "var(--error)", marginBottom: 6 }}>{err}</p>}
 
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button className="btn btn-ghost" onClick={showPreview} disabled={previewBusy || !localHasForm} style={{ fontSize: 13 }}>
+              {previewBusy ? "로딩…" : "미리보기"}
+            </button>
             <button className="btn btn-primary" onClick={print} disabled={busy || !localHasForm} style={{ flex: 1 }}>
               {busy ? "생성 중…" : "기록지 출력"}
             </button>
@@ -482,39 +561,6 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
           </p>
         </div>
       </div>
-
-      {/* 저장된 기록 */}
-      {saved.length > 0 && (
-        <div style={{ marginTop: 40 }}>
-          <p style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700, color: "var(--text-soft)", letterSpacing: "0.05em", textTransform: "uppercase" }}>
-            저장된 기록 ({saved.length})
-          </p>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
-            {saved.map((r) => (
-              <div key={r.id} style={{
-                borderRadius: 10, border: `2px solid ${editingId === r.id ? "var(--primary)" : "var(--border)"}`,
-                background: editingId === r.id ? "var(--primary-light, var(--surface))" : "var(--surface)",
-              }}>
-                <button onClick={() => loadRecord(r)} style={{
-                  textAlign: "left", padding: "12px 14px", display: "block", width: "100%",
-                  background: "none", border: "none", cursor: "pointer",
-                }}>
-                  <div style={{ fontWeight: 700, fontSize: 14 }}>{r.student}</div>
-                  <div style={{ fontSize: 11, color: "var(--text-mute)", marginTop: 2 }}>{r.updatedAt}</div>
-                </button>
-                {r.toolChildId && (
-                  <Link
-                    href={`/monitor/${r.toolChildId}`}
-                    style={{ display: "block", padding: "4px 14px 10px", fontSize: 11, color: "var(--primary)", textDecoration: "none" }}
-                  >
-                    모니터링 보기 →
-                  </Link>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* 역할 선택 팝오버 */}
       {picker && (() => {
@@ -561,7 +607,96 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
           </>
         );
       })()}
+
+      {/* ── 미리보기 모달 ── */}
+      {preview && (
+        <>
+          <div
+            onClick={() => setPreview(null)}
+            style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(0,0,0,0.5)" }}
+          />
+          <div style={{
+            position: "fixed", zIndex: 61, top: "50%", left: "50%",
+            transform: "translate(-50%, -50%)",
+            width: "min(96vw, 900px)", maxHeight: "86vh",
+            background: "var(--surface)", borderRadius: 14,
+            boxShadow: "0 12px 40px rgba(0,0,0,0.28)",
+            display: "flex", flexDirection: "column", overflow: "hidden",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: "1px solid var(--border)" }}>
+              <div>
+                <span style={{ fontWeight: 800, fontSize: 15 }}>미리보기</span>
+                <span style={{ marginLeft: 8, fontSize: 12, color: "var(--text-mute)" }}>
+                  색칠된 칸이 입력한 값으로 채워져요
+                </span>
+              </div>
+              <button onClick={() => setPreview(null)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--text-mute)", padding: "0 4px" }}>×</button>
+            </div>
+            <div style={{ overflowY: "auto", padding: 18 }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 20, alignItems: "flex-start" }}>
+                {preview.tables.map((cells, ti) => (
+                  <div key={ti} style={{ flex: "0 1 auto" }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", marginBottom: 4 }}>표 {ti + 1}</div>
+                    <PreviewTable cells={cells} />
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ padding: "12px 18px", borderTop: "1px solid var(--border)", display: "flex", gap: 8 }}>
+              <button className="btn btn-primary" onClick={() => { setPreview(null); print(); }} disabled={busy}>
+                {busy ? "생성 중…" : "바로 출력"}
+              </button>
+              <button className="btn btn-ghost" onClick={() => setPreview(null)}>닫기</button>
+            </div>
+          </div>
+        </>
+      )}
     </>
+  );
+}
+
+// ── 미리보기 표 렌더러 ─────────────────────────────────────────────
+type PreviewCell = { r: number; c: number; rs: number; cs: number; text: string; value: string };
+function PreviewTable({ cells }: { cells: PreviewCell[] }) {
+  if (cells.length === 0) return null;
+  const maxR = Math.max(...cells.map((c) => c.r + c.rs));
+  const maxC = Math.max(...cells.map((c) => c.c + c.cs));
+  const at = new Map<string, PreviewCell>();
+  cells.forEach((c) => at.set(`${c.r},${c.c}`, c));
+  const covered = new Set<string>();
+  const rows: React.ReactNode[] = [];
+  for (let r = 0; r < maxR; r++) {
+    const tds: React.ReactNode[] = [];
+    for (let c = 0; c < maxC; c++) {
+      if (covered.has(`${r},${c}`)) continue;
+      const cell = at.get(`${r},${c}`);
+      if (cell) {
+        for (let rr = r; rr < r + cell.rs; rr++)
+          for (let cc = c; cc < c + cell.cs; cc++)
+            if (!(rr === r && cc === c)) covered.add(`${rr},${cc}`);
+        const filled = !!cell.value;
+        tds.push(
+          <td key={c} colSpan={cell.cs} rowSpan={cell.rs} style={{
+            border: "1px solid var(--border)", padding: "3px 6px", fontSize: 12, verticalAlign: "top",
+            background: filled ? "var(--primary-soft)" : "var(--surface)",
+            minWidth: 40, maxWidth: 180,
+          }}>
+            {filled
+              ? <span style={{ color: "var(--primary)", fontWeight: 600, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{cell.value}</span>
+              : <span style={{ color: cell.text ? "var(--text)" : "var(--text-mute)", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{cell.text || "·"}</span>
+            }
+          </td>,
+        );
+      } else {
+        tds.push(<td key={c} style={{ border: "1px solid var(--border)", background: "var(--surface-2)" }} />);
+      }
+    }
+    rows.push(<tr key={r}>{tds}</tr>);
+  }
+  return (
+    <table style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>
+      <tbody>{rows}</tbody>
+    </table>
   );
 }
 
