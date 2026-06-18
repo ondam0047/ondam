@@ -30,10 +30,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   if (file instanceof Blob && file.size > 0) {
     try {
-      const buf = Buffer.from(await file.arrayBuffer());
+      const ab: ArrayBuffer = await file.arrayBuffer();
+      const buf = Buffer.from(ab);
       const xml = readSection0(buf);
       const { spec } = resolveForm(xml);
-      data.formTemplate = buf;
+      data.formTemplate = new Uint8Array(ab);
       data.formSpec = JSON.stringify(spec);
     } catch {
       return Response.json({ error: "이 파일은 편집 가능한 .hwpx 가 아닙니다. (.hwp·스캔·PDF 미지원)" }, { status: 422 });

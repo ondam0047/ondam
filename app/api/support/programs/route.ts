@@ -44,15 +44,16 @@ export async function POST(req: NextRequest) {
   if (!name) return Response.json({ error: "사업 이름을 입력하세요." }, { status: 400 });
 
   const file = fd.get("file");
-  let formTemplate: Buffer | null = null;
+  let formTemplate: Uint8Array | null = null;
   let formSpec: string | null = null;
 
   if (file instanceof Blob && file.size > 0) {
     try {
-      const buf = Buffer.from(await file.arrayBuffer());
+      const ab: ArrayBuffer = await file.arrayBuffer();
+      const buf = Buffer.from(ab);
       const xml = readSection0(buf);
       const { spec } = resolveForm(xml);
-      formTemplate = buf;
+      formTemplate = new Uint8Array(ab);
       formSpec = JSON.stringify(spec);
     } catch {
       return Response.json({ error: "이 파일은 편집 가능한 .hwpx 가 아닙니다. (.hwp·스캔·PDF 미지원)" }, { status: 422 });
