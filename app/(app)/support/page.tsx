@@ -23,16 +23,23 @@ const SYSTEM_PROGRAMS = [
 ];
 
 export default async function SupportHubPage() {
-  const user = await requireUser();
+  const sessionUser = await requireUser();
 
-  const programs = await prisma.program.findMany({
-    where: { ownerId: user.id, active: true },
-    orderBy: { createdAt: "asc" },
-    select: { id: true, name: true, formSpec: true },
-  });
+  const [programs, planRow] = await Promise.all([
+    prisma.program.findMany({
+      where: { ownerId: sessionUser.id, active: true },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, name: true, formSpec: true },
+    }),
+    prisma.user.findUnique({
+      where: { id: sessionUser.id },
+      select: { plan: true, trialEndsAt: true },
+    }),
+  ]);
 
-  const limit = maxCustomPrograms(user);
-  const canAdd = canAddProgram(user, programs.length);
+  const planUser = { plan: planRow?.plan ?? "trial", trialEndsAt: planRow?.trialEndsAt ?? null };
+  const limit = maxCustomPrograms(planUser);
+  const canAdd = canAddProgram(planUser, programs.length);
 
   const cardBase: React.CSSProperties = {
     display: "flex", flexDirection: "column",
