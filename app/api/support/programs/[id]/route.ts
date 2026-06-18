@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { readSection0 } from "@/lib/hwpx";
-import { resolveForm } from "@/lib/record-resolver";
+import { resolveForm, applyOverrides } from "@/lib/record-resolver";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -33,7 +33,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       const ab = await file.arrayBuffer() as ArrayBuffer;
       const buf = Buffer.from(ab);
       const xml = readSection0(buf);
-      const { spec } = resolveForm(xml);
+      let { spec } = resolveForm(xml);
+      const ovRaw = fd.get("overrides");
+      if (typeof ovRaw === "string" && ovRaw.length > 1) {
+        try { spec = applyOverrides(spec, JSON.parse(ovRaw)); } catch { /* noop */ }
+      }
       data.formTemplate = new Uint8Array(ab);
       data.formSpec = JSON.stringify(spec);
     } catch {
