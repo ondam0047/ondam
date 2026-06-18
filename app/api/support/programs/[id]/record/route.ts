@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { readSection0, patchSection0 } from "@/lib/hwpx";
 import { fillCells, type CellEdit } from "@/lib/record-fill";
 import type { ResolvedSpec } from "@/lib/record-resolver";
+import type { Coord } from "@/lib/record-fill";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -19,11 +20,11 @@ type Payload = {
 
 function buildEdits(spec: ResolvedSpec, d: Payload): CellEdit[] {
   const edits: CellEdit[] = [];
-  const put = (coord: [number, number, number, number?] | undefined, value: string) => {
+  const put = (coord: Coord | undefined, value: string) => {
     if (!coord || !value) return;
     edits.push({ table: coord[0], row: coord[1], col: coord[2], p: coord[3], value });
   };
-  const putArr = (arr: [number, number, number, number?][] | undefined, val: (i: number) => string) => {
+  const putArr = (arr: Coord[] | undefined, val: (i: number) => string) => {
     (arr ?? []).forEach((co, i) => put(co, val(i)));
   };
 
@@ -32,10 +33,16 @@ function buildEdits(spec: ResolvedSpec, d: Payload): CellEdit[] {
   (spec.therapist ?? []).forEach((co) => put(co, d.therapistName));
 
   const S = d.sessions;
+  // 스케줄 형(날짜 열 · 시간 행)
   putArr(spec.date,  (i) => S[i]?.date ?? "");
   putArr(spec.start, (i) => S[i]?.startTime ?? "");
   putArr(spec.end,   (i) => S[i]?.endTime ?? "");
-  putArr(spec.result,(i) => S[i]?.content ?? "");
+  // 결과표(기록지 행)
+  (spec.result ?? []).forEach((row, i) => {
+    put(row.date,   S[i]?.date ?? "");
+    put(row.time,   S[i]?.startTime ?? "");
+    put(row.result, S[i]?.content ?? "");
+  });
 
   return edits;
 }
