@@ -101,7 +101,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const filename = `${program.name}_${studentName}_${year}${String(month).padStart(2, "0")}.hwpx`;
-  return new Response(out, {
+  return new Response(new Uint8Array(out), {
     headers: {
       "Content-Type": "application/hwp+zip",
       "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`,
