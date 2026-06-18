@@ -76,6 +76,18 @@ export function canUseModule(user: PlanUser, m: ToolModule, now: Date = new Date
   return canUseTier(user, m.tier, now);
 }
 
+// 커스텀 기타지원사업 최대 개수 — Solo 2, Pro 5, Trial/베타 5.
+export function maxCustomPrograms(user: PlanUser, now: Date = new Date()): number {
+  if (isTrialOpen(user, now)) return 5;
+  if (user.plan === "pro") return 5;
+  if (user.plan === "solo") return 2;
+  return 0;
+}
+
+export function canAddProgram(user: PlanUser, currentCount: number, now: Date = new Date()): boolean {
+  return currentCount < maxCustomPrograms(user, now);
+}
+
 // 헤더/배지용 라벨.
 export function planLabel(user: PlanUser, now: Date = new Date()): string {
   if (isTrialOpen(user, now)) {

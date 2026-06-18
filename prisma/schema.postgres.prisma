@@ -74,6 +74,7 @@ model User {
   passwordResets PasswordReset[]
   recordForms    RecordForm[]
   supportRecords SupportRecord[]
+  programs       Program[]
 }
 
 model PasswordReset {
@@ -182,13 +183,33 @@ model SupportRecord {
   id          Int      @id @default(autoincrement())
   ownerUserId Int
   ownerUser   User     @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
-  program     String   // 지원사업 키 (예: "maeummoa")
+  program     String   // 지원사업 키 (예: "maeummoa", "custom")
+  programId   Int?     // 커스텀 사업(Program.id) — program="custom" 일 때 세팅
+  programRel  Program? @relation(fields: [programId], references: [id], onDelete: SetNull)
   student     String   // 아동 이름 (목록 표시용)
   payload     String   // 폼 전체 데이터(JSON: 헤더 + 회기)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@index([ownerUserId, program])
+  @@index([programId])
+}
+
+// 치료사가 직접 만든 기타지원사업 — 기록지 양식을 업로드해 출력.
+model Program {
+  id           Int      @id @default(autoincrement())
+  ownerId      Int
+  owner        User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name         String
+  formTemplate Bytes?   // 업로드한 빈 .hwpx 원본
+  formSpec     String?  // 자동매핑 결과 JSON
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  supportRecords SupportRecord[]
+
+  @@index([ownerId])
 }
 
 model ChildService {
