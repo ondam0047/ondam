@@ -21,13 +21,14 @@ export default async function ProgramPage({ params }: Props) {
   const rows = await prisma.supportRecord.findMany({
     where: { ownerUserId: user.id, programId: pid },
     orderBy: { updatedAt: "desc" },
-    select: { id: true, student: true, payload: true, updatedAt: true },
+    select: { id: true, student: true, payload: true, updatedAt: true, toolChildId: true },
   });
   const saved = rows.map((r) => ({
     id: r.id,
     student: r.student,
     updatedAt: r.updatedAt.toISOString().slice(0, 10),
     payload: r.payload,
+    toolChildId: r.toolChildId,
   }));
 
   return (

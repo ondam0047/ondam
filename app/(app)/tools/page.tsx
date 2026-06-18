@@ -5,6 +5,7 @@ import {
   soloModules, proModules, canUseModule, planLabel,
   type ToolModule, type PlanUser,
 } from "@/lib/plan";
+import ToolChildManager from "./ToolChildManager";
 
 export const dynamic = "force-dynamic";
 
@@ -129,6 +130,8 @@ export default async function ToolsPage() {
         modules={proModules()}
         user={user}
       />
+
+      <ToolChildManager />
     </>
   );
 }

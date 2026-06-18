@@ -21,7 +21,6 @@ type Payload = {
   org:           string;
   year:          number;
   month:         number;
-  // 선택 필드 — 매핑 UI에서 해당 역할이 지정된 칸이 있을 때만 채워짐
   school?:        string;
   grade?:         string;
   dayOfWeek?:     string;
@@ -29,6 +28,7 @@ type Payload = {
   goal?:          string;
   currentLevel?:  string;
   sessions:      Session[];
+  toolChildId?:   number;
 };
 
 // 직접 spec 필드 + spec.manual 역할 기반으로 CellEdit 목록 생성
@@ -119,7 +119,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   let body: Payload;
   try { body = await req.json(); } catch { return Response.json({ error: "invalid json" }, { status: 400 }); }
 
-  const { studentName, therapistName, org, year, month, sessions } = body;
+  const { studentName, sessions, toolChildId, year, month } = body;
   if (!studentName) return Response.json({ error: "아동 이름을 입력하세요." }, { status: 400 });
 
   let spec: ResolvedSpec;
@@ -135,10 +135,11 @@ export async function POST(req: NextRequest, { params }: Params) {
   const existing = await prisma.supportRecord.findFirst({
     where: { ownerUserId: user.id, programId: pid, student: studentName },
   });
+  const tcId = toolChildId ? Number(toolChildId) : undefined;
   if (existing) {
     await prisma.supportRecord.update({
       where: { id: existing.id },
-      data: { payload: JSON.stringify(body) },
+      data: { payload: JSON.stringify(body), toolChildId: tcId ?? null },
     });
   } else {
     await prisma.supportRecord.create({
@@ -148,6 +149,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         programId:   pid,
         student:     studentName,
         payload:     JSON.stringify(body),
+        toolChildId: tcId ?? null,
       },
     });
   }

@@ -9,15 +9,22 @@ export async function GET() {
   const centerId = user.centerId ?? -1;
   const tid = await getEffectiveTherapistId(user);
 
-  const services = await prisma.childService.findMany({
-    where: {
-      therapistId: tid ?? -1,
-      active: true,
-      child: { active: true, centerId },
-    },
-    include: { child: { select: { id: true, name: true, birthDate: true } } },
-    orderBy: [{ child: { name: "asc" } }],
-  });
+  const [services, toolChildren] = await Promise.all([
+    prisma.childService.findMany({
+      where: {
+        therapistId: tid ?? -1,
+        active: true,
+        child: { active: true, centerId },
+      },
+      include: { child: { select: { id: true, name: true, birthDate: true } } },
+      orderBy: [{ child: { name: "asc" } }],
+    }),
+    prisma.toolChild.findMany({
+      where: { ownerId: user.id },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, memo: true },
+    }),
+  ]);
 
   const map = new Map<number, { id: number; name: string; birthDate: string | null }>();
   for (const s of services) {
@@ -25,5 +32,5 @@ export async function GET() {
       map.set(s.childId, { id: s.child.id, name: s.child.name, birthDate: s.child.birthDate });
     }
   }
-  return Response.json({ therapist: user.name, children: [...map.values()] });
+  return Response.json({ therapist: user.name, children: [...map.values()], toolChildren });
 }

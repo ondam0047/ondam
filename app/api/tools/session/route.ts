@@ -4,7 +4,6 @@ import { getCurrentUser, getEffectiveTherapistId } from "@/lib/auth";
 
 const MODULES = new Set(["loudness", "spectrogram", "mpt", "speech-rate", "fluency", "pacing"]);
 
-// 담당 아동인지 확인(센터·치료사 스코프).
 async function assertOwnsChild(
   centerId: number,
   therapistId: number | null,
@@ -17,22 +16,48 @@ async function assertOwnsChild(
   return !!svc;
 }
 
-// 세션 저장
+async function assertOwnsToolChild(userId: number, toolChildId: number): Promise<boolean> {
+  const tc = await prisma.toolChild.findFirst({ where: { id: toolChildId, ownerId: userId }, select: { id: true } });
+  return !!tc;
+}
+
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
 
   const body = (await req.json()) as {
     childId?: number;
+    toolChildId?: number;
     module?: string;
     metrics?: Record<string, unknown>;
     note?: string;
   };
-  const childId = Number(body.childId);
+
   const moduleKey = String(body.module ?? "");
-  if (!childId || !MODULES.has(moduleKey)) {
-    return Response.json({ error: "missing childId/module" }, { status: 400 });
+  if (!MODULES.has(moduleKey)) {
+    return Response.json({ error: "invalid module" }, { status: 400 });
   }
+
+  const toolChildId = Number(body.toolChildId) || 0;
+  if (toolChildId) {
+    if (!(await assertOwnsToolChild(user.id, toolChildId))) {
+      return Response.json({ error: "forbidden" }, { status: 403 });
+    }
+    const row = await prisma.toolSession.create({
+      data: {
+        toolChildId,
+        therapistId: await getEffectiveTherapistId(user),
+        module: moduleKey,
+        metrics: JSON.stringify(body.metrics ?? {}),
+        note: body.note?.slice(0, 500) || null,
+      },
+      select: { id: true, createdAt: true },
+    });
+    return Response.json({ ok: true, id: row.id, createdAt: row.createdAt });
+  }
+
+  const childId = Number(body.childId);
+  if (!childId) return Response.json({ error: "missing childId/toolChildId" }, { status: 400 });
 
   const centerId = user.centerId ?? -1;
   const tid = await getEffectiveTherapistId(user);
@@ -54,17 +79,32 @@ export async function POST(req: NextRequest) {
   return Response.json({ ok: true, id: row.id, createdAt: row.createdAt });
 }
 
-// 특정 아동·모듈의 최근 세션 조회(추이용, 오래된→최신)
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const childId = Number(searchParams.get("childId"));
   const moduleKey = String(searchParams.get("module") ?? "");
-  if (!childId || !MODULES.has(moduleKey)) {
-    return Response.json({ error: "missing childId/module" }, { status: 400 });
+  if (!MODULES.has(moduleKey)) {
+    return Response.json({ error: "invalid module" }, { status: 400 });
   }
+
+  const toolChildId = Number(searchParams.get("toolChildId")) || 0;
+  if (toolChildId) {
+    if (!(await assertOwnsToolChild(user.id, toolChildId))) {
+      return Response.json({ error: "forbidden" }, { status: 403 });
+    }
+    const rows = await prisma.toolSession.findMany({
+      where: { toolChildId, module: moduleKey },
+      orderBy: { createdAt: "asc" },
+      take: 100,
+      select: { id: true, metrics: true, note: true, createdAt: true },
+    });
+    return Response.json({ sessions: rows.map(formatRow) });
+  }
+
+  const childId = Number(searchParams.get("childId"));
+  if (!childId) return Response.json({ error: "missing childId/toolChildId" }, { status: 400 });
 
   const centerId = user.centerId ?? -1;
   const tid = await getEffectiveTherapistId(user);
@@ -78,25 +118,41 @@ export async function GET(req: NextRequest) {
     take: 100,
     select: { id: true, metrics: true, note: true, createdAt: true },
   });
-  const sessions = rows.map((r) => ({
+  return Response.json({ sessions: rows.map(formatRow) });
+}
+
+export async function DELETE(req: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+
+  const { searchParams } = new URL(req.url);
+  const id = Number(searchParams.get("id"));
+  if (!id) return Response.json({ error: "missing id" }, { status: 400 });
+
+  const centerId = user.centerId ?? -1;
+  // Allow deletion if owned via centerId OR via toolChild.ownerId
+  const session = await prisma.toolSession.findUnique({ where: { id }, select: { centerId: true, toolChildId: true } });
+  if (!session) return Response.json({ ok: true });
+
+  if (session.toolChildId) {
+    if (!(await assertOwnsToolChild(user.id, session.toolChildId))) {
+      return Response.json({ error: "forbidden" }, { status: 403 });
+    }
+  } else if (session.centerId !== centerId) {
+    return Response.json({ error: "forbidden" }, { status: 403 });
+  }
+
+  await prisma.toolSession.delete({ where: { id } });
+  return Response.json({ ok: true });
+}
+
+function formatRow(r: { id: number; metrics: string; note: string | null; createdAt: Date }) {
+  return {
     id: r.id,
     createdAt: r.createdAt,
     note: r.note,
     metrics: safeParse(r.metrics),
-  }));
-  return Response.json({ sessions });
-}
-
-// 세션 삭제(본인 센터 범위)
-export async function DELETE(req: NextRequest) {
-  const user = await getCurrentUser();
-  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
-  const { searchParams } = new URL(req.url);
-  const id = Number(searchParams.get("id"));
-  if (!id) return Response.json({ error: "missing id" }, { status: 400 });
-  const centerId = user.centerId ?? -1;
-  await prisma.toolSession.deleteMany({ where: { id, centerId } });
-  return Response.json({ ok: true });
+  };
 }
 
 function safeParse(s: string): Record<string, unknown> {

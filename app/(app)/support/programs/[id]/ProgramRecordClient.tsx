@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -23,7 +23,8 @@ const ROW_ROLES = ["날짜", "시작", "종료", "결과"];
 
 // ── 기록지 타입 ─────────────────────────────────────────────────
 type Session = { date: string; startTime: string; endTime: string; content: string; notes: string };
-type Saved   = { id: number; student: string; updatedAt: string; payload: string };
+type Saved   = { id: number; student: string; updatedAt: string; payload: string; toolChildId?: number | null };
+type ToolChild = { id: number; name: string; memo: string | null };
 
 const empty = (): Session => ({ date: "", startTime: "", endTime: "", content: "", notes: "" });
 
@@ -60,6 +61,17 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
   const [sessions,   setSessions]  = useState<Session[]>([empty()]);
   const [editingId,  setEditingId] = useState<number | null>(null);
 
+  // ── 바로툴 대상자 연결 ──────────────────────────────────────
+  const [toolChildren,  setToolChildren]  = useState<ToolChild[]>([]);
+  const [toolChildId,   setToolChildId]   = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch("/api/tool-children")
+      .then((r) => (r.ok ? r.json() : { children: [] }))
+      .then((d) => setToolChildren(d.children ?? []))
+      .catch(() => {});
+  }, []);
+
   // ── 액션 상태 ───────────────────────────────────────────────
   const [busy, setBusy] = useState(false);
   const [msg,  setMsg]  = useState("");
@@ -87,6 +99,7 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
 
   function newDoc() {
     setStudentName(""); setSessions([empty()]); setEditingId(null); setMsg(""); setErr("");
+    setToolChildId(null);
   }
 
   function loadRecord(r: Saved) {
@@ -104,6 +117,7 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
       setGoal(d.goal ?? "");
       setCurrentLevel(d.currentLevel ?? "");
       if (d.school || d.grade || d.dayOfWeek || d.sessionTime || d.goal || d.currentLevel) setShowExtra(true);
+      setToolChildId(r.toolChildId ?? null);
       const ss: Session[] = Array.isArray(d.sessions) && d.sessions.length
         ? d.sessions.map((s: Session) => ({
             date: s.date ?? "", startTime: s.startTime ?? "",
@@ -139,6 +153,7 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
           goal: goal.trim() || undefined,
           currentLevel: currentLevel.trim() || undefined,
           sessions: sessions.filter((s) => s.date || s.content),
+          toolChildId: toolChildId ?? undefined,
         }),
       });
       if (!res.ok) {
@@ -349,6 +364,31 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
             <label className="label">아동 이름 <span style={{ color: "var(--error)" }}>*</span></label>
             <input className="input" value={studentName} onChange={(e) => setStudentName(e.target.value)} placeholder="홍길동" />
           </div>
+
+          {/* 바로툴 대상자 연결 */}
+          {toolChildren.length > 0 && (
+            <div className="field" style={{ marginBottom: 10 }}>
+              <label className="label" style={{ fontSize: 11 }}>바로툴 대상자 연결 (선택)</label>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <select
+                  value={toolChildId ?? ""}
+                  onChange={(e) => setToolChildId(e.target.value ? Number(e.target.value) : null)}
+                  style={{ flex: 1, padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", fontSize: 13, color: "var(--text)" }}
+                >
+                  <option value="">연결 안 함</option>
+                  {toolChildren.map((tc) => (
+                    <option key={tc.id} value={tc.id}>{tc.name}{tc.memo ? ` (${tc.memo})` : ""}</option>
+                  ))}
+                </select>
+                {toolChildId && (
+                  <Link href={`/monitor/${toolChildId}`} style={{ fontSize: 11, color: "var(--primary)", textDecoration: "none", whiteSpace: "nowrap" }}>
+                    모니터링 →
+                  </Link>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="field" style={{ marginBottom: 10 }}>
             <label className="label">담당 치료사</label>
             <input className="input" value={therapistName} onChange={(e) => setTherapistName(e.target.value)} />
@@ -451,15 +491,26 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
           </p>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
             {saved.map((r) => (
-              <button key={r.id} onClick={() => loadRecord(r)} style={{
-                textAlign: "left", padding: "12px 14px", borderRadius: 10, display: "block", width: "100%",
-                border: `2px solid ${editingId === r.id ? "var(--primary)" : "var(--border)"}`,
+              <div key={r.id} style={{
+                borderRadius: 10, border: `2px solid ${editingId === r.id ? "var(--primary)" : "var(--border)"}`,
                 background: editingId === r.id ? "var(--primary-light, var(--surface))" : "var(--surface)",
-                cursor: "pointer",
               }}>
-                <div style={{ fontWeight: 700, fontSize: 14 }}>{r.student}</div>
-                <div style={{ fontSize: 11, color: "var(--text-mute)", marginTop: 2 }}>{r.updatedAt}</div>
-              </button>
+                <button onClick={() => loadRecord(r)} style={{
+                  textAlign: "left", padding: "12px 14px", display: "block", width: "100%",
+                  background: "none", border: "none", cursor: "pointer",
+                }}>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>{r.student}</div>
+                  <div style={{ fontSize: 11, color: "var(--text-mute)", marginTop: 2 }}>{r.updatedAt}</div>
+                </button>
+                {r.toolChildId && (
+                  <Link
+                    href={`/monitor/${r.toolChildId}`}
+                    style={{ display: "block", padding: "4px 14px 10px", fontSize: 11, color: "var(--primary)", textDecoration: "none" }}
+                  >
+                    모니터링 보기 →
+                  </Link>
+                )}
+              </div>
             ))}
           </div>
         </div>
