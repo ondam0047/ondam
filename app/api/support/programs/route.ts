@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
   if (!name) return Response.json({ error: "사업 이름을 입력하세요." }, { status: 400 });
 
   const file = fd.get("file");
-  let formTemplate: Uint8Array | null = null;
+  let formTemplate: Uint8Array<ArrayBuffer> | null = null;
   let formSpec: string | null = null;
 
   if (file instanceof Blob && file.size > 0) {
