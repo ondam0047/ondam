@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
 
   if (file instanceof Blob && file.size > 0) {
     try {
-      const ab: ArrayBuffer = await file.arrayBuffer();
+      const ab = await file.arrayBuffer() as ArrayBuffer;
       const buf = Buffer.from(ab);
       const xml = readSection0(buf);
       const { spec } = resolveForm(xml);
