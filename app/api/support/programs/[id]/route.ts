@@ -28,7 +28,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   const { coverage, grid } = resolveForm(xml);
   const slimGrid = grid.map((cells) =>
-    cells.map((c) => ({ r: c.r, c: c.c, cs: c.cs, rs: c.rs, text: c.text, role: c.role ?? null })),
+    cells.map((c) => ({ r: c.r, c: c.c, cs: c.cs, rs: c.rs, text: c.text, role: c.role ?? null, p: c.p })),
   );
   // 저장된 spec.manual → 클라이언트 override 시드(좌표→역할)
   const overrides: Record<string, string> = {};

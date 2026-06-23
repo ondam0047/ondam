@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
   const { spec, coverage, grid } = resolveForm(xml);
   // 미리보기용으로 격자를 가볍게 — norm/p 제외
   const slimGrid = grid.map((cells) =>
-    cells.map((c) => ({ r: c.r, c: c.c, cs: c.cs, rs: c.rs, text: c.text, role: c.role ?? null })),
+    cells.map((c) => ({ r: c.r, c: c.c, cs: c.cs, rs: c.rs, text: c.text, role: c.role ?? null, p: c.p })),
   );
   return Response.json({ coverage, grid: slimGrid, spec });
 }

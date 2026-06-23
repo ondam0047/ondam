@@ -6,7 +6,7 @@ import Link from "next/link";
 import { SCALAR_ROLES, ROW_ROLES } from "@/lib/record-roles";
 
 // ── 매핑 관련 타입 ──────────────────────────────────────────────
-type Cell     = { r: number; c: number; cs: number; rs: number; text: string; role: string | null };
+type Cell     = { r: number; c: number; cs: number; rs: number; text: string; role: string | null; p?: number };
 type MapResult = { coverage: Record<string, boolean>; grid: Cell[][] };
 type Picker   = { t: number; r: number; c: number; text: string; x: number; y: number };
 
