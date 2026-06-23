@@ -63,9 +63,10 @@ type Props = {
   therapist: string;
   org: string;
   saved: Saved[];
+  betaUx?: boolean; // 새 AI 매핑 UX(베타 계정 한정)
 };
 
-export default function ProgramRecordClient({ programId, programName, hasForm, therapist, org, saved }: Props) {
+export default function ProgramRecordClient({ programId, programName, hasForm, therapist, org, saved, betaUx = false }: Props) {
   const router  = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -131,6 +132,7 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
   const [mapPreview,   setMapPreview]   = useState(true);  // 매핑 화면 인라인 예시 미리보기
   const [aiBusy,       setAiBusy]       = useState(false); // AI 자동매핑 진행
   const [aiLow,        setAiLow]        = useState<Set<string>>(new Set()); // 낮은 신뢰도 칸(확인 필요)
+  const [autoMapPending, setAutoMapPending] = useState(false); // 업로드 직후 AI 자동실행 대기(베타)
 
   // ── 삭제 확인 ───────────────────────────────────────────────
   const [delConfirm, setDelConfirm] = useState(false);
@@ -142,6 +144,15 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
 
   // 매핑 패널이 열려 있고 저장 전이면 미리보기·출력은 '저장된' 매핑을 쓰므로 막는다.
   const mappingUnsaved = !!mapResult && (mapEditing || !!mapFile);
+
+  // 베타 UX: 업로드로 격자가 준비되면 AI 자동매핑 1회 실행(사람이 확인 후 저장)
+  useEffect(() => {
+    if (autoMapPending && mapResult && !aiBusy) {
+      setAutoMapPending(false);
+      aiAutoMap();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoMapPending, mapResult]);
 
   // ── 세션 헬퍼 ───────────────────────────────────────────────
   const setSess = (i: number, k: keyof Session, v: string) =>
@@ -280,9 +291,13 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
       if (!res.ok) throw new Error(d.error ?? "분석 실패");
       setMapResult(d);
       // 학습 캐시 적중 — 이전에 매핑한 양식이면 매핑을 자동으로 채움(사람이 확인 후 저장)
-      if (d.cached?.overrides && Object.keys(d.cached.overrides).length) {
+      const cachedHit = d.cached?.overrides && Object.keys(d.cached.overrides).length;
+      if (cachedHit) {
         setMapOverrides(d.cached.overrides);
         setMapMsg(`✓ 이전에 매핑한 적 있는 양식이에요${d.cached.label ? ` (${d.cached.label})` : ""} — 매핑을 자동으로 채웠어요. 확인 후 저장하세요.`);
+      } else if (betaUx) {
+        // 베타 UX: 캐시가 없으면 업로드 직후 AI가 자동으로 칸을 잡아줌(사람이 확인 후 저장)
+        setAutoMapPending(true);
       }
     } catch (e) {
       setMapErr(e instanceof Error ? e.message : "분석 중 오류가 발생했어요.");
@@ -460,7 +475,9 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
           <div>
             <span style={{ fontWeight: 700, fontSize: 14 }}>{localHasForm ? "✓ 양식 등록됨" : "양식 미등록"}</span>
             <span style={{ marginLeft: 10, fontSize: 12, color: "var(--text-mute)" }}>
-              {localHasForm ? ".hwpx 양식이 연결되어 있어요." : ".hwpx 기록지 양식을 등록하면 출력 가능해요."}
+              {localHasForm
+                ? (betaUx ? "✨ ‘매핑 수정’에서 AI 자동매핑으로 칸을 다시 잡을 수 있어요." : ".hwpx 양식이 연결되어 있어요.")
+                : (betaUx ? ".hwpx 양식을 올리면 ✨AI가 칸을 자동으로 인식해요." : ".hwpx 기록지 양식을 등록하면 출력 가능해요.")}
             </span>
           </div>
           {!mapFile && !mapEditing && (
@@ -516,20 +533,40 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
               </p>
             </div>
 
+            {/* 베타 UX: AI 자동매핑을 1순위 큰 버튼으로 노출 */}
+            {betaUx && (
+              <div style={{ padding: "14px 16px", borderRadius: 12, background: "var(--primary-soft)", border: "1px solid var(--primary)" }}>
+                <button
+                  className="btn btn-primary"
+                  onClick={aiAutoMap}
+                  disabled={aiBusy}
+                  style={{ width: "100%", justifyContent: "center", fontSize: 15, fontWeight: 700, padding: "11px" }}
+                >
+                  {aiBusy ? "✨ AI가 칸을 분석하고 있어요…" : "✨ AI로 칸 자동 매핑하기"}
+                </button>
+                <p style={{ margin: "8px 0 0", fontSize: 12.5, color: "var(--text-soft)", lineHeight: 1.5 }}>
+                  AI가 양식의 칸을 알아서 인식해 역할을 채워줘요. 아래 <b>예시 미리보기</b>로 확인·수정한 뒤 저장하세요.
+                  {" "}직접 맞추려면 아래 표에서 칸을 클릭해도 돼요.
+                </p>
+              </div>
+            )}
+
             {/* 표 그리드 + 인라인 예시 미리보기 */}
             <div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6, gap: 8, flexWrap: "wrap" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                  <div style={{ fontSize: 13, fontWeight: 700 }}>칸 클릭으로 역할 지정</div>
-                  <button
-                    className="btn btn-sm"
-                    onClick={aiAutoMap}
-                    disabled={aiBusy}
-                    style={{ fontSize: 12, background: "var(--primary)", color: "#fff", border: "none" }}
-                    title="규칙이 못 잡은 칸을 AI가 분석해 역할을 제안해요"
-                  >
-                    {aiBusy ? "AI 분석 중…" : "✨ AI 자동매핑"}
-                  </button>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>{betaUx ? "확인 · 수정 (칸 클릭으로 역할 변경)" : "칸 클릭으로 역할 지정"}</div>
+                  {!betaUx && (
+                    <button
+                      className="btn btn-sm"
+                      onClick={aiAutoMap}
+                      disabled={aiBusy}
+                      style={{ fontSize: 12, background: "var(--primary)", color: "#fff", border: "none" }}
+                      title="규칙이 못 잡은 칸을 AI가 분석해 역할을 제안해요"
+                    >
+                      {aiBusy ? "AI 분석 중…" : "✨ AI 자동매핑"}
+                    </button>
+                  )}
                 </div>
                 <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-soft)", cursor: "pointer" }}>
                   <input type="checkbox" checked={mapPreview} onChange={(e) => setMapPreview(e.target.checked)} />

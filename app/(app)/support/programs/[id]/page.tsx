@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { isBetaUx } from "@/lib/feature-flags";
 import ProgramRecordClient from "./ProgramRecordClient";
 
 export const dynamic = "force-dynamic";
@@ -39,6 +40,7 @@ export default async function ProgramPage({ params }: Props) {
       therapist={user.name}
       org={user.centerName ?? ""}
       saved={saved}
+      betaUx={isBetaUx(user.email)}
     />
   );
 }
