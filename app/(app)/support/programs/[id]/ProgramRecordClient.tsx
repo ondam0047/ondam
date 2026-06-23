@@ -553,9 +553,8 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
 
             {/* 표 그리드 + 인라인 예시 미리보기 */}
             <div>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6, gap: 8, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, gap: 8, flexWrap: "wrap" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                  <div style={{ fontSize: 13, fontWeight: 700 }}>{betaUx ? "확인 · 수정 (칸 클릭으로 역할 변경)" : "칸 클릭으로 역할 지정"}</div>
                   {!betaUx && (
                     <button
                       className="btn btn-sm"
@@ -570,46 +569,56 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
                 </div>
                 <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-soft)", cursor: "pointer" }}>
                   <input type="checkbox" checked={mapPreview} onChange={(e) => setMapPreview(e.target.checked)} />
-                  예시 미리보기 함께 보기
+                  예시 미리보기 나란히 보기
                 </label>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: mapPreview ? "1fr 1fr" : "1fr", gap: 16, alignItems: "start" }}>
-                {/* 매핑(편집) */}
-                <div style={{ overflowX: "auto" }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", marginBottom: 4 }}>① 매핑</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-start" }}>
-                    {mapResult.grid.map((cells, ti) => (
-                      <div key={ti} style={{ flex: "0 1 auto" }}>
-                        <TableView
-                          cells={cells}
-                          roleOf={(cell, p) => effRole(ti, cell, p)}
-                          lowOf={(cell, p) => aiLow.has(`${ti},${cell.r},${cell.c},${p}`)}
-                          onCell={(r, c, p, text, x, y) => setPicker({ t: ti, r, c, p, text, x, y })}
-                        />
-                      </div>
-                    ))}
+              <div style={{ display: "grid", gridTemplateColumns: mapPreview ? "1fr 1fr" : "1fr", gap: 14, alignItems: "start" }}>
+                {/* ① 매핑 카드 */}
+                <div style={{ border: "1px solid var(--border-strong, var(--border))", borderRadius: 10, overflow: "hidden", background: "var(--surface)" }}>
+                  <div style={{ padding: "9px 12px", background: "var(--surface-2)", borderBottom: "1px solid var(--border)", fontSize: 12.5, fontWeight: 800, display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
+                    ✏️ 매핑
+                    <span style={{ fontWeight: 500, color: "var(--text-mute)", fontSize: 11.5 }}>여기서 칸을 클릭해 역할을 지정·수정해요</span>
+                  </div>
+                  <div style={{ padding: 12, overflowX: "auto" }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-start" }}>
+                      {mapResult.grid.map((cells, ti) => (
+                        <div key={ti} style={{ flex: "0 1 auto" }}>
+                          <TableView
+                            cells={cells}
+                            roleOf={(cell, p) => effRole(ti, cell, p)}
+                            lowOf={(cell, p) => aiLow.has(`${ti},${cell.r},${cell.c},${p}`)}
+                            onCell={(r, c, p, text, x, y) => setPicker({ t: ti, r, c, p, text, x, y })}
+                          />
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
-                {/* 예시 미리보기 */}
+                {/* ② 예시 미리보기 카드 */}
                 {mapPreview && (() => {
                   const fm = exampleFillMap();
                   return (
-                    <div style={{ overflowX: "auto" }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--primary)", marginBottom: 4 }}>② 예시 미리보기 (이건 예시입니다)</div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-start" }}>
-                        {mapResult.grid.map((cells, ti) => (
-                          <div key={ti} style={{ flex: "0 1 auto" }}>
-                            <PreviewTable cells={cells.map((c) => {
-                              const paras = c.paras && c.paras.length ? c.paras : [c.text];
-                              return {
-                                r: c.r, c: c.c, rs: c.rs, cs: c.cs, paras,
-                                pvals: paras.map((_, pi) => fm.get(`${ti},${c.r},${c.c},${pi}`) ?? ""),
-                              };
-                            })} />
-                          </div>
-                        ))}
+                    <div style={{ border: "1px solid var(--primary)", borderRadius: 10, overflow: "hidden", background: "var(--surface)" }}>
+                      <div style={{ padding: "9px 12px", background: "var(--primary-soft)", borderBottom: "1px solid var(--primary)", fontSize: 12.5, fontWeight: 800, color: "var(--primary)", display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
+                        👁 예시 미리보기
+                        <span style={{ fontWeight: 500, fontSize: 11.5 }}>지정한 역할이 이렇게 채워져요 (예시값)</span>
+                      </div>
+                      <div style={{ padding: 12, overflowX: "auto" }}>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-start" }}>
+                          {mapResult.grid.map((cells, ti) => (
+                            <div key={ti} style={{ flex: "0 1 auto" }}>
+                              <PreviewTable cells={cells.map((c) => {
+                                const paras = c.paras && c.paras.length ? c.paras : [c.text];
+                                return {
+                                  r: c.r, c: c.c, rs: c.rs, cs: c.cs, paras,
+                                  pvals: paras.map((_, pi) => fm.get(`${ti},${c.r},${c.c},${pi}`) ?? ""),
+                                };
+                              })} />
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   );
