@@ -769,6 +769,7 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
 
           <p style={{ margin: "8px 0 0", fontSize: 11, color: "var(--text-mute)" }}>
             비고·특이사항 칸이 양식에 따로 있으면 각각 들어가고, 내용/결과 칸 하나만 있으면 &ldquo;내용 - 비고&rdquo; 형태로 합쳐져 출력돼요.
+            회기가 양식의 칸 수보다 많으면 칸 수만큼씩 <b>여러 장(ZIP)</b>으로 자동으로 나눠 출력돼요.
           </p>
         </div>
       </div>

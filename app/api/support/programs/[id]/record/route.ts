@@ -4,6 +4,17 @@ import { prisma } from "@/lib/db";
 import { readSection0, patchSection0 } from "@/lib/hwpx";
 import { fillCells, fillTitleMonth, type CellEdit, type Coord } from "@/lib/record-fill";
 import type { ResolvedSpec } from "@/lib/record-resolver";
+import { bundleAsZip, safeFileName } from "@/lib/record-hwpx";
+
+// 양식이 담을 수 있는 회기 칸 수(슬롯). 회기가 이보다 많으면 여러 장으로 나눈다.
+const ROW_ROLES = new Set(["회차", "날짜", "시작", "종료", "결과", "비고"]);
+function formCapacity(spec: ResolvedSpec): number {
+  let cap = Math.max(spec.date?.length ?? 0, spec.result?.length ?? 0);
+  const groups: Record<string, number> = {};
+  for (const m of spec.manual ?? []) if (ROW_ROLES.has(m.role)) groups[m.role] = (groups[m.role] ?? 0) + 1;
+  for (const k in groups) cap = Math.max(cap, groups[k]);
+  return cap || 1;
+}
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -32,8 +43,9 @@ type Payload = {
   toolChildId?:   number;
 };
 
-// 직접 spec 필드 + spec.manual 역할 기반으로 CellEdit 목록 생성
-function buildEdits(spec: ResolvedSpec, d: Payload): CellEdit[] {
+// 직접 spec 필드 + spec.manual 역할 기반으로 CellEdit 목록 생성.
+// ordinalBase: 회차 번호 시작 오프셋(여러 장으로 나눌 때 2장째는 +capacity).
+function buildEdits(spec: ResolvedSpec, d: Payload, ordinalBase = 0): CellEdit[] {
   const edits: CellEdit[] = [];
   const put = (coord: Coord | undefined, value: string) => {
     if (!coord || !value) return;
@@ -94,7 +106,7 @@ function buildEdits(spec: ResolvedSpec, d: Payload): CellEdit[] {
     a.table - b.table || a.row - b.row || a.col - b.col || (a.p ?? 0) - (b.p ?? 0);
   for (const role of Object.keys(rowGroups)) {
     rowGroups[role].sort(byTRC).forEach((m, i) => {
-      const v = role === "회차" ? String(i + 1)
+      const v = role === "회차" ? String(ordinalBase + i + 1)
               : role === "날짜" ? (S[i]?.date ?? "")
               : role === "시작" ? (S[i]?.startTime ?? "")
               : role === "종료" ? (S[i]?.endTime ?? "")
@@ -140,12 +152,21 @@ export async function POST(req: NextRequest, { params }: Params) {
   let spec: ResolvedSpec;
   try { spec = JSON.parse(program.formSpec); } catch { return Response.json({ error: "양식 스펙 오류" }, { status: 500 }); }
 
-  const buf      = Buffer.from(program.formTemplate);
-  const xml      = readSection0(buf);
-  const edits    = buildEdits(spec, body);
-  let   filledXml = fillCells(xml, edits);
-  filledXml = fillTitleMonth(filledXml, year, month); // 제목의 "YYYY년 M월" 자동 치환
-  const out      = patchSection0(buf, filledXml);
+  const buf = Buffer.from(program.formTemplate);
+  const xml = readSection0(buf);
+
+  // 회기가 양식 칸 수보다 많으면 칸 수만큼씩 나눠 여러 장 생성.
+  const cap = formCapacity(spec);
+  const allSessions = sessions ?? [];
+  const chunks: Session[][] = [];
+  for (let i = 0; i < Math.max(1, allSessions.length); i += cap) chunks.push(allSessions.slice(i, i + cap));
+
+  const sheets = chunks.map((chunk, ci) => {
+    const edits = buildEdits(spec, { ...body, sessions: chunk }, ci * cap);
+    let filled = fillCells(xml, edits);
+    filled = fillTitleMonth(filled, year, month); // 제목의 "YYYY년 M월" 자동 치환
+    return patchSection0(buf, filled);
+  });
 
   // SupportRecord 저장/갱신
   const existing = await prisma.supportRecord.findFirst({
@@ -170,11 +191,24 @@ export async function POST(req: NextRequest, { params }: Params) {
     });
   }
 
-  const filename = `${program.name}_${studentName}_${year}${String(month).padStart(2, "0")}.hwpx`;
-  return new Response(new Uint8Array(out), {
+  const base = `${program.name}_${studentName}_${year}${String(month).padStart(2, "0")}`;
+
+  // 한 장이면 .hwpx 그대로, 여러 장이면 ZIP 으로 묶어 반환.
+  if (sheets.length === 1) {
+    return new Response(new Uint8Array(sheets[0]), {
+      headers: {
+        "Content-Type": "application/hwp+zip",
+        "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(`${base}.hwpx`)}`,
+      },
+    });
+  }
+
+  const safeBase = safeFileName(base);
+  const zip = bundleAsZip(sheets.map((data, i) => ({ name: `${safeBase}_${i + 1}장.hwpx`, data })));
+  return new Response(new Uint8Array(zip), {
     headers: {
-      "Content-Type": "application/hwp+zip",
-      "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`,
+      "Content-Type": "application/zip",
+      "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(`${base}_${sheets.length}장.zip`)}`,
     },
   });
 }
