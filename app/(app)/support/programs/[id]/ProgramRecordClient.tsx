@@ -21,6 +21,7 @@ const ROLE_EX: Record<string, string | string[]> = {
   연도: "2026", 월: "6",
   학교: "OO초등학교", 학년: "3학년", 요일: "화·목", 정기시간: "10:00~10:50",
   치료목표: "2어절 문장 산출 향상", 현행수준: "1~2어절 수준 발화",
+  종합의견: "목표 행동에 꾸준한 향상을 보이며 참여 태도 적극적. 가정 연계 권장.",
   회차: ["1", "2", "3", "4", "5"],
   날짜: ["3/5", "3/12", "3/19", "3/26", "4/2"],
   시작: ["10:00", "10:00", "10:00", "10:00", "10:00"],
@@ -46,6 +47,7 @@ const EX = {
   sessionTime:   "10:00~10:50",
   goal:          "2어절 문장 산출 향상",
   currentLevel:  "1~2어절 수준 발화 가능",
+  summary:       "목표 행동에 꾸준한 향상을 보이며 회기 참여 태도가 적극적임. 가정 연계 지도 권장.",
 };
 const EX_SESSIONS: Session[] = [
   { date: "3/5",  startTime: "10:00", endTime: "10:50", content: "2어절 모방 산출 80% 달성", notes: "적극 참여" },
@@ -81,6 +83,7 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
   const [sessionTime,  setSessionTime]  = useState("");
   const [goal,         setGoal]         = useState("");
   const [currentLevel, setCurrentLevel] = useState("");
+  const [summary,      setSummary]      = useState(""); // 종합의견
 
   // ── 회기 ────────────────────────────────────────────────────
   const [sessions,   setSessions]  = useState<Session[]>([empty()]);
@@ -144,7 +147,7 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
 
   function newDoc() {
     setStudentName(""); setSessions([empty()]); setEditingId(null); setMsg(""); setErr("");
-    setToolChildId(null);
+    setToolChildId(null); setSummary("");
   }
 
   function loadRecord(r: Saved) {
@@ -161,7 +164,8 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
       setSessionTime(d.sessionTime ?? "");
       setGoal(d.goal ?? "");
       setCurrentLevel(d.currentLevel ?? "");
-      if (d.school || d.grade || d.dayOfWeek || d.sessionTime || d.goal || d.currentLevel) setShowExtra(true);
+      setSummary(d.summary ?? "");
+      if (d.school || d.grade || d.dayOfWeek || d.sessionTime || d.goal || d.currentLevel || d.summary) setShowExtra(true);
       setToolChildId(r.toolChildId ?? null);
       const ss: Session[] = Array.isArray(d.sessions) && d.sessions.length
         ? d.sessions.map((s: Session) => ({
@@ -197,6 +201,7 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
           sessionTime: sessionTime.trim() || undefined,
           goal: goal.trim() || undefined,
           currentLevel: currentLevel.trim() || undefined,
+          summary: summary.trim() || undefined,
           sessions: sessions.filter((s) => s.date || s.content),
           toolChildId: toolChildId ?? undefined,
         }),
@@ -239,6 +244,7 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
         sessionTime:  sessionTime.trim()  || EX.sessionTime,
         goal:         goal.trim()         || EX.goal,
         currentLevel: currentLevel.trim() || EX.currentLevel,
+        summary:      summary.trim()      || EX.summary,
         sessions: realSessions.length ? realSessions : EX_SESSIONS,
       };
       const res = await fetch(`/api/support/programs/${programId}/preview`, {
@@ -679,20 +685,32 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
           </button>
 
           {showExtra && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, paddingLeft: 10, borderLeft: "2px solid var(--border)" }}>
-              {([
-                { label: "학교",       value: school,        set: setSchool,       ph: "OO초등학교",        w: 150 },
-                { label: "학년",       value: grade,         set: setGrade,        ph: "3학년",             w: 90 },
-                { label: "요일 (정기)", value: dayOfWeek,     set: setDayOfWeek,    ph: "화·목",             w: 110 },
-                { label: "시간 (정기)", value: sessionTime,   set: setSessionTime,  ph: "10:00~10:50",       w: 130 },
-                { label: "치료 목표",  value: goal,          set: setGoal,         ph: "문장 산출 향상",     w: 200 },
-                { label: "현행 수준",  value: currentLevel,  set: setCurrentLevel, ph: "2어절 수준 발화",    w: 200 },
-              ] as { label: string; value: string; set: (v: string) => void; ph: string; w: number }[]).map(({ label, value, set, ph, w }) => (
-                <div key={label} className="field" style={{ flex: `0 0 ${w}px`, margin: 0 }}>
-                  <label className="label" style={{ fontSize: 11 }}>{label}</label>
-                  <input className="input" style={{ fontSize: 13 }} value={value} onChange={(e) => set(e.target.value)} placeholder={ph} />
-                </div>
-              ))}
+            <div style={{ display: "grid", gap: 10, paddingLeft: 10, borderLeft: "2px solid var(--border)" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                {([
+                  { label: "학교",       value: school,        set: setSchool,       ph: "OO초등학교",        w: 150 },
+                  { label: "학년",       value: grade,         set: setGrade,        ph: "3학년",             w: 90 },
+                  { label: "요일 (정기)", value: dayOfWeek,     set: setDayOfWeek,    ph: "화·목",             w: 110 },
+                  { label: "시간 (정기)", value: sessionTime,   set: setSessionTime,  ph: "10:00~10:50",       w: 130 },
+                  { label: "치료 목표",  value: goal,          set: setGoal,         ph: "문장 산출 향상",     w: 200 },
+                  { label: "현행 수준",  value: currentLevel,  set: setCurrentLevel, ph: "2어절 수준 발화",    w: 200 },
+                ] as { label: string; value: string; set: (v: string) => void; ph: string; w: number }[]).map(({ label, value, set, ph, w }) => (
+                  <div key={label} className="field" style={{ flex: `0 0 ${w}px`, margin: 0 }}>
+                    <label className="label" style={{ fontSize: 11 }}>{label}</label>
+                    <input className="input" style={{ fontSize: 13 }} value={value} onChange={(e) => set(e.target.value)} placeholder={ph} />
+                  </div>
+                ))}
+              </div>
+              <div className="field" style={{ margin: 0 }}>
+                <label className="label" style={{ fontSize: 11 }}>종합의견 (총평·비고)</label>
+                <textarea
+                  className="input"
+                  style={{ fontSize: 13, minHeight: 56, resize: "vertical", lineHeight: 1.5 }}
+                  value={summary}
+                  onChange={(e) => setSummary(e.target.value)}
+                  placeholder="목표 행동에 향상을 보이며 참여 태도가 적극적임. 가정 연계 지도 권장."
+                />
+              </div>
             </div>
           )}
 

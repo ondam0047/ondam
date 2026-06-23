@@ -18,6 +18,7 @@ export const ROLE_DEFS: RoleDef[] = [
   { role: "정기시간",  kind: "scalar", desc: "정기 치료 시간대",                        synonyms: ["시간", "정기시간", "제공시간"] },
   { role: "치료목표",  kind: "scalar", desc: "치료·중재 목표",                          synonyms: ["치료목표", "목표", "장기목표"] },
   { role: "현행수준",  kind: "scalar", desc: "대상자 현행 수준·현재 능력",              synonyms: ["현행수준", "현재수준", "현행 수준"] },
+  { role: "종합의견",  kind: "scalar", desc: "종합의견·총평(비고/종합의견 칸의 서술)",   synonyms: ["종합의견", "총평", "비고", "종합 의견", "종합의견 및 특이사항"] },
   // ── 회기(row) ──
   { role: "회차", kind: "row", desc: "회기 번호(1,2,3…). '(  )회차'처럼 번호 들어갈 칸",   synonyms: ["회차", "제공회차", "회기", "차수"] },
   { role: "날짜", kind: "row", desc: "각 회기 날짜. '(  /  )' 형태의 월/일 칸 포함",        synonyms: ["날짜", "월일", "제공일자", "서비스일자", "서비스제공일자", "일자"] },

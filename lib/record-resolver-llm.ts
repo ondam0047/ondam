@@ -67,7 +67,8 @@ export async function llmSuggestRoles(
   const instruction =
     `역할 목록(이 중에서만 선택):\n${roleList}\n\n` +
     "지침:\n" +
-    "- 단일(scalar) 역할: 가장 적절한 빈칸 하나에만(중복 금지). 라벨이 아니라 그 값칸의 id를 고른다.\n" +
+    "- 단일(scalar) 역할: 보통 한 칸이지만, 같은 값이 다른 위치에도 필요하면(예: 치료사 이름이 상단 '제공인력' 칸과 하단 '제공인력 확인' 서명란 양쪽) 여러 칸에 줄 수 있다. 라벨이 아니라 값칸의 id를 고른다.\n" +
+    "- '비고'·'종합의견 및 특이사항' 아래의 넓은 빈칸은 종합의견 역할로.\n" +
     "- 회기반복(row) 역할(회차·날짜·시작·종료·결과): 한 회기마다 한 칸씩, 회기 수만큼 모두. " +
     "한 회기의 칸은 보통 같은 행 또는 같은 열에 모이고 회기가 늘면 반복된다. 서비스 내용·결과 칸이 회기 행마다 있으면 각각 결과로.\n" +
     "- '문단0','문단1'처럼 한 칸이 여러 줄(문단)로 나뉜 경우, 각 문단을 개별 입력칸으로 보고 알맞은 역할을 부여하라. " +
@@ -113,16 +114,15 @@ export async function llmSuggestRoles(
   let parsed: { map?: Array<{ id: number; role: string; confidence?: number }> };
   try { parsed = JSON.parse(cleaned.slice(start, end + 1)); } catch { return { error: "parse_failed" }; }
 
-  const seenScalar = new Set<string>();
-  const scalarRoles = new Set(ROLE_DEFS.filter((r) => r.kind === "scalar").map((r) => r.role));
+  // 같은 (칸,문단)에 중복 제안만 제거. scalar가 여러 칸(상단+서명란 등)에 오는 건 허용.
+  const seenCell = new Set<string>();
   const suggestions: LlmSuggestion[] = [];
   for (const m of parsed.map ?? []) {
     const coord = id2coord[m.id];
     if (!coord || !ALL_ROLES.has(m.role)) continue;
-    if (scalarRoles.has(m.role)) {
-      if (seenScalar.has(m.role)) continue; // scalar 중복 제거(가장 먼저 나온 것만)
-      seenScalar.add(m.role);
-    }
+    const ck = `${coord.table},${coord.row},${coord.col},${coord.p}`;
+    if (seenCell.has(ck)) continue;
+    seenCell.add(ck);
     suggestions.push({ ...coord, role: m.role, confidence: typeof m.confidence === "number" ? m.confidence : 0.7 });
   }
   return { suggestions, model: MODEL };

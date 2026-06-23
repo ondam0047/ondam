@@ -27,6 +27,7 @@ type Payload = {
   sessionTime?:   string;
   goal?:          string;
   currentLevel?:  string;
+  summary?:       string;   // 종합의견·총평
   sessions:      Session[];
   toolChildId?:   number;
 };
@@ -72,6 +73,7 @@ function buildEdits(spec: ResolvedSpec, d: Payload): CellEdit[] {
     정기시간: d.sessionTime   ?? "",
     치료목표: d.goal          ?? "",
     현행수준: d.currentLevel  ?? "",
+    종합의견: d.summary        ?? "",
   };
   const ROW = new Set(["회차", "날짜", "시작", "종료", "결과"]);
 
