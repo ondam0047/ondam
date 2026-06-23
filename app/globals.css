@@ -993,6 +993,8 @@ td.makeup .badge { font-size: 9px; color: #8A6422; font-weight: 700; padding: 0;
 .result-block { margin-top: 22px; }
 .result-block h3 { font-size: 13px; font-weight: 700; margin-bottom: 12px; }
 .result-row { border: 1px solid var(--border); border-radius: var(--r-md); padding: 12px; margin-bottom: 10px; background: var(--surface); }
+.result-row.compact { padding: 9px 10px; margin-bottom: 7px; }
+.result-row.compact .rr-head { gap: 8px; margin-bottom: 6px; }
 .result-row.mismatch { border-color: var(--danger); background: #FBEAE7; }
 .rr-head { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; font-size: 12px; }
 .rr-head .pill { background: var(--surface-2); padding: 3px 9px; border-radius: 5px; font-weight: 600; }

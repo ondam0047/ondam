@@ -1031,7 +1031,7 @@ function RecordSheet({
           return (
             <div
               key={i}
-              className={"result-row" + (match ? "" : hasBoth ? " mismatch" : "")}
+              className={"result-row" + (betaUx ? " compact" : "") + (match ? "" : hasBoth ? " mismatch" : "")}
               data-retro={isRetro ? "true" : undefined}
             >
               <div className="rr-head">
@@ -1068,7 +1068,7 @@ function RecordSheet({
               )}
               <textarea
                 className="textarea"
-                rows={6}
+                rows={betaUx ? 3 : 6}
                 value={results[i]}
                 placeholder=""
                 onChange={(e) => setResults((p) => { const n = [...p]; n[i] = e.target.value; return n; })}
@@ -1094,7 +1094,7 @@ function RecordSheet({
         <h3>부모 상담 종합 의견</h3>
         <textarea
           className="textarea"
-          rows={5}
+          rows={betaUx ? 3 : 5}
           value={opinion}
           placeholder=""
           onChange={(e) => setOpinion(e.target.value)}
