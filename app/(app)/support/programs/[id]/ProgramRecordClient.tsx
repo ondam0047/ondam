@@ -140,6 +140,9 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
   const [preview,    setPreview]    = useState<{ tables: PreviewCell[][] } | null>(null);
   const [previewBusy, setPreviewBusy] = useState(false);
 
+  // 매핑 패널이 열려 있고 저장 전이면 미리보기·출력은 '저장된' 매핑을 쓰므로 막는다.
+  const mappingUnsaved = !!mapResult && (mapEditing || !!mapFile);
+
   // ── 세션 헬퍼 ───────────────────────────────────────────────
   const setSess = (i: number, k: keyof Session, v: string) =>
     setSessions((a) => a.map((s, j) => (j === i ? { ...s, [k]: v } : s)));
@@ -185,6 +188,7 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
     setErr(""); setMsg("");
     if (!studentName.trim()) { setErr("아동 이름을 입력하세요."); return; }
     if (!localHasForm) { setErr("기록지 양식이 등록되어 있지 않습니다."); return; }
+    if (mappingUnsaved) { setErr("매핑이 저장되지 않았어요. 위 매핑 영역에서 ‘매핑 갱신/저장’을 먼저 누른 뒤 출력하세요."); return; }
     setBusy(true);
     try {
       const res = await fetch(`/api/support/programs/${programId}/record`, {
@@ -230,6 +234,7 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
   async function showPreview() {
     setErr(""); setMsg("");
     if (!localHasForm) { setErr("기록지 양식이 등록되어 있지 않습니다."); return; }
+    if (mappingUnsaved) { setErr("매핑이 저장되지 않았어요. 위 매핑 영역에서 파란 ‘매핑 갱신/저장’ 버튼을 먼저 누른 뒤 미리보기하세요. (매핑 영역의 ‘② 예시 미리보기’는 저장 전 매핑이에요.)"); return; }
     setPreviewBusy(true);
     try {
       const realSessions = sessions.filter((s) => s.date || s.content);
