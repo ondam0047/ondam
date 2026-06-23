@@ -64,6 +64,8 @@ function buildEdits(spec: ResolvedSpec, d: Payload): CellEdit[] {
     기관명:   d.org,
     대상자이름: d.studentName,
     치료사이름: d.therapistName,
+    연도:     d.year  ? String(d.year)  : "",
+    월:       d.month ? String(d.month) : "",
     학교:     d.school        ?? "",
     학년:     d.grade         ?? "",
     요일:     d.dayOfWeek     ?? "",
@@ -71,23 +73,30 @@ function buildEdits(spec: ResolvedSpec, d: Payload): CellEdit[] {
     치료목표: d.goal          ?? "",
     현행수준: d.currentLevel  ?? "",
   };
-  // 날짜 열 기반 ROW 역할 — 날짜 열 인덱스마다 세션 값 채움
-  const dCols = spec.date.map((c) => c[2]);
-  const ROW = new Set(["날짜", "시작", "종료", "결과"]);
+  const ROW = new Set(["회차", "날짜", "시작", "종료", "결과"]);
 
+  // ROW 역할은 문서 순서(표·행·열)대로 세션 i번째 값을 채운다.
+  // (날짜축이 없는 양식 — 회차/날짜/시간이 칸마다 흩어진 형태 — 도 지원)
+  const rowGroups: Record<string, Array<{ table: number; row: number; col: number }>> = {};
   for (const m of spec.manual ?? []) {
-    if (ROW.has(m.role) && dCols.length) {
-      dCols.forEach((col, i) => {
-        const v = m.role === "날짜"   ? (S[i]?.date ?? "")
-                : m.role === "시작"   ? (S[i]?.startTime ?? "")
-                : m.role === "종료"   ? (S[i]?.endTime ?? "")
-                : m.role === "결과"   ? resultText(S[i])
-                : "";
-        put([m.table, m.row, col] as Coord, v);
-      });
+    if (ROW.has(m.role)) {
+      (rowGroups[m.role] ??= []).push(m);
     } else if (scalarVal[m.role] !== undefined && scalarVal[m.role]) {
       put([m.table, m.row, m.col] as Coord, scalarVal[m.role]);
     }
+  }
+  const byTRC = (a: { table: number; row: number; col: number }, b: typeof a) =>
+    a.table - b.table || a.row - b.row || a.col - b.col;
+  for (const role of Object.keys(rowGroups)) {
+    rowGroups[role].sort(byTRC).forEach((m, i) => {
+      const v = role === "회차" ? String(i + 1)
+              : role === "날짜" ? (S[i]?.date ?? "")
+              : role === "시작" ? (S[i]?.startTime ?? "")
+              : role === "종료" ? (S[i]?.endTime ?? "")
+              : role === "결과" ? resultText(S[i])
+              : "";
+      put([m.table, m.row, m.col] as Coord, v);
+    });
   }
 
   return edits;

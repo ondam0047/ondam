@@ -16,10 +16,23 @@ const FIELD_LABEL: Record<string, string> = {
 
 // 매핑 UI에서 지정 가능한 역할
 const SCALAR_ROLES = [
-  "기관명", "대상자이름", "치료사이름", "생년월일",
+  "기관명", "대상자이름", "치료사이름", "생년월일", "연도", "월",
   "학교", "학년", "요일", "정기시간", "치료목표", "현행수준",
 ];
-const ROW_ROLES = ["날짜", "시작", "종료", "결과"];
+const ROW_ROLES = ["회차", "날짜", "시작", "종료", "결과"];
+
+// 매핑 화면 인라인 미리보기용 — 역할별 예시 값(ROW 역할은 순서대로 채움)
+const ROLE_EX: Record<string, string | string[]> = {
+  기관명: "OO언어발달센터", 대상자이름: "홍길동", 치료사이름: "김치료", 생년월일: "2018-03-15",
+  연도: "2026", 월: "6",
+  학교: "OO초등학교", 학년: "3학년", 요일: "화·목", 정기시간: "10:00~10:50",
+  치료목표: "2어절 문장 산출 향상", 현행수준: "1~2어절 수준 발화",
+  회차: ["1", "2", "3", "4", "5"],
+  날짜: ["3/5", "3/12", "3/19", "3/26", "4/2"],
+  시작: ["10:00", "10:00", "10:00", "10:00", "10:00"],
+  종료: ["10:50", "10:50", "10:50", "10:50", "10:50"],
+  결과: ["2어절 모방 산출 80%", "목표어 산출 증가", "다시말하기 연습", "받침 발음 연습", "대화 차례 지키기"],
+};
 
 // ── 기록지 타입 ─────────────────────────────────────────────────
 type Session = { date: string; startTime: string; endTime: string; content: string; notes: string };
@@ -105,6 +118,8 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
   const [saving,       setSaving]       = useState(false);
   const [mapMsg,       setMapMsg]       = useState("");
   const [mapErr,       setMapErr]       = useState("");
+  const [mapEditing,   setMapEditing]   = useState(false); // 저장된 양식 매핑 재수정 모드
+  const [mapPreview,   setMapPreview]   = useState(true);  // 매핑 화면 인라인 예시 미리보기
 
   // ── 삭제 확인 ───────────────────────────────────────────────
   const [delConfirm, setDelConfirm] = useState(false);
@@ -253,22 +268,38 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
     }
   }
 
-  // ── 매핑 저장 ────────────────────────────────────────────────
+  // ── 저장된 양식의 매핑 재수정 열기 ──────────────────────────
+  async function openMappingEdit() {
+    setMapErr(""); setMapMsg(""); setAnalyzing(true);
+    try {
+      const res = await fetch(`/api/support/programs/${programId}`);
+      const d   = await res.json();
+      if (!res.ok) throw new Error(d.error ?? "불러오기 실패");
+      setMapResult({ coverage: d.coverage, grid: d.grid });
+      setMapOverrides(d.overrides ?? {});
+      setMapEditing(true);
+      setMapFile(null);
+    } catch (e) {
+      setMapErr(e instanceof Error ? e.message : "매핑을 불러오지 못했어요.");
+    } finally { setAnalyzing(false); }
+  }
+
+  // ── 매핑 저장 (새 파일 업로드 또는 기존 양식 매핑만 갱신) ────
   async function saveMapping() {
-    if (!mapFile) return;
+    if (!mapFile && !mapEditing) return;
     setSaving(true); setMapErr(""); setMapMsg("");
     try {
       const overridesArray = Object.entries(mapOverrides)
         .map(([k, role]) => { const [t, r, c] = k.split(",").map(Number); return { table: t, row: r, col: c, role }; });
       const fd = new FormData();
-      fd.append("file", mapFile);
-      if (overridesArray.length) fd.append("overrides", JSON.stringify(overridesArray));
+      if (mapFile) fd.append("file", mapFile);
+      fd.append("overrides", JSON.stringify(overridesArray));
       const res = await fetch(`/api/support/programs/${programId}`, { method: "PATCH", body: fd });
       const d   = await res.json();
       if (!res.ok) throw new Error(d.error ?? "저장 실패");
       setLocalHasForm(!!d.program.formSpec);
-      setMapMsg("양식이 저장됐어요. 이제 기록지를 출력할 수 있어요.");
-      setMapFile(null); setMapResult(null); setMapOverrides({});
+      setMapMsg(mapEditing ? "매핑이 갱신됐어요." : "양식이 저장됐어요. 이제 기록지를 출력할 수 있어요.");
+      setMapFile(null); setMapResult(null); setMapOverrides({}); setMapEditing(false);
       router.refresh();
     } catch (e) {
       setMapErr(e instanceof Error ? e.message : "저장 중 오류가 발생했어요.");
@@ -276,7 +307,7 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
   }
 
   function cancelMapping() {
-    setMapFile(null); setMapResult(null); setMapOverrides({});
+    setMapFile(null); setMapResult(null); setMapOverrides({}); setMapEditing(false);
     setMapMsg(""); setMapErr(""); setPicker(null);
   }
 
@@ -289,6 +320,33 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
     if (!picker) return;
     setMapOverrides({ ...mapOverrides, [`${picker.t},${picker.r},${picker.c}`]: role });
     setPicker(null);
+  }
+
+  // 매핑 인라인 미리보기 — 현재 역할에 예시 값을 채운 좌표맵
+  function exampleFillMap(): Map<string, string> {
+    const m = new Map<string, string>();
+    if (!mapResult) return m;
+    const rowCells: Record<string, Array<{ ti: number; r: number; c: number }>> = {};
+    mapResult.grid.forEach((cells, ti) => cells.forEach((cell) => {
+      const role = effRole(ti, cell);
+      if (!role) return;
+      if (ROW_ROLES.includes(role)) {
+        (rowCells[role] ??= []).push({ ti, r: cell.r, c: cell.c });
+      } else {
+        const ex = ROLE_EX[role];
+        if (typeof ex === "string") m.set(`${ti},${cell.r},${cell.c}`, ex);
+      }
+    }));
+    for (const role of Object.keys(rowCells)) {
+      const list = Array.isArray(ROLE_EX[role]) ? (ROLE_EX[role] as string[]) : [];
+      rowCells[role]
+        .sort((a, b) => a.ti - b.ti || a.r - b.r || a.c - b.c)
+        .forEach((cell, i) => {
+          const v = list[i] ?? list[list.length - 1] ?? "";
+          if (v) m.set(`${cell.ti},${cell.r},${cell.c}`, v);
+        });
+    }
+    return m;
   }
 
   // ── 사업 삭제 ────────────────────────────────────────────────
@@ -337,13 +395,20 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
               {localHasForm ? ".hwpx 양식이 연결되어 있어요." : ".hwpx 기록지 양식을 등록하면 출력 가능해요."}
             </span>
           </div>
-          {!mapFile && (
-            <label style={{ cursor: "pointer" }}>
-              <span className="btn btn-ghost" style={{ fontSize: 13, pointerEvents: "none" }}>
-                {analyzing ? "분석 중…" : localHasForm ? "양식 교체" : "양식 등록"}
-              </span>
-              <input ref={fileRef} type="file" accept=".hwpx" hidden onChange={handleFileSelect} disabled={analyzing} />
-            </label>
+          {!mapFile && !mapEditing && (
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              {localHasForm && (
+                <button className="btn btn-ghost" style={{ fontSize: 13 }} onClick={openMappingEdit} disabled={analyzing}>
+                  {analyzing ? "불러오는 중…" : "매핑 수정"}
+                </button>
+              )}
+              <label style={{ cursor: "pointer" }}>
+                <span className="btn btn-ghost" style={{ fontSize: 13, pointerEvents: "none" }}>
+                  {analyzing ? "분석 중…" : localHasForm ? "양식 교체" : "양식 등록"}
+                </span>
+                <input ref={fileRef} type="file" accept=".hwpx" hidden onChange={handleFileSelect} disabled={analyzing} />
+              </label>
+            </div>
           )}
         </div>
 
@@ -356,11 +421,13 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
         {mapMsg && <p style={{ margin: 0, padding: "8px 16px", fontSize: 12, color: "var(--success, green)", borderTop: "1px solid var(--border)" }}>{mapMsg}</p>}
         {mapErr && <p style={{ margin: 0, padding: "8px 16px", fontSize: 12, color: "var(--error)", borderTop: "1px solid var(--border)" }}>{mapErr}</p>}
 
-        {mapFile && mapResult && (
+        {(mapFile || mapEditing) && mapResult && (
           <div style={{ borderTop: "1px solid var(--border)", padding: 16, display: "grid", gap: 16 }}>
             {/* 커버리지 */}
             <div>
-              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>자동 매핑 결과</div>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
+                {mapEditing ? "매핑 수정" : "자동 매핑 결과"}
+              </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {Object.entries(mapResult.coverage).map(([k, ok]) => (
                   <span key={k} style={{
@@ -376,32 +443,63 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
                 : <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--primary)" }}>✓ 핵심 칸을 모두 인식했어요.</p>
               }
               <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--text-mute)" }}>
-                학교·학년·요일·정기시간·치료목표·현행수준 칸이 있다면 표에서 해당 칸을 클릭해 역할을 지정하세요.
+                학교·학년·요일·정기시간·치료목표·현행수준·<b>연도·월</b> 칸은 클릭해 역할을 지정하세요.
+                회차·날짜·시간이 칸마다 흩어져 있으면 각 칸을 클릭해 <b>회차·날짜·시작·종료</b> 역할로 지정하면 순서대로 채워져요.
               </p>
             </div>
 
-            {/* 표 그리드 */}
+            {/* 표 그리드 + 인라인 예시 미리보기 */}
             <div>
-              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>양식 미리보기 — 칸 클릭으로 역할 수정</div>
-              <div style={{ overflowX: "auto" }}>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-start" }}>
-                  {mapResult.grid.map((cells, ti) => (
-                    <div key={ti} style={{ flex: "0 1 auto" }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", marginBottom: 4 }}>표 {ti + 1}</div>
-                      <TableView
-                        cells={cells}
-                        roleOf={(cell) => effRole(ti, cell)}
-                        onCell={(r, c, text, x, y) => setPicker({ t: ti, r, c, text, x, y })}
-                      />
-                    </div>
-                  ))}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6, gap: 8, flexWrap: "wrap" }}>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>칸 클릭으로 역할 지정</div>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-soft)", cursor: "pointer" }}>
+                  <input type="checkbox" checked={mapPreview} onChange={(e) => setMapPreview(e.target.checked)} />
+                  예시 미리보기 함께 보기
+                </label>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: mapPreview ? "1fr 1fr" : "1fr", gap: 16, alignItems: "start" }}>
+                {/* 매핑(편집) */}
+                <div style={{ overflowX: "auto" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", marginBottom: 4 }}>① 매핑</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-start" }}>
+                    {mapResult.grid.map((cells, ti) => (
+                      <div key={ti} style={{ flex: "0 1 auto" }}>
+                        <TableView
+                          cells={cells}
+                          roleOf={(cell) => effRole(ti, cell)}
+                          onCell={(r, c, text, x, y) => setPicker({ t: ti, r, c, text, x, y })}
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
+
+                {/* 예시 미리보기 */}
+                {mapPreview && (() => {
+                  const fm = exampleFillMap();
+                  return (
+                    <div style={{ overflowX: "auto" }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--primary)", marginBottom: 4 }}>② 예시 미리보기 (이건 예시입니다)</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-start" }}>
+                        {mapResult.grid.map((cells, ti) => (
+                          <div key={ti} style={{ flex: "0 1 auto" }}>
+                            <PreviewTable cells={cells.map((c) => ({
+                              r: c.r, c: c.c, rs: c.rs, cs: c.cs, text: c.text,
+                              value: fm.get(`${ti},${c.r},${c.c}`) ?? "",
+                            }))} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
             <div style={{ display: "flex", gap: 8 }}>
               <button className="btn btn-primary" onClick={saveMapping} disabled={saving}>
-                {saving ? "저장 중…" : "이 매핑으로 저장"}
+                {saving ? "저장 중…" : mapEditing ? "매핑 갱신" : "이 매핑으로 저장"}
               </button>
               <button className="btn btn-ghost" onClick={cancelMapping}>취소</button>
             </div>
@@ -669,7 +767,7 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
                 display: "flex", flexDirection: "column", gap: 20,
               }}>
                 {preview.tables.map((cells, ti) => (
-                  <PreviewTable key={ti} cells={cells} />
+                  <PreviewTable key={ti} cells={cells} full />
                 ))}
               </div>
             </div>
@@ -688,7 +786,7 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
 
 // ── 미리보기 표 렌더러 ─────────────────────────────────────────────
 type PreviewCell = { r: number; c: number; rs: number; cs: number; text: string; value: string };
-function PreviewTable({ cells }: { cells: PreviewCell[] }) {
+function PreviewTable({ cells, full = false }: { cells: PreviewCell[]; full?: boolean }) {
   if (cells.length === 0) return null;
   const maxR = Math.max(...cells.map((c) => c.r + c.rs));
   const maxC = Math.max(...cells.map((c) => c.c + c.cs));
@@ -725,7 +823,7 @@ function PreviewTable({ cells }: { cells: PreviewCell[] }) {
     rows.push(<tr key={r}>{tds}</tr>);
   }
   return (
-    <table style={{ borderCollapse: "collapse", width: "100%", tableLayout: "auto" }}>
+    <table style={{ borderCollapse: "collapse", width: full ? "100%" : "auto", tableLayout: "auto" }}>
       <tbody>{rows}</tbody>
     </table>
   );

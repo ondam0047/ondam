@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { readSection0 } from "@/lib/hwpx";
 import { resolveForm, type ResolvedSpec } from "@/lib/record-resolver";
-import type { CellEdit, Coord } from "@/lib/record-fill";
+import type { Coord } from "@/lib/record-fill";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -51,6 +51,8 @@ function buildFillMap(spec: ResolvedSpec, d: Payload): Map<string, string> {
     기관명:   d.org,
     대상자이름: d.studentName,
     치료사이름: d.therapistName,
+    연도:     d.year  ? String(d.year)  : "",
+    월:       d.month ? String(d.month) : "",
     학교:     d.school        ?? "",
     학년:     d.grade         ?? "",
     요일:     d.dayOfWeek     ?? "",
@@ -58,22 +60,28 @@ function buildFillMap(spec: ResolvedSpec, d: Payload): Map<string, string> {
     치료목표: d.goal          ?? "",
     현행수준: d.currentLevel  ?? "",
   };
-  const dCols = spec.date.map((c) => c[2]);
-  const ROW = new Set(["날짜", "시작", "종료", "결과"]);
+  const ROW = new Set(["회차", "날짜", "시작", "종료", "결과"]);
 
+  const rowGroups: Record<string, Array<{ table: number; row: number; col: number }>> = {};
   for (const m of spec.manual ?? []) {
-    if (ROW.has(m.role) && dCols.length) {
-      dCols.forEach((col, i) => {
-        const v = m.role === "날짜" ? (S[i]?.date ?? "")
-                : m.role === "시작" ? (S[i]?.startTime ?? "")
-                : m.role === "종료" ? (S[i]?.endTime ?? "")
-                : m.role === "결과" ? resultText(S[i])
-                : "";
-        if (v) map.set(`${m.table},${m.row},${col}`, v);
-      });
+    if (ROW.has(m.role)) {
+      (rowGroups[m.role] ??= []).push(m);
     } else if (scalarVal[m.role] !== undefined && scalarVal[m.role]) {
       map.set(`${m.table},${m.row},${m.col}`, scalarVal[m.role]);
     }
+  }
+  const byTRC = (a: { table: number; row: number; col: number }, b: typeof a) =>
+    a.table - b.table || a.row - b.row || a.col - b.col;
+  for (const role of Object.keys(rowGroups)) {
+    rowGroups[role].sort(byTRC).forEach((m, i) => {
+      const v = role === "회차" ? String(i + 1)
+              : role === "날짜" ? (S[i]?.date ?? "")
+              : role === "시작" ? (S[i]?.startTime ?? "")
+              : role === "종료" ? (S[i]?.endTime ?? "")
+              : role === "결과" ? resultText(S[i])
+              : "";
+      if (v) map.set(`${m.table},${m.row},${m.col}`, v);
+    });
   }
 
   return map;
