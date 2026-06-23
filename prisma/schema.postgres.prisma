@@ -218,6 +218,18 @@ model Program {
   @@index([ownerId])
 }
 
+// 양식 매핑 학습 캐시 — 같은 구조의 기록지가 다시 올라오면 매핑을 자동 적용.
+// 표 구조 + 라벨 지문(fingerprint)으로 식별. 전역 공유(좌표→역할만 담아 개인정보 없음).
+model FormMapping {
+  id          Int      @id @default(autoincrement())
+  fingerprint String   @unique
+  spec        String   // 확정된 ResolvedSpec JSON (manual 보정 포함)
+  label       String?  // 사람이 알아볼 양식 제목(첫 셀 텍스트)
+  uses        Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 // 치료사 개인 대상자 명단(바로툴용) — ChildService 아동과 별개로 간편 등록.
 model ToolChild {
   id        Int      @id @default(autoincrement())

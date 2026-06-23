@@ -246,7 +246,7 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setMapFile(file); setMapResult(null); setMapOverrides({}); setPicker(null);
+    setMapFile(file); setMapResult(null); setMapOverrides({}); setPicker(null); setAiLow(new Set());
     setMapMsg(""); setMapErr("");
     setAnalyzing(true);
     try {
@@ -256,6 +256,11 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
       const d   = await res.json();
       if (!res.ok) throw new Error(d.error ?? "분석 실패");
       setMapResult(d);
+      // 학습 캐시 적중 — 이전에 매핑한 양식이면 매핑을 자동으로 채움(사람이 확인 후 저장)
+      if (d.cached?.overrides && Object.keys(d.cached.overrides).length) {
+        setMapOverrides(d.cached.overrides);
+        setMapMsg(`✓ 이전에 매핑한 적 있는 양식이에요${d.cached.label ? ` (${d.cached.label})` : ""} — 매핑을 자동으로 채웠어요. 확인 후 저장하세요.`);
+      }
     } catch (e) {
       setMapErr(e instanceof Error ? e.message : "분석 중 오류가 발생했어요.");
     } finally {

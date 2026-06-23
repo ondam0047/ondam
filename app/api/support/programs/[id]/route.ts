@@ -2,7 +2,8 @@ import { NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { readSection0 } from "@/lib/hwpx";
-import { resolveForm, applyOverrides } from "@/lib/record-resolver";
+import { resolveForm, applyOverrides, type Grid } from "@/lib/record-resolver";
+import { formFingerprint } from "@/lib/record-fingerprint";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -58,18 +59,22 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   const ovRaw = fd.get("overrides");
 
+  let cacheGrid: Grid | null = null; // 캐시 갱신용(매핑이 확정될 때만)
+
   if (file instanceof Blob && file.size > 0) {
     // 새 양식 업로드 + (선택)매핑
     try {
       const ab = await file.arrayBuffer() as ArrayBuffer;
       const buf = Buffer.from(ab);
       const xml = readSection0(buf);
-      let { spec } = resolveForm(xml);
+      const r = resolveForm(xml);
+      let spec = r.spec;
       if (typeof ovRaw === "string" && ovRaw.length > 1) {
         try { spec = applyOverrides(spec, JSON.parse(ovRaw)); } catch { /* noop */ }
       }
       data.formTemplate = new Uint8Array(ab);
       data.formSpec = JSON.stringify(spec);
+      cacheGrid = r.grid;
     } catch {
       return Response.json({ error: "이 파일은 편집 가능한 .hwpx 가 아닙니다. (.hwp·스캔·PDF 미지원)" }, { status: 422 });
     }
@@ -77,9 +82,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // 파일 없이 기존 양식의 매핑만 갱신
     try {
       const xml = readSection0(Buffer.from(program.formTemplate));
-      let { spec } = resolveForm(xml);
-      spec = applyOverrides(spec, JSON.parse(ovRaw));
+      const r = resolveForm(xml);
+      const spec = applyOverrides(r.spec, JSON.parse(ovRaw));
       data.formSpec = JSON.stringify(spec);
+      cacheGrid = r.grid;
     } catch {
       return Response.json({ error: "매핑을 갱신하지 못했어요." }, { status: 422 });
     }
@@ -90,6 +96,20 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     data,
     select: { id: true, name: true, formSpec: true },
   });
+
+  // 학습 캐시 upsert — 확정된 매핑을 양식 지문 키로 전역 저장(다음 업로드 때 자동 적용).
+  if (cacheGrid && typeof data.formSpec === "string") {
+    try {
+      const fingerprint = formFingerprint(cacheGrid);
+      const label = cacheGrid.flat().map((c) => c.text?.trim()).find((t) => t && t.length > 2)?.slice(0, 80) ?? null;
+      await prisma.formMapping.upsert({
+        where: { fingerprint },
+        create: { fingerprint, spec: data.formSpec, label, uses: 1 },
+        update: { spec: data.formSpec, label, uses: { increment: 1 } },
+      });
+    } catch { /* 캐시 저장 실패는 무시(본 저장은 성공) */ }
+  }
+
   return Response.json({ program: updated });
 }
 
