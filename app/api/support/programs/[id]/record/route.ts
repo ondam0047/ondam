@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { readSection0, patchSection0 } from "@/lib/hwpx";
-import { fillCells, type CellEdit, type Coord } from "@/lib/record-fill";
+import { fillCells, fillTitleMonth, type CellEdit, type Coord } from "@/lib/record-fill";
 import type { ResolvedSpec } from "@/lib/record-resolver";
 
 type Params = { params: Promise<{ id: string }> };
@@ -138,7 +138,8 @@ export async function POST(req: NextRequest, { params }: Params) {
   const buf      = Buffer.from(program.formTemplate);
   const xml      = readSection0(buf);
   const edits    = buildEdits(spec, body);
-  const filledXml = fillCells(xml, edits);
+  let   filledXml = fillCells(xml, edits);
+  filledXml = fillTitleMonth(filledXml, year, month); // 제목의 "YYYY년 M월" 자동 치환
   const out      = patchSection0(buf, filledXml);
 
   // SupportRecord 저장/갱신

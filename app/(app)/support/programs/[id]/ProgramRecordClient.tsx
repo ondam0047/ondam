@@ -97,6 +97,17 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
       .catch(() => {});
   }, []);
 
+  // ── 연·월 유지 — 마지막 입력값을 기억해 새 문서·새로고침에도 이어짐 ──
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("baroilji-support-ym");
+      if (raw) { const { y, m } = JSON.parse(raw); if (y) setYear(String(y)); if (m) setMonth(String(m)); }
+    } catch { /* noop */ }
+  }, []);
+  useEffect(() => {
+    try { localStorage.setItem("baroilji-support-ym", JSON.stringify({ y: year, m: month })); } catch { /* noop */ }
+  }, [year, month]);
+
   // ── 액션 상태 ───────────────────────────────────────────────
   const [busy, setBusy] = useState(false);
   const [msg,  setMsg]  = useState("");

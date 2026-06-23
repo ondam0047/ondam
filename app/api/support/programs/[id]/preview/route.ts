@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { readSection0 } from "@/lib/hwpx";
 import { resolveForm, type ResolvedSpec } from "@/lib/record-resolver";
-import type { Coord } from "@/lib/record-fill";
+import { replaceTitleMonth, type Coord } from "@/lib/record-fill";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -122,14 +122,21 @@ export async function POST(req: NextRequest, { params }: Params) {
   // 채울 값 맵
   const fillMap = buildFillMap(spec, body);
 
-  // 그리드에 채울 값 오버레이 — 문단(p)별로 원본 텍스트 + 채운 값을 함께 반환
+  // 그리드에 채울 값 오버레이 — 문단(p)별로 원본 텍스트 + 채운 값을 함께 반환.
+  // 채운 값이 없어도 제목에 "YYYY년 M월"이 박혀 있으면 사용자 연·월로 치환해 보여준다.
+  const y = body.year, mo = body.month;
   const tables = grid.map((cells, ti) =>
     cells.map((cell) => {
       const paras = cell.paras.length ? cell.paras : [cell.text];
       return {
         r: cell.r, c: cell.c, rs: cell.rs, cs: cell.cs,
         paras,
-        pvals: paras.map((_, pi) => fillMap.get(`${ti},${cell.r},${cell.c},${pi}`) ?? ""),
+        pvals: paras.map((ptext, pi) => {
+          const filled = fillMap.get(`${ti},${cell.r},${cell.c},${pi}`);
+          if (filled) return filled;
+          const tm = replaceTitleMonth(ptext, y, mo);
+          return tm !== ptext ? tm : "";
+        }),
       };
     }),
   );

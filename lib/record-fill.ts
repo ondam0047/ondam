@@ -108,3 +108,20 @@ export function fillCells(xml: string, edits: CellEdit[]): string {
   for (const e of edits) out = applyEdit(out, e);
   return out;
 }
+
+// 제목/문구에 박힌 "YYYY년 M월"을 사용자가 고른 연·월로 바꾼다.
+// 표 칸 좌표로는 못 닿는 제목 텍스트(예: "제공기록지(2022년 1월)") 대응.
+// 생년월일처럼 뒤에 '일'이 오는 완전한 날짜(2018년 3월 15일)는 건드리지 않는다.
+const TITLE_MONTH_RE = /(\d{4})\s*년\s*(\d{1,2})\s*월(?!\s*\d{1,2}\s*일)/g;
+
+export function replaceTitleMonth(text: string, year: number, month: number): string {
+  return text.replace(TITLE_MONTH_RE, `${year}년 ${month}월`);
+}
+
+export function fillTitleMonth(xml: string, year: number, month: number): string {
+  if (!year || !month) return xml;
+  return xml.replace(/<hp:t>([\s\S]*?)<\/hp:t>/g, (full, inner: string) => {
+    const r = replaceTitleMonth(inner, year, month);
+    return r === inner ? full : `<hp:t>${r}</hp:t>`;
+  });
+}
