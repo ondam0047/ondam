@@ -75,7 +75,9 @@ function buildEdits(spec: ResolvedSpec, d: Payload): CellEdit[] {
     현행수준: d.currentLevel  ?? "",
     종합의견: d.summary        ?? "",
   };
-  const ROW = new Set(["회차", "날짜", "시작", "종료", "결과"]);
+  const ROW = new Set(["회차", "날짜", "시작", "종료", "결과", "비고"]);
+  // 비고 칸이 따로 매핑돼 있으면 결과는 내용만, 아니면 내용+비고 합산.
+  const hasBigo = (spec.manual ?? []).some((m) => m.role === "비고");
 
   // ROW 역할은 문서 순서(표·행·열)대로 세션 i번째 값을 채운다.
   // (날짜축이 없는 양식 — 회차/날짜/시간이 칸마다 흩어진 형태 — 도 지원)
@@ -96,7 +98,8 @@ function buildEdits(spec: ResolvedSpec, d: Payload): CellEdit[] {
               : role === "날짜" ? (S[i]?.date ?? "")
               : role === "시작" ? (S[i]?.startTime ?? "")
               : role === "종료" ? (S[i]?.endTime ?? "")
-              : role === "결과" ? resultText(S[i])
+              : role === "결과" ? (hasBigo ? (S[i]?.content ?? "") : resultText(S[i]))
+              : role === "비고" ? (S[i]?.notes ?? "")
               : "";
       put([m.table, m.row, m.col, m.p ?? 0] as Coord, v);
     });

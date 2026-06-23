@@ -24,7 +24,8 @@ export const ROLE_DEFS: RoleDef[] = [
   { role: "날짜", kind: "row", desc: "각 회기 날짜. '(  /  )' 형태의 월/일 칸 포함",        synonyms: ["날짜", "월일", "제공일자", "서비스일자", "서비스제공일자", "일자"] },
   { role: "시작", kind: "row", desc: "회기 시작 시간. '(  :  )' 형태 포함",               synonyms: ["시작시간", "시작"] },
   { role: "종료", kind: "row", desc: "회기 종료 시간. '(  :  )' 형태 포함",               synonyms: ["종료시간", "종료"] },
-  { role: "결과", kind: "row", desc: "회기 내용·서비스 결과·특이사항(서술형 칸)",         synonyms: ["서비스 내용", "내용", "결과", "특이사항", "서비스결과", "비고"] },
+  { role: "결과", kind: "row", desc: "회기 내용·서비스 결과(서술형 칸, '서비스 내용'·'내용/결과')", synonyms: ["서비스 내용", "내용", "결과", "서비스결과", "내용/결과"] },
+  { role: "비고", kind: "row", desc: "회기 비고·특이사항(내용/결과와 별도로 있는 칸)",      synonyms: ["비고", "특이사항", "비고·특이사항", "비고/특이사항"] },
 ];
 
 export const SCALAR_ROLES = ROLE_DEFS.filter((r) => r.kind === "scalar").map((r) => r.role);

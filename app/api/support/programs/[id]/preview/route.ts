@@ -62,7 +62,8 @@ function buildFillMap(spec: ResolvedSpec, d: Payload): Map<string, string> {
     현행수준: d.currentLevel  ?? "",
     종합의견: d.summary        ?? "",
   };
-  const ROW = new Set(["회차", "날짜", "시작", "종료", "결과"]);
+  const ROW = new Set(["회차", "날짜", "시작", "종료", "결과", "비고"]);
+  const hasBigo = (spec.manual ?? []).some((m) => m.role === "비고");
 
   type ManualCell = { table: number; row: number; col: number; p?: number };
   const rowGroups: Record<string, ManualCell[]> = {};
@@ -81,7 +82,8 @@ function buildFillMap(spec: ResolvedSpec, d: Payload): Map<string, string> {
               : role === "날짜" ? (S[i]?.date ?? "")
               : role === "시작" ? (S[i]?.startTime ?? "")
               : role === "종료" ? (S[i]?.endTime ?? "")
-              : role === "결과" ? resultText(S[i])
+              : role === "결과" ? (hasBigo ? (S[i]?.content ?? "") : resultText(S[i]))
+              : role === "비고" ? (S[i]?.notes ?? "")
               : "";
       if (v) map.set(`${m.table},${m.row},${m.col},${m.p ?? 0}`, v);
     });
