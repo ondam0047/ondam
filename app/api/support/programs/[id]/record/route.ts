@@ -106,7 +106,7 @@ function buildEdits(spec: ResolvedSpec, d: Payload, ordinalBase = 0): CellEdit[]
     a.table - b.table || a.row - b.row || a.col - b.col || (a.p ?? 0) - (b.p ?? 0);
   for (const role of Object.keys(rowGroups)) {
     rowGroups[role].sort(byTRC).forEach((m, i) => {
-      const v = role === "회차" ? String(ordinalBase + i + 1)
+      const v = role === "회차" ? (S[i] ? String(ordinalBase + i + 1) : "")
               : role === "날짜" ? (S[i]?.date ?? "")
               : role === "시작" ? (S[i]?.startTime ?? "")
               : role === "종료" ? (S[i]?.endTime ?? "")
