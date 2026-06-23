@@ -780,29 +780,6 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
             </div>
           )}
 
-          {msg && <p style={{ fontSize: 12, color: "var(--success, green)", margin: "10px 0 0" }}>{msg}</p>}
-          {err && <p style={{ fontSize: 12, color: "var(--error)", margin: "10px 0 0" }}>{err}</p>}
-
-          {mappingUnsaved && (
-            <div style={{
-              display: "flex", alignItems: "center", gap: 8, marginTop: 12,
-              padding: "9px 12px", borderRadius: 8, fontSize: 12.5, fontWeight: 600,
-              background: "var(--warn-soft, #FFF4E0)", color: "var(--warn-strong, #8A6422)",
-              border: "1px solid #E8B96A",
-            }}>
-              ⚠ 매핑이 저장되지 않았어요 — 위 매핑 영역에서 <b>파란 ‘매핑 갱신/저장’</b> 버튼을 먼저 눌러야 미리보기·출력에 반영돼요.
-            </div>
-          )}
-
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
-            <button className="btn btn-primary" onClick={print} disabled={busy || !localHasForm}>
-              {busy ? "생성 중…" : "기록지 출력"}
-            </button>
-            <button className="btn btn-ghost" onClick={showPreview} disabled={previewBusy || !localHasForm} style={{ fontSize: 13 }}>
-              {previewBusy ? "로딩…" : "미리보기"}
-            </button>
-            <button className="btn btn-ghost" onClick={newDoc} style={{ fontSize: 13 }}>초기화</button>
-          </div>
         </div>
 
         {/* 회기 — 세로 */}
@@ -838,6 +815,34 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
             비고·특이사항 칸이 양식에 따로 있으면 각각 들어가고, 내용/결과 칸 하나만 있으면 &ldquo;내용 - 비고&rdquo; 형태로 합쳐져 출력돼요.
             회기가 양식의 칸 수보다 많으면 칸 수만큼씩 <b>여러 장(ZIP)</b>으로 자동으로 나눠 출력돼요.
           </p>
+        </div>
+      </div>
+
+      {/* ── 하단 실행 바: 기본정보·회기 다 채운 뒤 출력 ── */}
+      <div style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
+        {msg && <p style={{ fontSize: 12, color: "var(--success, green)", margin: "0 0 10px" }}>{msg}</p>}
+        {err && <p style={{ fontSize: 12, color: "var(--error)", margin: "0 0 10px" }}>{err}</p>}
+
+        {mappingUnsaved && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 8, marginBottom: 12,
+            padding: "9px 12px", borderRadius: 8, fontSize: 12.5, fontWeight: 600,
+            background: "var(--warn-soft, #FFF4E0)", color: "var(--warn-strong, #8A6422)",
+            border: "1px solid #E8B96A",
+          }}>
+            ⚠ 매핑이 저장되지 않았어요 — 위 매핑 영역에서 <b>파란 ‘매핑 갱신/저장’</b> 버튼을 먼저 눌러야 미리보기·출력에 반영돼요.
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <button className="btn btn-primary" onClick={print} disabled={busy || !localHasForm}>
+            {busy ? "생성 중…" : "기록지 출력"}
+          </button>
+          <button className="btn btn-ghost" onClick={showPreview} disabled={previewBusy || !localHasForm} style={{ fontSize: 13 }}>
+            {previewBusy ? "로딩…" : "미리보기"}
+          </button>
+          <span style={{ flex: 1 }} />
+          <button className="btn btn-ghost" onClick={newDoc} style={{ fontSize: 13, color: "var(--text-mute)" }}>초기화</button>
         </div>
       </div>
 
