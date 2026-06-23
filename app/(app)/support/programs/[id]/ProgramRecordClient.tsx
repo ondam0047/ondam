@@ -6,9 +6,9 @@ import Link from "next/link";
 import { SCALAR_ROLES, ROW_ROLES } from "@/lib/record-roles";
 
 // ── 매핑 관련 타입 ──────────────────────────────────────────────
-type Cell     = { r: number; c: number; cs: number; rs: number; text: string; role: string | null; p?: number };
+type Cell     = { r: number; c: number; cs: number; rs: number; text: string; role: string | null; p?: number; paras?: string[] };
 type MapResult = { coverage: Record<string, boolean>; grid: Cell[][] };
-type Picker   = { t: number; r: number; c: number; text: string; x: number; y: number };
+type Picker   = { t: number; r: number; c: number; p: number; text: string; x: number; y: number };
 
 const FIELD_LABEL: Record<string, string> = {
   org: "기관명", name: "이름", therapist: "치료사",
@@ -120,8 +120,8 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
   // ── 삭제 확인 ───────────────────────────────────────────────
   const [delConfirm, setDelConfirm] = useState(false);
 
-  // ── 미리보기 ────────────────────────────────────────────────
-  type PreviewCell = { r: number; c: number; rs: number; cs: number; text: string; value: string };
+  // ── 미리보기 ── (문단별 원본 텍스트 paras + 채운 값 pvals)
+  type PreviewCell = { r: number; c: number; rs: number; cs: number; paras: string[]; pvals: string[] };
   const [preview,    setPreview]    = useState<{ tables: PreviewCell[][] } | null>(null);
   const [previewBusy, setPreviewBusy] = useState(false);
 
@@ -286,7 +286,7 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
     setSaving(true); setMapErr(""); setMapMsg("");
     try {
       const overridesArray = Object.entries(mapOverrides)
-        .map(([k, role]) => { const [t, r, c] = k.split(",").map(Number); return { table: t, row: r, col: c, role }; });
+        .map(([k, role]) => { const [t, r, c, p] = k.split(",").map(Number); return { table: t, row: r, col: c, p: p || 0, role }; });
       const fd = new FormData();
       if (mapFile) fd.append("file", mapFile);
       fd.append("overrides", JSON.stringify(overridesArray));
@@ -307,14 +307,15 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
     setMapMsg(""); setMapErr(""); setPicker(null); setAiLow(new Set());
   }
 
-  // ── 역할 보정 ────────────────────────────────────────────────
-  const effRole = (ti: number, cell: Cell): string | null => {
-    const k = `${ti},${cell.r},${cell.c}`;
-    return k in mapOverrides ? (mapOverrides[k] || null) : cell.role;
+  // ── 역할 보정 ── (문단 단위: 키 = "t,r,c,p". 규칙 역할은 셀=문단0에 귀속)
+  const effRole = (ti: number, cell: Cell, p: number): string | null => {
+    const k = `${ti},${cell.r},${cell.c},${p}`;
+    if (k in mapOverrides) return mapOverrides[k] || null;
+    return p === 0 ? cell.role : null;
   };
   function assignRole(role: string) {
     if (!picker) return;
-    const k = `${picker.t},${picker.r},${picker.c}`;
+    const k = `${picker.t},${picker.r},${picker.c},${picker.p}`;
     setMapOverrides({ ...mapOverrides, [k]: role });
     setAiLow((prev) => { if (!prev.has(k)) return prev; const n = new Set(prev); n.delete(k); return n; }); // 사람이 확인함
     setPicker(null);
@@ -332,7 +333,7 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
       });
       const d = await res.json();
       if (!res.ok) { setMapErr(d.error ?? "AI 매핑 실패"); return; }
-      const suggestions: Array<{ table: number; row: number; col: number; role: string; confidence: number }> = d.suggestions ?? [];
+      const suggestions: Array<{ table: number; row: number; col: number; p?: number; role: string; confidence: number }> = d.suggestions ?? [];
       if (suggestions.length === 0) { setMapMsg("AI가 새로 제안할 칸을 찾지 못했어요."); return; }
 
       // 이미 사람이 지정한 칸(override)은 건드리지 않고 빈 칸만 채움
@@ -340,7 +341,7 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
       const low = new Set(aiLow);
       let added = 0, lowN = 0;
       for (const s of suggestions) {
-        const k = `${s.table},${s.row},${s.col}`;
+        const k = `${s.table},${s.row},${s.col},${s.p ?? 0}`;
         if (k in next) continue;
         next[k] = s.role;
         added++;
@@ -354,28 +355,31 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
     } finally { setAiBusy(false); }
   }
 
-  // 매핑 인라인 미리보기 — 현재 역할에 예시 값을 채운 좌표맵
+  // 매핑 인라인 미리보기 — 현재 역할에 예시 값을 채운 좌표맵(키 "t,r,c,p")
   function exampleFillMap(): Map<string, string> {
     const m = new Map<string, string>();
     if (!mapResult) return m;
-    const rowCells: Record<string, Array<{ ti: number; r: number; c: number }>> = {};
+    const rowCells: Record<string, Array<{ ti: number; r: number; c: number; p: number }>> = {};
     mapResult.grid.forEach((cells, ti) => cells.forEach((cell) => {
-      const role = effRole(ti, cell);
-      if (!role) return;
-      if (ROW_ROLES.includes(role)) {
-        (rowCells[role] ??= []).push({ ti, r: cell.r, c: cell.c });
-      } else {
-        const ex = ROLE_EX[role];
-        if (typeof ex === "string") m.set(`${ti},${cell.r},${cell.c}`, ex);
-      }
+      const paras = cell.paras && cell.paras.length ? cell.paras : [cell.text];
+      paras.forEach((_, pi) => {
+        const role = effRole(ti, cell, pi);
+        if (!role) return;
+        if (ROW_ROLES.includes(role)) {
+          (rowCells[role] ??= []).push({ ti, r: cell.r, c: cell.c, p: pi });
+        } else {
+          const ex = ROLE_EX[role];
+          if (typeof ex === "string") m.set(`${ti},${cell.r},${cell.c},${pi}`, ex);
+        }
+      });
     }));
     for (const role of Object.keys(rowCells)) {
       const list = Array.isArray(ROLE_EX[role]) ? (ROLE_EX[role] as string[]) : [];
       rowCells[role]
-        .sort((a, b) => a.ti - b.ti || a.r - b.r || a.c - b.c)
+        .sort((a, b) => a.ti - b.ti || a.r - b.r || a.c - b.c || a.p - b.p)
         .forEach((cell, i) => {
           const v = list[i] ?? list[list.length - 1] ?? "";
-          if (v) m.set(`${cell.ti},${cell.r},${cell.c}`, v);
+          if (v) m.set(`${cell.ti},${cell.r},${cell.c},${cell.p}`, v);
         });
     }
     return m;
@@ -510,9 +514,9 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
                       <div key={ti} style={{ flex: "0 1 auto" }}>
                         <TableView
                           cells={cells}
-                          roleOf={(cell) => effRole(ti, cell)}
-                          lowOf={(cell) => aiLow.has(`${ti},${cell.r},${cell.c}`)}
-                          onCell={(r, c, text, x, y) => setPicker({ t: ti, r, c, text, x, y })}
+                          roleOf={(cell, p) => effRole(ti, cell, p)}
+                          lowOf={(cell, p) => aiLow.has(`${ti},${cell.r},${cell.c},${p}`)}
+                          onCell={(r, c, p, text, x, y) => setPicker({ t: ti, r, c, p, text, x, y })}
                         />
                       </div>
                     ))}
@@ -528,10 +532,13 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-start" }}>
                         {mapResult.grid.map((cells, ti) => (
                           <div key={ti} style={{ flex: "0 1 auto" }}>
-                            <PreviewTable cells={cells.map((c) => ({
-                              r: c.r, c: c.c, rs: c.rs, cs: c.cs, text: c.text,
-                              value: fm.get(`${ti},${c.r},${c.c}`) ?? "",
-                            }))} />
+                            <PreviewTable cells={cells.map((c) => {
+                              const paras = c.paras && c.paras.length ? c.paras : [c.text];
+                              return {
+                                r: c.r, c: c.c, rs: c.rs, cs: c.cs, paras,
+                                pvals: paras.map((_, pi) => fm.get(`${ti},${c.r},${c.c},${pi}`) ?? ""),
+                              };
+                            })} />
                           </div>
                         ))}
                       </div>
@@ -828,8 +835,8 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
   );
 }
 
-// ── 미리보기 표 렌더러 ─────────────────────────────────────────────
-type PreviewCell = { r: number; c: number; rs: number; cs: number; text: string; value: string };
+// ── 미리보기 표 렌더러 ─── (문단별 원본 텍스트/채운 값) ───────────
+type PreviewCell = { r: number; c: number; rs: number; cs: number; paras: string[]; pvals: string[] };
 function PreviewTable({ cells, full = false }: { cells: PreviewCell[]; full?: boolean }) {
   if (cells.length === 0) return null;
   const maxR = Math.max(...cells.map((c) => c.r + c.rs));
@@ -847,17 +854,23 @@ function PreviewTable({ cells, full = false }: { cells: PreviewCell[]; full?: bo
         for (let rr = r; rr < r + cell.rs; rr++)
           for (let cc = c; cc < c + cell.cs; cc++)
             if (!(rr === r && cc === c)) covered.add(`${rr},${cc}`);
-        const filled = !!cell.value;
+        const paras = cell.paras.length ? cell.paras : [""];
+        const anyFilled = cell.pvals.some(Boolean);
         tds.push(
           <td key={c} colSpan={cell.cs} rowSpan={cell.rs} style={{
             border: "1px solid #c9c9cf", padding: "5px 7px", fontSize: 12.5, lineHeight: 1.5, verticalAlign: "top",
-            background: filled ? "var(--primary-soft, #eef4ff)" : "transparent",
-            color: "#1a1a1a",
+            background: anyFilled ? "var(--primary-soft, #eef4ff)" : "transparent", color: "#1a1a1a",
           }}>
-            {filled
-              ? <span style={{ fontWeight: 600, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{cell.value}</span>
-              : <span style={{ color: cell.text ? "#1a1a1a" : "#bbb", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{cell.text || ""}</span>
-            }
+            {paras.map((ptext, pi) => {
+              const v = cell.pvals[pi];
+              return (
+                <div key={pi} style={{ marginBottom: paras.length > 1 && pi < paras.length - 1 ? 2 : 0 }}>
+                  {v
+                    ? <span style={{ fontWeight: 600, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{v}</span>
+                    : <span style={{ color: ptext ? "#1a1a1a" : "#bbb", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{ptext || ""}</span>}
+                </div>
+              );
+            })}
           </td>,
         );
       } else {
@@ -873,12 +886,12 @@ function PreviewTable({ cells, full = false }: { cells: PreviewCell[]; full?: bo
   );
 }
 
-// ── 표 그리드 렌더러 ─────────────────────────────────────────────
+// ── 표 그리드 렌더러 ─── (문단 단위 클릭: 한 칸 여러 줄이면 줄마다 역할 지정) ───
 function TableView({ cells, roleOf, onCell, lowOf }: {
   cells: Cell[];
-  roleOf: (cell: Cell) => string | null;
-  onCell: (r: number, c: number, text: string, x: number, y: number) => void;
-  lowOf?: (cell: Cell) => boolean;
+  roleOf: (cell: Cell, p: number) => string | null;
+  onCell: (r: number, c: number, p: number, text: string, x: number, y: number) => void;
+  lowOf?: (cell: Cell, p: number) => boolean;
 }) {
   if (cells.length === 0) return null;
   const maxR = Math.max(...cells.map((c) => c.r + c.rs));
@@ -896,21 +909,34 @@ function TableView({ cells, roleOf, onCell, lowOf }: {
         for (let rr = r; rr < r + cell.rs; rr++)
           for (let cc = c; cc < c + cell.cs; cc++)
             if (!(rr === r && cc === c)) covered.add(`${rr},${cc}`);
-        const role = roleOf(cell);
-        const low = role ? lowOf?.(cell) ?? false : false;
+        const paras = cell.paras && cell.paras.length ? cell.paras : [cell.text];
+        const multi = paras.length > 1;
         tds.push(
-          <td key={c} colSpan={cell.cs} rowSpan={cell.rs}
-            onClick={(e) => onCell(cell.r, cell.c, cell.text, e.clientX, e.clientY)}
-            title={low ? "AI 제안 — 신뢰도 낮음, 확인하세요" : "클릭해서 역할 지정/해제"}
-            style={{
-              border: low ? "2px solid #E8912D" : "1px solid var(--border)", padding: "3px 5px", fontSize: 11, verticalAlign: "top",
-              background: low ? "#FFF4E0" : role ? "var(--primary-soft)" : "var(--surface)",
-              minWidth: 36, maxWidth: 160, cursor: "pointer",
-            }}>
-            {role && <div style={{ fontSize: 9, fontWeight: 800, color: low ? "#B5651D" : "var(--primary)", marginBottom: 1 }}>{low ? "? " : ""}{role}</div>}
-            <div style={{ color: cell.text ? "var(--text)" : "var(--text-mute)", whiteSpace: "normal", wordBreak: "break-all" }}>
-              {cell.text || (role ? "" : "·")}
-            </div>
+          <td key={c} colSpan={cell.cs} rowSpan={cell.rs} style={{
+            border: "1px solid var(--border)", padding: "3px 5px", fontSize: 11, verticalAlign: "top",
+            background: "var(--surface)", minWidth: 36, maxWidth: 160,
+          }}>
+            {paras.map((ptext, pi) => {
+              const role = roleOf(cell, pi);
+              const low = role ? lowOf?.(cell, pi) ?? false : false;
+              return (
+                <div key={pi}
+                  onClick={(e) => onCell(cell.r, cell.c, pi, ptext, e.clientX, e.clientY)}
+                  title={low ? "AI 제안 — 신뢰도 낮음, 확인하세요" : "클릭해서 역할 지정/해제"}
+                  style={{
+                    cursor: "pointer", borderRadius: 3,
+                    border: low ? "2px solid #E8912D" : multi ? "1px dashed var(--border)" : "none",
+                    background: low ? "#FFF4E0" : role ? "var(--primary-soft)" : "transparent",
+                    padding: multi ? "1px 3px" : 0,
+                    marginBottom: multi && pi < paras.length - 1 ? 2 : 0,
+                  }}>
+                  {role && <div style={{ fontSize: 9, fontWeight: 800, color: low ? "#B5651D" : "var(--primary)", marginBottom: 1 }}>{low ? "? " : ""}{role}</div>}
+                  <div style={{ color: ptext ? "var(--text)" : "var(--text-mute)", whiteSpace: "normal", wordBreak: "break-all" }}>
+                    {ptext || (role ? "" : "·")}
+                  </div>
+                </div>
+              );
+            })}
           </td>,
         );
       } else {

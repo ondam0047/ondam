@@ -77,16 +77,17 @@ function buildEdits(spec: ResolvedSpec, d: Payload): CellEdit[] {
 
   // ROW 역할은 문서 순서(표·행·열)대로 세션 i번째 값을 채운다.
   // (날짜축이 없는 양식 — 회차/날짜/시간이 칸마다 흩어진 형태 — 도 지원)
-  const rowGroups: Record<string, Array<{ table: number; row: number; col: number }>> = {};
+  type ManualCell = { table: number; row: number; col: number; p?: number };
+  const rowGroups: Record<string, ManualCell[]> = {};
   for (const m of spec.manual ?? []) {
     if (ROW.has(m.role)) {
       (rowGroups[m.role] ??= []).push(m);
     } else if (scalarVal[m.role] !== undefined && scalarVal[m.role]) {
-      put([m.table, m.row, m.col] as Coord, scalarVal[m.role]);
+      put([m.table, m.row, m.col, m.p ?? 0] as Coord, scalarVal[m.role]);
     }
   }
-  const byTRC = (a: { table: number; row: number; col: number }, b: typeof a) =>
-    a.table - b.table || a.row - b.row || a.col - b.col;
+  const byTRC = (a: ManualCell, b: ManualCell) =>
+    a.table - b.table || a.row - b.row || a.col - b.col || (a.p ?? 0) - (b.p ?? 0);
   for (const role of Object.keys(rowGroups)) {
     rowGroups[role].sort(byTRC).forEach((m, i) => {
       const v = role === "회차" ? String(i + 1)
@@ -95,7 +96,7 @@ function buildEdits(spec: ResolvedSpec, d: Payload): CellEdit[] {
               : role === "종료" ? (S[i]?.endTime ?? "")
               : role === "결과" ? resultText(S[i])
               : "";
-      put([m.table, m.row, m.col] as Coord, v);
+      put([m.table, m.row, m.col, m.p ?? 0] as Coord, v);
     });
   }
 

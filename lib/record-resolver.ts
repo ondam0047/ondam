@@ -26,6 +26,7 @@ export const SCHEDULE_FIELD_SOURCE: Record<string, string> = {
 export type Cell = {
   r: number; c: number; cs: number; rs: number; p: number;
   text: string; norm: string; role?: string;
+  paras: string[]; // 문단(<hp:p>)별 텍스트 — 한 칸 여러 줄 양식의 문단 단위 매핑용
 };
 export type Grid = Cell[][]; // [tableIndex][cell]
 
@@ -103,7 +104,8 @@ export type ResolvedSpec = {
   // 일정표 월 달력 격자(2단계) — 날짜 숫자 + 회기 시간 본문 채움용 기하 정보.
   scheduleCalendar?: ScheduleCalendar;
   // 셀프 보정으로 사용자가 직접 지정한 칸(역할 중복 허용 — 같은 값을 여러 칸에 채움).
-  manual?: Array<{ role: string; table: number; row: number; col: number }>;
+  // p: 한 칸 안의 문단 인덱스(기본 0). 한 셀에 여러 줄이 든 양식의 문단 단위 매핑용.
+  manual?: Array<{ role: string; table: number; row: number; col: number; p?: number }>;
 };
 
 export type ResolveOutput = {
@@ -127,10 +129,12 @@ export function parseTables(xml: string): Grid {
       const c = t.slice(ca, cb + 8); q = cb + 8;
       const ad = c.match(/<hp:cellAddr colAddr="(\d+)" rowAddr="(\d+)"/);
       const sp = c.match(/<hp:cellSpan colSpan="(\d+)" rowSpan="(\d+)"/);
-      const ts = [...c.matchAll(/<hp:t>([\s\S]*?)<\/hp:t>/g)].map((m) => m[1]);
-      const text = ts.join("").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/\s+/g, " ").trim();
-      const pc = (c.match(/<hp:p\b/g) || []).length;
-      if (ad) cells.push({ r: +ad[2], c: +ad[1], cs: sp ? +sp[1] : 1, rs: sp ? +sp[2] : 1, p: pc, text, norm: text.replace(/\s/g, "") });
+      const dec = (s: string) => s.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/\s+/g, " ").trim();
+      // 문단(<hp:p>)별 텍스트 — 한 칸에 여러 줄이 든 양식의 문단 단위 매핑용
+      const paras = c.split(/<hp:p\b/).slice(1).map((pb) => dec([...pb.matchAll(/<hp:t>([\s\S]*?)<\/hp:t>/g)].map((m) => m[1]).join("")));
+      const text = dec([...c.matchAll(/<hp:t>([\s\S]*?)<\/hp:t>/g)].map((m) => m[1]).join(""));
+      const pc = paras.length || 1;
+      if (ad) cells.push({ r: +ad[2], c: +ad[1], cs: sp ? +sp[1] : 1, rs: sp ? +sp[2] : 1, p: pc, paras, text, norm: text.replace(/\s/g, "") });
     }
     tbls.push(cells);
   }
@@ -376,28 +380,32 @@ const ARRAY_FIELDS: Array<"date" | "start" | "end" | "voucher" | "extra" | "amou
 
 export function applyOverrides(
   spec: ResolvedSpec,
-  overrides: Array<{ table: number; row: number; col: number; role: string }>,
+  overrides: Array<{ table: number; row: number; col: number; role: string; p?: number }>,
 ): ResolvedSpec {
   const same = (c: Coord | undefined, t: number, r: number, col: number) =>
     !!c && c[0] === t && c[1] === r && c[2] === col;
   const manual = [...(spec.manual ?? [])];
-  const idxOf = (t: number, r: number, c: number) => manual.findIndex((m) => m.table === t && m.row === r && m.col === c);
+  const idxOf = (t: number, r: number, c: number, p: number) =>
+    manual.findIndex((m) => m.table === t && m.row === r && m.col === c && (m.p ?? 0) === p);
 
   for (const ov of overrides) {
+    const p = ov.p ?? 0;
     if (!ov.role) {
-      // 해제: 보정 목록에서 제거 + 자동 인식(스칼라/배열)에서도 제거
-      const i = idxOf(ov.table, ov.row, ov.col);
+      // 해제: 보정 목록에서 제거 + (문단0이면) 자동 인식(스칼라/배열)에서도 제거
+      const i = idxOf(ov.table, ov.row, ov.col, p);
       if (i >= 0) manual.splice(i, 1);
-      for (const f of Object.values(OVERRIDE_FIELD)) {
-        if (same(spec[f], ov.table, ov.row, ov.col)) spec[f] = undefined;
-      }
-      for (const af of ARRAY_FIELDS) {
-        if (spec[af].some((c) => same(c, ov.table, ov.row, ov.col))) spec[af] = [];
+      if (p === 0) {
+        for (const f of Object.values(OVERRIDE_FIELD)) {
+          if (same(spec[f], ov.table, ov.row, ov.col)) spec[f] = undefined;
+        }
+        for (const af of ARRAY_FIELDS) {
+          if (spec[af].some((c) => same(c, ov.table, ov.row, ov.col))) spec[af] = [];
+        }
       }
     } else {
-      // 지정: 보정 목록에 추가(같은 칸은 교체, 같은 역할은 여러 칸 허용)
-      const entry = { role: ov.role, table: ov.table, row: ov.row, col: ov.col };
-      const i = idxOf(ov.table, ov.row, ov.col);
+      // 지정: 보정 목록에 추가(같은 칸·문단은 교체, 같은 역할은 여러 칸 허용)
+      const entry = { role: ov.role, table: ov.table, row: ov.row, col: ov.col, p };
+      const i = idxOf(ov.table, ov.row, ov.col, p);
       if (i >= 0) manual[i] = entry; else manual.push(entry);
     }
   }

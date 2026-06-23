@@ -4,8 +4,8 @@
 
 import { ROLE_DEFS, ALL_ROLES } from "@/lib/record-roles";
 
-export type SlimCell = { r: number; c: number; cs: number; rs: number; text: string; role?: string | null; p?: number };
-export type LlmSuggestion = { table: number; row: number; col: number; role: string; confidence: number };
+export type SlimCell = { r: number; c: number; cs: number; rs: number; text: string; role?: string | null; p?: number; paras?: string[] };
+export type LlmSuggestion = { table: number; row: number; col: number; p: number; role: string; confidence: number };
 
 // 지시문·주석 칸(채움 대상 아님) 휴리스틱 — 후보에서 제외해 토큰 절약 + 오탐 감소.
 // 빈칸은 '값이 들어갈 칸'이라 후보에 반드시 포함한다(제외하면 LLM이 라벨만 보고 오답).
@@ -27,19 +27,29 @@ export async function llmSuggestRoles(
   if (!apiKey) return { error: "no_key" };
 
   // 후보 칸 + 안정 ID. 좌표(행 r·열 c)를 함께 줘서 LLM이 표의 공간 구조를 이해하게 한다.
-  // (라벨 칸도 문맥으로 포함 — 옆/아래 빈칸의 역할 추론에 필요)
-  const id2coord: Array<{ table: number; row: number; col: number }> = [];
+  // 한 칸에 여러 줄(문단)이 든 칸은 문단마다 별도 후보(p)로 펼친다.
+  const id2coord: Array<{ table: number; row: number; col: number; p: number }> = [];
   const blocks: string[] = [];
   grid.forEach((cells, ti) => {
     const lines: string[] = [];
     cells.forEach((cell) => {
-      const text = (cell.text ?? "").trim();
-      if (isNoise(text)) return;
-      const id = id2coord.length;
-      id2coord.push({ table: ti, row: cell.r, col: cell.c });
+      const paras = cell.paras && cell.paras.length ? cell.paras : [(cell.text ?? "").trim()];
       const span = cell.cs > 1 || cell.rs > 1 ? ` ${cell.cs}x${cell.rs}` : "";
-      const multi = (cell.p ?? 1) > 1 ? ` [한칸여러줄:${cell.p}]` : "";
-      lines.push(`  id=${id} r${cell.r} c${cell.c}${span}${multi}: ${text || "(빈칸)"}`);
+      if (paras.length > 1) {
+        paras.forEach((ptext, pi) => {
+          const t = (ptext ?? "").trim();
+          if (isNoise(t)) return;
+          const id = id2coord.length;
+          id2coord.push({ table: ti, row: cell.r, col: cell.c, p: pi });
+          lines.push(`  id=${id} r${cell.r} c${cell.c}${span} 문단${pi}: ${t || "(빈칸)"}`);
+        });
+      } else {
+        const t = (paras[0] ?? "").trim();
+        if (isNoise(t)) return;
+        const id = id2coord.length;
+        id2coord.push({ table: ti, row: cell.r, col: cell.c, p: 0 });
+        lines.push(`  id=${id} r${cell.r} c${cell.c}${span}: ${t || "(빈칸)"}`);
+      }
     });
     if (lines.length) blocks.push(`[표${ti}]\n${lines.join("\n")}`);
   });
@@ -60,7 +70,8 @@ export async function llmSuggestRoles(
     "- 단일(scalar) 역할: 가장 적절한 빈칸 하나에만(중복 금지). 라벨이 아니라 그 값칸의 id를 고른다.\n" +
     "- 회기반복(row) 역할(회차·날짜·시작·종료·결과): 한 회기마다 한 칸씩, 회기 수만큼 모두. " +
     "한 회기의 칸은 보통 같은 행 또는 같은 열에 모이고 회기가 늘면 반복된다. 서비스 내용·결과 칸이 회기 행마다 있으면 각각 결과로.\n" +
-    "- '[한칸여러줄:N]'로 표시된 칸은 회차·날짜·시간이 한 칸에 여러 줄로 뭉쳐 있어 현재 미지원이다 → 역할을 주지 마라.\n" +
+    "- '문단0','문단1'처럼 한 칸이 여러 줄(문단)로 나뉜 경우, 각 문단을 개별 입력칸으로 보고 알맞은 역할을 부여하라. " +
+    "예: 제공회차 칸이 문단0='( )회차', 문단1='( / )', 문단2='( : )', 문단3='( : )'이면 → 문단0=회차, 문단1=날짜, 문단2=시작, 문단3=종료.\n" +
     "- 결제·비용·금액 표의 '(  )회차' 칸은 회차별 금액칸이므로 회차 역할 금지. 날짜·시간이 함께 있는 실제 회기의 회차만.\n" +
     "- 라벨/제목/안내 문구 칸에는 역할을 주지 않는다.\n" +
     "- 반드시 아래 JSON만 출력(다른 텍스트 금지):\n" +

@@ -23,12 +23,12 @@ type Payload = {
   sessions:      Session[];
 };
 
-// 채우는 좌표 → 값 맵 구축 (buildEdits와 동일 로직, 값만 추출)
+// 채우는 좌표 → 값 맵 구축 (buildEdits와 동일 로직, 값만 추출). 키는 "t,r,c,p"(p=문단인덱스).
 function buildFillMap(spec: ResolvedSpec, d: Payload): Map<string, string> {
   const map = new Map<string, string>();
   const put = (coord: Coord | undefined, value: string) => {
     if (!coord || !value) return;
-    map.set(`${coord[0]},${coord[1]},${coord[2]}`, value);
+    map.set(`${coord[0]},${coord[1]},${coord[2]},${coord[3] ?? 0}`, value);
   };
   const putArr = (arr: Coord[] | undefined, val: (i: number) => string) => {
     (arr ?? []).forEach((co, i) => put(co, val(i)));
@@ -62,16 +62,17 @@ function buildFillMap(spec: ResolvedSpec, d: Payload): Map<string, string> {
   };
   const ROW = new Set(["회차", "날짜", "시작", "종료", "결과"]);
 
-  const rowGroups: Record<string, Array<{ table: number; row: number; col: number }>> = {};
+  type ManualCell = { table: number; row: number; col: number; p?: number };
+  const rowGroups: Record<string, ManualCell[]> = {};
   for (const m of spec.manual ?? []) {
     if (ROW.has(m.role)) {
       (rowGroups[m.role] ??= []).push(m);
     } else if (scalarVal[m.role] !== undefined && scalarVal[m.role]) {
-      map.set(`${m.table},${m.row},${m.col}`, scalarVal[m.role]);
+      map.set(`${m.table},${m.row},${m.col},${m.p ?? 0}`, scalarVal[m.role]);
     }
   }
-  const byTRC = (a: { table: number; row: number; col: number }, b: typeof a) =>
-    a.table - b.table || a.row - b.row || a.col - b.col;
+  const byTRC = (a: ManualCell, b: ManualCell) =>
+    a.table - b.table || a.row - b.row || a.col - b.col || (a.p ?? 0) - (b.p ?? 0);
   for (const role of Object.keys(rowGroups)) {
     rowGroups[role].sort(byTRC).forEach((m, i) => {
       const v = role === "회차" ? String(i + 1)
@@ -80,7 +81,7 @@ function buildFillMap(spec: ResolvedSpec, d: Payload): Map<string, string> {
               : role === "종료" ? (S[i]?.endTime ?? "")
               : role === "결과" ? resultText(S[i])
               : "";
-      if (v) map.set(`${m.table},${m.row},${m.col}`, v);
+      if (v) map.set(`${m.table},${m.row},${m.col},${m.p ?? 0}`, v);
     });
   }
 
@@ -121,13 +122,16 @@ export async function POST(req: NextRequest, { params }: Params) {
   // 채울 값 맵
   const fillMap = buildFillMap(spec, body);
 
-  // 그리드에 채울 값 오버레이 — p(단락) 무시하고 (table,row,col)로 매칭
+  // 그리드에 채울 값 오버레이 — 문단(p)별로 원본 텍스트 + 채운 값을 함께 반환
   const tables = grid.map((cells, ti) =>
-    cells.map((cell) => ({
-      r: cell.r, c: cell.c, rs: cell.rs, cs: cell.cs,
-      text: cell.text,
-      value: fillMap.get(`${ti},${cell.r},${cell.c}`) ?? "",
-    })),
+    cells.map((cell) => {
+      const paras = cell.paras.length ? cell.paras : [cell.text];
+      return {
+        r: cell.r, c: cell.c, rs: cell.rs, cs: cell.cs,
+        paras,
+        pvals: paras.map((_, pi) => fillMap.get(`${ti},${cell.r},${cell.c},${pi}`) ?? ""),
+      };
+    }),
   );
 
   return Response.json({ tables });
