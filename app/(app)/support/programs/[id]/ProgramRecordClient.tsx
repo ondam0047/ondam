@@ -28,6 +28,24 @@ type ToolChild = { id: number; name: string; memo: string | null };
 
 const empty = (): Session => ({ date: "", startTime: "", endTime: "", content: "", notes: "" });
 
+// 미리보기에서 비어 있는 칸을 채울 예시 값
+const EX = {
+  studentName:   "홍길동",
+  therapistName: "김치료",
+  org:           "OO언어발달센터",
+  school:        "OO초등학교",
+  grade:         "3학년",
+  dayOfWeek:     "화·목",
+  sessionTime:   "10:00~10:50",
+  goal:          "2어절 문장 산출 향상",
+  currentLevel:  "1~2어절 수준 발화 가능",
+};
+const EX_SESSIONS: Session[] = [
+  { date: "3/5",  startTime: "10:00", endTime: "10:50", content: "2어절 모방 산출 80% 달성", notes: "적극 참여" },
+  { date: "3/12", startTime: "10:00", endTime: "10:50", content: "자발화 내 목표어 산출 증가", notes: "" },
+  { date: "3/19", startTime: "10:00", endTime: "10:50", content: "이야기 다시말하기 연습",     notes: "피로감 호소" },
+];
+
 type Props = {
   programId: number;
   programName: string;
@@ -180,29 +198,31 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
     finally { setBusy(false); }
   }
 
-  // ── 미리보기 요청 ───────────────────────────────────────────
+  // ── 미리보기 요청 (빈 칸은 예시 내용으로 채워서 보여줌) ────────
   async function showPreview() {
     setErr(""); setMsg("");
-    if (!studentName.trim()) { setErr("아동 이름을 입력해야 미리보기가 가능해요."); return; }
     if (!localHasForm) { setErr("기록지 양식이 등록되어 있지 않습니다."); return; }
     setPreviewBusy(true);
     try {
+      const realSessions = sessions.filter((s) => s.date || s.content);
+      const body = {
+        studentName:   studentName.trim()   || EX.studentName,
+        therapistName: therapistName.trim() || EX.therapistName,
+        org:           orgName.trim()       || EX.org,
+        year:  Number(year)  || new Date().getFullYear(),
+        month: Number(month) || new Date().getMonth() + 1,
+        school:       school.trim()       || EX.school,
+        grade:        grade.trim()        || EX.grade,
+        dayOfWeek:    dayOfWeek.trim()    || EX.dayOfWeek,
+        sessionTime:  sessionTime.trim()  || EX.sessionTime,
+        goal:         goal.trim()         || EX.goal,
+        currentLevel: currentLevel.trim() || EX.currentLevel,
+        sessions: realSessions.length ? realSessions : EX_SESSIONS,
+      };
       const res = await fetch(`/api/support/programs/${programId}/preview`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          studentName: studentName.trim(), therapistName: therapistName.trim(),
-          org: orgName.trim(),
-          year:  Number(year)  || new Date().getFullYear(),
-          month: Number(month) || new Date().getMonth() + 1,
-          school:       school.trim()       || undefined,
-          grade:        grade.trim()        || undefined,
-          dayOfWeek:    dayOfWeek.trim()    || undefined,
-          sessionTime:  sessionTime.trim()  || undefined,
-          goal:         goal.trim()         || undefined,
-          currentLevel: currentLevel.trim() || undefined,
-          sessions: sessions.filter((s) => s.date || s.content),
-        }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) { const d = await res.json().catch(() => ({})); setErr(d.error ?? "미리보기 오류"); return; }
       const d = await res.json();
@@ -625,10 +645,20 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
               <div>
                 <span style={{ fontWeight: 800, fontSize: 15 }}>기록지 미리보기</span>
                 <span style={{ marginLeft: 8, fontSize: 12, color: "var(--text-mute)" }}>
-                  출력될 전체 기록지예요 — 색칠된 칸이 입력값으로 채워져요
+                  출력될 전체 기록지의 모습이에요
                 </span>
               </div>
               <button onClick={() => setPreview(null)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--text-mute)", padding: "0 4px" }}>×</button>
+            </div>
+            {/* 예시 안내 배너 */}
+            <div style={{
+              display: "flex", alignItems: "center", gap: 8,
+              padding: "10px 18px", fontSize: 13, fontWeight: 600,
+              background: "var(--warn-soft, #FFF4E0)", color: "var(--warn-strong, #8A6422)",
+              borderBottom: "1px solid var(--border)",
+            }}>
+              <span style={{ fontSize: 15 }}>📋</span>
+              <span>이건 <b>예시</b>입니다 — 비어 있는 칸은 예시 내용으로 채워 보여드려요. 실제 출력에는 입력하신 값만 들어가요.</span>
             </div>
             <div style={{ overflowY: "auto", padding: "20px 18px", background: "var(--surface-2, #f4f4f5)" }}>
               {/* 종이처럼 — 표를 세로로 쌓아 전체 기록지로 표시 */}
