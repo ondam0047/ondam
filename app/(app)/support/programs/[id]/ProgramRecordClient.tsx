@@ -77,8 +77,8 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
   const [year,  setYear]  = useState(String(new Date().getFullYear()));
   const [month, setMonth] = useState(String(new Date().getMonth() + 1));
 
-  // 추가 정보 (선택)
-  const [showExtra, setShowExtra] = useState(false);
+  // 추가 정보 — 베타 UX에선 기본 펼침(숨겨져 그냥 넘어가는 문제 해결)
+  const [showExtra, setShowExtra] = useState(betaUx);
   const [school,       setSchool]       = useState("");
   const [grade,        setGrade]        = useState("");
   const [dayOfWeek,    setDayOfWeek]    = useState("");
@@ -763,6 +763,17 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
 
           {msg && <p style={{ fontSize: 12, color: "var(--success, green)", margin: "10px 0 0" }}>{msg}</p>}
           {err && <p style={{ fontSize: 12, color: "var(--error)", margin: "10px 0 0" }}>{err}</p>}
+
+          {mappingUnsaved && (
+            <div style={{
+              display: "flex", alignItems: "center", gap: 8, marginTop: 12,
+              padding: "9px 12px", borderRadius: 8, fontSize: 12.5, fontWeight: 600,
+              background: "var(--warn-soft, #FFF4E0)", color: "var(--warn-strong, #8A6422)",
+              border: "1px solid #E8B96A",
+            }}>
+              ⚠ 매핑이 저장되지 않았어요 — 위 매핑 영역에서 <b>파란 ‘매핑 갱신/저장’</b> 버튼을 먼저 눌러야 미리보기·출력에 반영돼요.
+            </div>
+          )}
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
             <button className="btn btn-primary" onClick={print} disabled={busy || !localHasForm}>
