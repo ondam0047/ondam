@@ -6,49 +6,25 @@ export const dynamic = "force-dynamic";
 
 const PDF_HREF = "/guides/바로일지_치료사용_설명서.pdf";
 
+// 한 주제 = 하나의 칸(카드). 평소엔 번호+제목+요약만, 누르면 영상·단계가 펼쳐짐.
 function Section({
   id, num, title, summary, children,
 }: {
   id: string; num: string; title: string; summary?: string; children: React.ReactNode;
 }) {
   return (
-    <section id={id} style={{ marginBottom: 40, scrollMarginTop: 24 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: summary ? 8 : 14 }}>
-        <span style={{
-          display: "inline-grid", placeItems: "center",
-          width: 32, height: 32, borderRadius: 8,
-          background: "var(--primary-soft)", color: "var(--primary)",
-          fontSize: 13, fontWeight: 800,
-        }}>{num}</span>
-        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em" }}>{title}</h2>
-      </div>
-      {summary && (
-        <p style={{ margin: "0 0 14px", fontSize: 15, fontWeight: 600, color: "var(--text-soft)", lineHeight: 1.6, wordBreak: "keep-all" }}>
-          {summary}
-        </p>
-      )}
-      <div style={{ fontSize: 14.5, lineHeight: 1.75, color: "var(--text)" }}>
+    <details id={id} className="guide-card" style={{ scrollMarginTop: 24 }}>
+      <summary className="guide-card-head">
+        <span className="gc-num">{num}</span>
+        <span className="gc-main">
+          <span className="gc-title">{title}</span>
+          {summary && <span className="gc-sum">{summary}</span>}
+        </span>
+        <span className="gc-chev" aria-hidden>▾</span>
+      </summary>
+      <div className="guide-card-body" style={{ fontSize: 14.5, lineHeight: 1.75, color: "var(--text)" }}>
         {children}
       </div>
-    </section>
-  );
-}
-
-// 상세 단계를 접어두는 토글 — 제목·요약·영상만 보이고 글은 펼쳐서 봄
-function Detail({ label = "자세히 보기", open = false, children }: { label?: string; open?: boolean; children: React.ReactNode }) {
-  return (
-    <details className="guide-detail" open={open} style={{ marginTop: 14 }}>
-      <summary style={{
-        cursor: "pointer",
-        display: "inline-flex", alignItems: "center", gap: 6,
-        fontSize: 13.5, fontWeight: 700, color: "var(--primary)",
-        padding: "8px 14px", background: "var(--primary-soft)",
-        borderRadius: 999, userSelect: "none", width: "fit-content",
-      }}>
-        <span className="gd-arrow" style={{ fontSize: 10, display: "inline-block" }}>▼</span>
-        {label}
-      </summary>
-      <div style={{ marginTop: 14 }}>{children}</div>
     </details>
   );
 }
@@ -151,8 +127,8 @@ export default async function GuidePage() {
             바로일지 가이드
           </h1>
           <div style={{ marginTop: 10, fontSize: 14, color: "var(--text-soft)", lineHeight: 1.7 }}>
-            <b>{user.name}</b> 선생님의 1인 사물함 사용 안내. 아래 목록에서 <b>필요한 항목만</b> 골라
-            <b> ‘자세히 보기’</b>를 펼치면 <b>사용법 영상과 단계</b>가 나와요. 급할 땐 대시보드 위쪽 <b>검색창</b>에
+            <b>{user.name}</b> 선생님의 1인 사물함 사용 안내. 아래 <b>칸을 누르면</b> 그 기능의
+            <b> 사용법 영상과 단계</b>가 펼쳐져요. 필요한 것만 골라 보세요. 급할 땐 대시보드 위쪽 <b>검색창</b>에
             키워드(예: 본인부담금)를 넣으면 바로 그 화면으로 갈 수 있어요.
           </div>
         </div>
@@ -178,9 +154,10 @@ export default async function GuidePage() {
           </a>
         </div>
 
+        <div className="guide-grid">
         {/* 1. 시작하기 */}
         <Section id="intro" num="1" title="시작하기" summary="가입하면 본인 사물함이 즉시 열려요. 대시보드의 ‘시작 가이드’만 따라가면 첫 기록지까지 끝납니다.">
-          <Detail>
+          <>
             <GuideVideo slug="guide-03-start" title="계정·시작" />
             <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
               바로일지는 발달재활 치료사 한 분이 본인 작업만 처리하는 <b>1인 사물함</b> 입니다.
@@ -208,12 +185,12 @@ export default async function GuidePage() {
             <Callout kind="info">
               한 계정은 한 기기에서만 로그인 유지 — 새 기기에서 로그인하면 이전 기기는 자동 로그아웃돼요.
             </Callout>
-          </Detail>
+          </>
         </Section>
 
         {/* 2. 내 설정 */}
         <Section id="settings" num="2" title="내 설정" summary="한 번 저장하면 일정표·기록지에 자동으로 반영돼요. 센터 양식도 여기서 올립니다.">
-          <Detail>
+          <>
             <GuideVideo slug="guide-02-settings" title="내 설정" />
             <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
               가입 시 입력한 모든 항목과 작업 환경값을 한 곳에서 수정합니다. <b>저장하는 즉시 일정표·기록지에 반영</b>돼요.
@@ -234,13 +211,13 @@ export default async function GuidePage() {
               내 설정 아래 <b>[우리 센터 양식 저장하기]</b>(또는 왼쪽 메뉴 <b>[우리 센터 양식]</b>)에서 센터 양식을 올려두면
               출력이 그 양식으로 나옵니다. 자세한 건 아래 <b>‘우리 센터 양식’</b> 항목 참고.
             </Step>
-          </Detail>
+          </>
         </Section>
 
         {/* 3. 우리 센터 양식 */}
         <Section id="myforms" num="3" title="우리 센터 양식" summary="우리 센터 기록지·일정표(.hwpx)를 올려두면, 그 양식 그대로 채워서 출력돼요.">
           {/* 영상 준비 중: <GuideVideo slug="guide-09-myforms" title="우리 센터 양식 저장" /> */}
-          <Detail>
+          <>
             <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
               지자체·기관마다 양식이 제각각이에요. 우리 센터 양식(.hwpx)을 한 번 올리면 표의 칸을 <b>자동 인식</b>해서,
               그 다음부터 일정표·기록지 출력과 ‘이번 달’ 일괄 받기가 <b>우리 센터 양식 그대로</b> 나옵니다.
@@ -268,12 +245,12 @@ export default async function GuidePage() {
               우리 센터 양식도 <b>5칸 기준</b>으로 생각하시면 됩니다.
             </Callout>
             <Callout kind="info">올린 양식·저장 내용은 <b>본인만</b> 볼 수 있어요.</Callout>
-          </Detail>
+          </>
         </Section>
 
         {/* 4. 내 아동 */}
         <Section id="children" num="4" title="내 아동" summary="한 번 등록하면 매월 클릭 한 번에 정보가 채워져요. 목록에서 아동을 누르면 바로 수정.">
-          <Detail>
+          <>
             <GuideVideo slug="guide-04-child-register" title="내 아동 한 명씩 등록" />
             <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
               아동을 등록해두면 매월 일정표·기록지에서 클릭 한 번에 정보가 채워져요. 세 가지 등록 경로가 있습니다.
@@ -298,12 +275,12 @@ export default async function GuidePage() {
             <Callout kind="info">
               <b>월 본인부담금</b>을 넣어두면 일정표의 본인부담금 칸이 자동으로 채워져요(부모님이 매월 내는 실제 금액).
             </Callout>
-          </Detail>
+          </>
         </Section>
 
         {/* 5. 일정표 (+ 월간 보기) */}
         <Section id="schedule" num="5" title="일정표 (월간 보기)" summary="반복 요일만 고르면 한 달치 회기가 자동 생성돼요(공휴일 자동 제외). ‘월간 보기’ 탭으로 달력도.">
-          <Detail>
+          <>
             <GuideVideo slug="guide-05-schedule" title="일정표 작성" />
             <Step n={1} title="아동 · 연·월 선택">
               아동을 고르면 이름·생년월일·기관명·치료사·서비스 종류·회당 단가·본인부담금이 자동으로 채워져요.
@@ -322,12 +299,12 @@ export default async function GuidePage() {
               상단 <b>[월간 보기]</b> 탭을 누르면 저장된 일정이 <b>월간 캘린더</b>로 한눈에 보여요(공휴일·오늘 색 구분).
             </Step>
             <Callout kind="tip">서비스 종류·치료사명·제공기관명은 모두 <b>내 설정</b>에서 가져와요.</Callout>
-          </Detail>
+          </>
         </Section>
 
         {/* 6. 기록지 */}
         <Section id="record" num="6" title="기록지" summary="직접 작성하거나, 월말 엑셀로 한 번에 자동완성하거나 — 두 가지 방식.">
-          <Detail>
+          <>
             <GuideVideo slug="guide-06-record" title="기록지 작성" />
             <Step n={1} title="엑셀 없이 직접 — 미리 작성">
               아동·연·월 → <b>[작성 시작]</b>. 일정표가 있으면 회기 날짜·시간이 자동으로 채워져요. 결과 입력 후 <b>[현재 내용 저장]</b>.
@@ -345,12 +322,12 @@ export default async function GuidePage() {
               <b>[전월 기록 가져오기]</b>로 지난달 결과·총평 복사. <b>[한글파일(.hwpx) 다운로드]</b>(6회 이상이면 자동 ZIP 분할).
             </Step>
             <Callout kind="tip">상단 <b>[여러 명 한꺼번에 받기 →]</b>로 ‘이번 달’ 화면에서 일괄 받기로 갈 수 있어요.</Callout>
-          </Detail>
+          </>
         </Section>
 
         {/* 7. 이번 달 (월 마감) */}
         <Section id="month" num="7" title="이번 달 (월 마감)" summary="월을 고르면 전 아동의 일정·기록지 상태가 한 화면에. 칸을 누르면 그 아동 작성으로 바로 가요.">
-          <Detail>
+          <>
             <GuideVideo slug="guide-08-dashboard" title="대시보드·이번 달·월간 보기" />
             <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
               월말 마감을 메뉴 넘나들지 않고 <b>한 화면</b>에서. 왼쪽 메뉴 <b>[이번 달]</b> 또는 대시보드 <b>[이번 달 마감]</b> 버튼으로 들어가요.
@@ -368,12 +345,12 @@ export default async function GuidePage() {
               그 달 일정이 없으면 <b>[일정 일괄 생성 →]</b> 안내가 떠요(아동마다 등록된 반복 요일·시간대로 한 번에 생성).
             </Step>
             <Callout kind="tip">출력 양식은 각 아동의 일정표·기록지에서 저장해둔 ‘출력 양식’을 그대로 따라가요(우리 센터 양식).</Callout>
-          </Detail>
+          </>
         </Section>
 
         {/* 8. 결제 겹침 찾기 */}
         <Section id="approval" num="8" title="결제 겹침 찾기" summary="엑셀만 올리면 결제 시간이 겹치는 회기를 자동으로 잡아줘요.">
-          <Detail>
+          <>
             <GuideVideo slug="guide-07-approval" title="결제 겹침 찾기" />
             <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
               지자체 점검 전에 결제 내역을 미리 자가 점검. 가장 흔한 <b>같은 날 결제 시간이 너무 가까워 이전 회기와 겹치는 경우</b>를 잡아줘요.
@@ -388,12 +365,12 @@ export default async function GuidePage() {
               ‘소급결제’가 있으면 노란 행+안내. 별도 사유서 작성을 잊지 마세요.
             </Step>
             <Callout kind="tip">예: 16:01 결제 → 16:30 결제 = 29분 간격 → 빨강(“이전 회기와 겹침 — 11분 빠름”).</Callout>
-          </Detail>
+          </>
         </Section>
 
         {/* 9. 바로툴 */}
         <Section id="tools" num="9" title="바로툴" summary="치료에 쓰는 음성·말 측정 모듈. 대상자별로 측정·기록하고 추이를 봐요.">
-          <Detail>
+          <>
             <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
               왼쪽 <b>[바로툴]</b>(도구 메뉴)에서 음성·말 관련 측정 모듈을 사용해요. 측정값은 대상자별로 저장돼 추이를 볼 수 있어요.
             </p>
@@ -407,12 +384,12 @@ export default async function GuidePage() {
             <Callout kind="warn">
               바로툴은 <b>비의료기기</b>로, 임상 참고용 보조 도구입니다. 진단·치료의 최종 판단은 치료사가 합니다.
             </Callout>
-          </Detail>
+          </>
         </Section>
 
         {/* 10. 기타지원사업 */}
         <Section id="support" num="10" title="기타지원사업" summary="발달재활 바우처 외 지원사업 일지·계획서를 바로일지에서 작성해 한글로 출력.">
-          <Detail>
+          <>
             <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
               왼쪽 <b>[기타지원사업]</b>(운영 메뉴)에서 지원사업별 서식을 작성해요. 현재 <b>교육청 치료지원(마음모아)</b> 월별 치료지원 일지를 지원합니다.
             </p>
@@ -423,12 +400,12 @@ export default async function GuidePage() {
               <b>한글(.hwpx)</b>로 출력해 제출하세요.
             </Step>
             <Callout kind="info">새 지원사업 서식이 필요하면 운영자에게 요청하세요(양식 확보 후 추가).</Callout>
-          </Detail>
+          </>
         </Section>
 
         {/* 11. 수기로 작성하는 분 */}
         <Section id="handwrite" num="11" title="수기로 작성하는 분" summary="수기로 받는 분도 위쪽 표는 자동 인쇄 — 종이엔 결과·서명만 받으면 돼요.">
-          <Detail>
+          <>
             <p style={{ marginTop: 0, wordBreak: "keep-all" }}>
               결과·부모 서명을 회기마다 종이에 직접 받아야 하는 경우, 위쪽 표(이름·날짜·시간·바우처·승인번호 등)는 자동으로 채워서 인쇄되니
               <b> 그 종이에 5회기 결과와 서명을 누적</b>해 채우면 됩니다.
@@ -440,12 +417,12 @@ export default async function GuidePage() {
             <Step n={3} title="회기마다 — 손글씨 + 서명">인쇄본에 그날 결과를 쓰고 부모 서명을 받으세요.</Step>
             <Callout kind="tip"><b>결과 칸을 비워도 저장·다운로드가 됩니다.</b> 디지털 기록이 필요 없으면 종이로만 관리하셔도 돼요.</Callout>
             <Callout kind="info"><b>결제 겹침 찾기</b>는 수기 운영자에게도 유용해요. 엑셀만 올려 점검 전 한 번씩 돌려보세요.</Callout>
-          </Detail>
+          </>
         </Section>
 
         {/* 12. 작업 상태 유지 */}
         <Section id="persist" num="12" title="작업 상태 유지" summary="화면을 옮겨다녀도 보던 상태가 그대로 유지돼요.">
-          <Detail>
+          <>
             <ul style={{ paddingLeft: 22, margin: "8px 0 0" }}>
               <li>마지막에 선택한 아동·연월이 자동 복원</li>
               <li>일정표는 생성한 캘린더 미리보기 통째로 유지</li>
@@ -453,7 +430,7 @@ export default async function GuidePage() {
               <li>스크롤 위치까지 그대로</li>
               <li>로그아웃·다른 계정 로그인 시에는 자동으로 비워져 다음 사용자에게 새지 않음</li>
             </ul>
-          </Detail>
+          </>
         </Section>
 
         {/* 13. FAQ */}
@@ -488,6 +465,7 @@ export default async function GuidePage() {
             </Faq>
           </div>
         </Section>
+        </div>
       </div>
 
       {/* 우측 TOC — 모바일에선 자동으로 상단으로 접힘 */}
