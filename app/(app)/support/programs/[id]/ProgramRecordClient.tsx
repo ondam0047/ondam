@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { SCALAR_ROLES, ROW_ROLES } from "@/lib/record-roles";
 
 // ── 매핑 관련 타입 ──────────────────────────────────────────────
 type Cell     = { r: number; c: number; cs: number; rs: number; text: string; role: string | null };
@@ -13,13 +14,6 @@ const FIELD_LABEL: Record<string, string> = {
   org: "기관명", name: "이름", therapist: "치료사",
   date: "날짜", start: "시작시간", end: "종료시간", result: "결과표",
 };
-
-// 매핑 UI에서 지정 가능한 역할
-const SCALAR_ROLES = [
-  "기관명", "대상자이름", "치료사이름", "생년월일", "연도", "월",
-  "학교", "학년", "요일", "정기시간", "치료목표", "현행수준",
-];
-const ROW_ROLES = ["회차", "날짜", "시작", "종료", "결과"];
 
 // 매핑 화면 인라인 미리보기용 — 역할별 예시 값(ROW 역할은 순서대로 채움)
 const ROLE_EX: Record<string, string | string[]> = {
@@ -120,6 +114,8 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
   const [mapErr,       setMapErr]       = useState("");
   const [mapEditing,   setMapEditing]   = useState(false); // 저장된 양식 매핑 재수정 모드
   const [mapPreview,   setMapPreview]   = useState(true);  // 매핑 화면 인라인 예시 미리보기
+  const [aiBusy,       setAiBusy]       = useState(false); // AI 자동매핑 진행
+  const [aiLow,        setAiLow]        = useState<Set<string>>(new Set()); // 낮은 신뢰도 칸(확인 필요)
 
   // ── 삭제 확인 ───────────────────────────────────────────────
   const [delConfirm, setDelConfirm] = useState(false);
@@ -308,7 +304,7 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
 
   function cancelMapping() {
     setMapFile(null); setMapResult(null); setMapOverrides({}); setMapEditing(false);
-    setMapMsg(""); setMapErr(""); setPicker(null);
+    setMapMsg(""); setMapErr(""); setPicker(null); setAiLow(new Set());
   }
 
   // ── 역할 보정 ────────────────────────────────────────────────
@@ -318,8 +314,44 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
   };
   function assignRole(role: string) {
     if (!picker) return;
-    setMapOverrides({ ...mapOverrides, [`${picker.t},${picker.r},${picker.c}`]: role });
+    const k = `${picker.t},${picker.r},${picker.c}`;
+    setMapOverrides({ ...mapOverrides, [k]: role });
+    setAiLow((prev) => { if (!prev.has(k)) return prev; const n = new Set(prev); n.delete(k); return n; }); // 사람이 확인함
     setPicker(null);
+  }
+
+  // ── AI 자동매핑 — 규칙이 못 잡은 칸을 LLM이 제안(사람이 확인 후 저장) ──
+  async function aiAutoMap() {
+    if (!mapResult) return;
+    setAiBusy(true); setMapErr(""); setMapMsg("");
+    try {
+      const res = await fetch("/api/forms/automap", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ grid: mapResult.grid }),
+      });
+      const d = await res.json();
+      if (!res.ok) { setMapErr(d.error ?? "AI 매핑 실패"); return; }
+      const suggestions: Array<{ table: number; row: number; col: number; role: string; confidence: number }> = d.suggestions ?? [];
+      if (suggestions.length === 0) { setMapMsg("AI가 새로 제안할 칸을 찾지 못했어요."); return; }
+
+      // 이미 사람이 지정한 칸(override)은 건드리지 않고 빈 칸만 채움
+      const next = { ...mapOverrides };
+      const low = new Set(aiLow);
+      let added = 0, lowN = 0;
+      for (const s of suggestions) {
+        const k = `${s.table},${s.row},${s.col}`;
+        if (k in next) continue;
+        next[k] = s.role;
+        added++;
+        if (s.confidence < 0.6) { low.add(k); lowN++; } else { low.delete(k); }
+      }
+      setMapOverrides(next);
+      setAiLow(low);
+      setMapMsg(`AI가 ${added}칸을 제안했어요${lowN ? ` (확인 필요 ${lowN}칸)` : ""}. 오른쪽 예시 미리보기로 확인 후 저장하세요.`);
+    } catch {
+      setMapErr("AI 매핑 중 오류가 발생했어요.");
+    } finally { setAiBusy(false); }
   }
 
   // 매핑 인라인 미리보기 — 현재 역할에 예시 값을 채운 좌표맵
@@ -451,7 +483,18 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
             {/* 표 그리드 + 인라인 예시 미리보기 */}
             <div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6, gap: 8, flexWrap: "wrap" }}>
-                <div style={{ fontSize: 13, fontWeight: 700 }}>칸 클릭으로 역할 지정</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>칸 클릭으로 역할 지정</div>
+                  <button
+                    className="btn btn-sm"
+                    onClick={aiAutoMap}
+                    disabled={aiBusy}
+                    style={{ fontSize: 12, background: "var(--primary)", color: "#fff", border: "none" }}
+                    title="규칙이 못 잡은 칸을 AI가 분석해 역할을 제안해요"
+                  >
+                    {aiBusy ? "AI 분석 중…" : "✨ AI 자동매핑"}
+                  </button>
+                </div>
                 <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-soft)", cursor: "pointer" }}>
                   <input type="checkbox" checked={mapPreview} onChange={(e) => setMapPreview(e.target.checked)} />
                   예시 미리보기 함께 보기
@@ -468,6 +511,7 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
                         <TableView
                           cells={cells}
                           roleOf={(cell) => effRole(ti, cell)}
+                          lowOf={(cell) => aiLow.has(`${ti},${cell.r},${cell.c}`)}
                           onCell={(r, c, text, x, y) => setPicker({ t: ti, r, c, text, x, y })}
                         />
                       </div>
@@ -830,10 +874,11 @@ function PreviewTable({ cells, full = false }: { cells: PreviewCell[]; full?: bo
 }
 
 // ── 표 그리드 렌더러 ─────────────────────────────────────────────
-function TableView({ cells, roleOf, onCell }: {
+function TableView({ cells, roleOf, onCell, lowOf }: {
   cells: Cell[];
   roleOf: (cell: Cell) => string | null;
   onCell: (r: number, c: number, text: string, x: number, y: number) => void;
+  lowOf?: (cell: Cell) => boolean;
 }) {
   if (cells.length === 0) return null;
   const maxR = Math.max(...cells.map((c) => c.r + c.rs));
@@ -852,16 +897,17 @@ function TableView({ cells, roleOf, onCell }: {
           for (let cc = c; cc < c + cell.cs; cc++)
             if (!(rr === r && cc === c)) covered.add(`${rr},${cc}`);
         const role = roleOf(cell);
+        const low = role ? lowOf?.(cell) ?? false : false;
         tds.push(
           <td key={c} colSpan={cell.cs} rowSpan={cell.rs}
             onClick={(e) => onCell(cell.r, cell.c, cell.text, e.clientX, e.clientY)}
-            title="클릭해서 역할 지정/해제"
+            title={low ? "AI 제안 — 신뢰도 낮음, 확인하세요" : "클릭해서 역할 지정/해제"}
             style={{
-              border: "1px solid var(--border)", padding: "3px 5px", fontSize: 11, verticalAlign: "top",
-              background: role ? "var(--primary-soft)" : "var(--surface)",
+              border: low ? "2px solid #E8912D" : "1px solid var(--border)", padding: "3px 5px", fontSize: 11, verticalAlign: "top",
+              background: low ? "#FFF4E0" : role ? "var(--primary-soft)" : "var(--surface)",
               minWidth: 36, maxWidth: 160, cursor: "pointer",
             }}>
-            {role && <div style={{ fontSize: 9, fontWeight: 800, color: "var(--primary)", marginBottom: 1 }}>{role}</div>}
+            {role && <div style={{ fontSize: 9, fontWeight: 800, color: low ? "#B5651D" : "var(--primary)", marginBottom: 1 }}>{low ? "? " : ""}{role}</div>}
             <div style={{ color: cell.text ? "var(--text)" : "var(--text-mute)", whiteSpace: "normal", wordBreak: "break-all" }}>
               {cell.text || (role ? "" : "·")}
             </div>
