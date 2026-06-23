@@ -430,82 +430,80 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
       )}
 
       {/* ── 기록지 작성 ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 32, alignItems: "start" }}>
+      <div style={{ display: "grid", gap: 24, alignItems: "start" }}>
 
-        {/* 기본 정보 */}
+        {/* 기본 정보 — 가로 배치 */}
         <div>
           <p style={{ margin: "0 0 12px", fontSize: 13, fontWeight: 700, color: "var(--text-soft)", letterSpacing: "0.05em", textTransform: "uppercase" }}>기본 정보</p>
 
-          <div className="field" style={{ marginBottom: 10 }}>
-            <label className="label">아동 이름 <span style={{ color: "var(--error)" }}>*</span></label>
-            <input className="input" value={studentName} onChange={(e) => setStudentName(e.target.value)} placeholder="홍길동" />
-          </div>
-
-          {/* 바로툴 대상자 연결 */}
-          {toolChildren.length > 0 && (
-            <div className="field" style={{ marginBottom: 10 }}>
-              <label className="label" style={{ fontSize: 11 }}>바로툴 대상자 연결 (선택)</label>
-              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                <select
-                  value={toolChildId ?? ""}
-                  onChange={(e) => setToolChildId(e.target.value ? Number(e.target.value) : null)}
-                  style={{ flex: 1, padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", fontSize: 13, color: "var(--text)" }}
-                >
-                  <option value="">연결 안 함</option>
-                  {toolChildren.map((tc) => (
-                    <option key={tc.id} value={tc.id}>{tc.name}{tc.memo ? ` (${tc.memo})` : ""}</option>
-                  ))}
-                </select>
-                {toolChildId && (
-                  <Link href={`/monitor/${toolChildId}`} style={{ fontSize: 11, color: "var(--primary)", textDecoration: "none", whiteSpace: "nowrap" }}>
-                    모니터링 →
-                  </Link>
-                )}
-              </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "flex-end" }}>
+            <div className="field" style={{ flex: "0 0 150px", margin: 0 }}>
+              <label className="label">아동 이름 <span style={{ color: "var(--error)" }}>*</span></label>
+              <input className="input" value={studentName} onChange={(e) => setStudentName(e.target.value)} placeholder="홍길동" style={{ fontSize: 13 }} />
             </div>
-          )}
-
-          <div className="field" style={{ marginBottom: 10 }}>
-            <label className="label">담당 치료사</label>
-            <input className="input" value={therapistName} onChange={(e) => setTherapistName(e.target.value)} />
-          </div>
-          <div className="field" style={{ marginBottom: 10 }}>
-            <label className="label">기관명</label>
-            <input className="input" value={orgName} onChange={(e) => setOrgName(e.target.value)} />
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
-            <div className="field">
+            <div className="field" style={{ flex: "0 0 130px", margin: 0 }}>
+              <label className="label">담당 치료사</label>
+              <input className="input" value={therapistName} onChange={(e) => setTherapistName(e.target.value)} style={{ fontSize: 13 }} />
+            </div>
+            <div className="field" style={{ flex: "0 0 160px", margin: 0 }}>
+              <label className="label">기관명</label>
+              <input className="input" value={orgName} onChange={(e) => setOrgName(e.target.value)} style={{ fontSize: 13 }} />
+            </div>
+            <div className="field" style={{ flex: "0 0 72px", margin: 0 }}>
               <label className="label">연도</label>
-              <input className="input" value={year} onChange={(e) => setYear(e.target.value)} style={{ textAlign: "center" }} />
+              <input className="input" value={year} onChange={(e) => setYear(e.target.value)} style={{ textAlign: "center", fontSize: 13 }} />
             </div>
-            <div className="field">
+            <div className="field" style={{ flex: "0 0 56px", margin: 0 }}>
               <label className="label">월</label>
-              <input className="input" value={month} onChange={(e) => setMonth(e.target.value)} style={{ textAlign: "center" }} />
+              <input className="input" value={month} onChange={(e) => setMonth(e.target.value)} style={{ textAlign: "center", fontSize: 13 }} />
             </div>
+
+            {/* 바로툴 대상자 연결 */}
+            {toolChildren.length > 0 && (
+              <div className="field" style={{ flex: "0 0 200px", margin: 0 }}>
+                <label className="label" style={{ fontSize: 11 }}>바로툴 대상자 연결</label>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <select
+                    value={toolChildId ?? ""}
+                    onChange={(e) => setToolChildId(e.target.value ? Number(e.target.value) : null)}
+                    style={{ flex: 1, minWidth: 0, padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", fontSize: 13, color: "var(--text)" }}
+                  >
+                    <option value="">연결 안 함</option>
+                    {toolChildren.map((tc) => (
+                      <option key={tc.id} value={tc.id}>{tc.name}{tc.memo ? ` (${tc.memo})` : ""}</option>
+                    ))}
+                  </select>
+                  {toolChildId && (
+                    <Link href={`/monitor/${toolChildId}`} style={{ fontSize: 11, color: "var(--primary)", textDecoration: "none", whiteSpace: "nowrap" }}>
+                      📊
+                    </Link>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 추가 정보 토글 */}
           <button
             onClick={() => setShowExtra((v) => !v)}
             className="btn btn-ghost"
-            style={{ fontSize: 12, width: "100%", justifyContent: "space-between", marginBottom: showExtra ? 8 : 12 }}
+            style={{ fontSize: 12, marginTop: 12, marginBottom: showExtra ? 8 : 0 }}
           >
             <span>추가 정보 (학교·목표·현행수준 등)</span>
-            <span style={{ opacity: 0.5 }}>{showExtra ? "▲" : "▼"}</span>
+            <span style={{ opacity: 0.5, marginLeft: 6 }}>{showExtra ? "▲" : "▼"}</span>
           </button>
 
           {showExtra && (
-            <div style={{ display: "grid", gap: 8, marginBottom: 12, paddingLeft: 4, borderLeft: "2px solid var(--border)" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, paddingLeft: 10, borderLeft: "2px solid var(--border)" }}>
               {([
-                { label: "학교",       value: school,        set: setSchool,       ph: "OO초등학교" },
-                { label: "학년",       value: grade,         set: setGrade,        ph: "3학년" },
-                { label: "요일 (정기)", value: dayOfWeek,     set: setDayOfWeek,    ph: "화·목" },
-                { label: "시간 (정기)", value: sessionTime,   set: setSessionTime,  ph: "10:00~10:50" },
-                { label: "치료 목표",  value: goal,          set: setGoal,         ph: "문장 산출 향상" },
-                { label: "현행 수준",  value: currentLevel,  set: setCurrentLevel, ph: "2어절 수준 발화 가능" },
-              ] as { label: string; value: string; set: (v: string) => void; ph: string }[]).map(({ label, value, set, ph }) => (
-                <div key={label} className="field">
+                { label: "학교",       value: school,        set: setSchool,       ph: "OO초등학교",        w: 150 },
+                { label: "학년",       value: grade,         set: setGrade,        ph: "3학년",             w: 90 },
+                { label: "요일 (정기)", value: dayOfWeek,     set: setDayOfWeek,    ph: "화·목",             w: 110 },
+                { label: "시간 (정기)", value: sessionTime,   set: setSessionTime,  ph: "10:00~10:50",       w: 130 },
+                { label: "치료 목표",  value: goal,          set: setGoal,         ph: "문장 산출 향상",     w: 200 },
+                { label: "현행 수준",  value: currentLevel,  set: setCurrentLevel, ph: "2어절 수준 발화",    w: 200 },
+              ] as { label: string; value: string; set: (v: string) => void; ph: string; w: number }[]).map(({ label, value, set, ph, w }) => (
+                <div key={label} className="field" style={{ flex: `0 0 ${w}px`, margin: 0 }}>
                   <label className="label" style={{ fontSize: 11 }}>{label}</label>
                   <input className="input" style={{ fontSize: 13 }} value={value} onChange={(e) => set(e.target.value)} placeholder={ph} />
                 </div>
@@ -513,22 +511,22 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
             </div>
           )}
 
-          {msg && <p style={{ fontSize: 12, color: "var(--success, green)", marginBottom: 6 }}>{msg}</p>}
-          {err && <p style={{ fontSize: 12, color: "var(--error)", marginBottom: 6 }}>{err}</p>}
+          {msg && <p style={{ fontSize: 12, color: "var(--success, green)", margin: "10px 0 0" }}>{msg}</p>}
+          {err && <p style={{ fontSize: 12, color: "var(--error)", margin: "10px 0 0" }}>{err}</p>}
 
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
+            <button className="btn btn-primary" onClick={print} disabled={busy || !localHasForm}>
+              {busy ? "생성 중…" : "기록지 출력"}
+            </button>
             <button className="btn btn-ghost" onClick={showPreview} disabled={previewBusy || !localHasForm} style={{ fontSize: 13 }}>
               {previewBusy ? "로딩…" : "미리보기"}
-            </button>
-            <button className="btn btn-primary" onClick={print} disabled={busy || !localHasForm} style={{ flex: 1 }}>
-              {busy ? "생성 중…" : "기록지 출력"}
             </button>
             <button className="btn btn-ghost" onClick={newDoc} style={{ fontSize: 13 }}>초기화</button>
           </div>
         </div>
 
-        {/* 회기 */}
-        <div>
+        {/* 회기 — 세로 */}
+        <div style={{ maxWidth: 760 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
             <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "var(--text-soft)", letterSpacing: "0.05em", textTransform: "uppercase" }}>
               회기 ({sessions.length})
@@ -625,20 +623,23 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
           }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: "1px solid var(--border)" }}>
               <div>
-                <span style={{ fontWeight: 800, fontSize: 15 }}>미리보기</span>
+                <span style={{ fontWeight: 800, fontSize: 15 }}>기록지 미리보기</span>
                 <span style={{ marginLeft: 8, fontSize: 12, color: "var(--text-mute)" }}>
-                  색칠된 칸이 입력한 값으로 채워져요
+                  출력될 전체 기록지예요 — 색칠된 칸이 입력값으로 채워져요
                 </span>
               </div>
               <button onClick={() => setPreview(null)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "var(--text-mute)", padding: "0 4px" }}>×</button>
             </div>
-            <div style={{ overflowY: "auto", padding: 18 }}>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 20, alignItems: "flex-start" }}>
+            <div style={{ overflowY: "auto", padding: "20px 18px", background: "var(--surface-2, #f4f4f5)" }}>
+              {/* 종이처럼 — 표를 세로로 쌓아 전체 기록지로 표시 */}
+              <div style={{
+                background: "#fff", margin: "0 auto", maxWidth: 760,
+                padding: "32px 36px", borderRadius: 4,
+                boxShadow: "0 1px 6px rgba(0,0,0,0.12)",
+                display: "flex", flexDirection: "column", gap: 20,
+              }}>
                 {preview.tables.map((cells, ti) => (
-                  <div key={ti} style={{ flex: "0 1 auto" }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mute)", marginBottom: 4 }}>표 {ti + 1}</div>
-                    <PreviewTable cells={cells} />
-                  </div>
+                  <PreviewTable key={ti} cells={cells} />
                 ))}
               </div>
             </div>
@@ -677,24 +678,24 @@ function PreviewTable({ cells }: { cells: PreviewCell[] }) {
         const filled = !!cell.value;
         tds.push(
           <td key={c} colSpan={cell.cs} rowSpan={cell.rs} style={{
-            border: "1px solid var(--border)", padding: "3px 6px", fontSize: 12, verticalAlign: "top",
-            background: filled ? "var(--primary-soft)" : "var(--surface)",
-            minWidth: 40, maxWidth: 180,
+            border: "1px solid #c9c9cf", padding: "5px 7px", fontSize: 12.5, lineHeight: 1.5, verticalAlign: "top",
+            background: filled ? "var(--primary-soft, #eef4ff)" : "transparent",
+            color: "#1a1a1a",
           }}>
             {filled
-              ? <span style={{ color: "var(--primary)", fontWeight: 600, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{cell.value}</span>
-              : <span style={{ color: cell.text ? "var(--text)" : "var(--text-mute)", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{cell.text || "·"}</span>
+              ? <span style={{ fontWeight: 600, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{cell.value}</span>
+              : <span style={{ color: cell.text ? "#1a1a1a" : "#bbb", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{cell.text || ""}</span>
             }
           </td>,
         );
       } else {
-        tds.push(<td key={c} style={{ border: "1px solid var(--border)", background: "var(--surface-2)" }} />);
+        tds.push(<td key={c} style={{ border: "1px solid #c9c9cf" }} />);
       }
     }
     rows.push(<tr key={r}>{tds}</tr>);
   }
   return (
-    <table style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>
+    <table style={{ borderCollapse: "collapse", width: "100%", tableLayout: "auto" }}>
       <tbody>{rows}</tbody>
     </table>
   );
