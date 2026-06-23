@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db";
 import { deleteChild } from "./actions";
 import { WEEK } from "@/lib/constants";
 import { requireUser, getEffectiveTherapistId } from "@/lib/auth";
+import { isBetaUx } from "@/lib/feature-flags";
+import ConfirmSubmit from "../ConfirmSubmit";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +14,7 @@ export default async function ChildrenPage({
   searchParams: Promise<{ q?: string; waiting?: string }>;
 }) {
   const user = await requireUser();
+  const betaUx = isBetaUx(user.email);
   const sp = await searchParams;
   const q = sp.q?.trim() ?? "";
   const onlyWaiting = sp.waiting === "1";
@@ -52,7 +55,21 @@ export default async function ChildrenPage({
               : `담당 아동 ${activeCount}명 · 한 아동이 여러 서비스를 받는 경우 함께 관리됩니다.`}
           </p>
         </div>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          {betaUx && (
+            <div style={{ display: "inline-flex", border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
+              <Link href="/children" className="btn btn-sm" style={{
+                borderRadius: 0, border: "none", fontWeight: onlyWaiting ? 500 : 700,
+                background: onlyWaiting ? "transparent" : "var(--primary-soft)",
+                color: onlyWaiting ? "var(--text-soft)" : "var(--primary)",
+              }}>내 아동</Link>
+              <Link href="/children?waiting=1" className="btn btn-sm" style={{
+                borderRadius: 0, border: "none", borderLeft: "1px solid var(--border)", fontWeight: onlyWaiting ? 700 : 500,
+                background: onlyWaiting ? "var(--primary-soft)" : "transparent",
+                color: onlyWaiting ? "var(--primary)" : "var(--text-soft)",
+              }}>대기 명단</Link>
+            </div>
+          )}
           <Link
             className="btn"
             href="/import"
@@ -200,9 +217,14 @@ export default async function ChildrenPage({
                             }}
                             style={{ display: "inline" }}
                           >
-                            <button className="btn btn-ghost btn-sm" style={{ color: "var(--danger)" }} type="submit">
+                            <ConfirmSubmit
+                              enabled={betaUx}
+                              message={`'${c.name}' 아동을 삭제할까요?\n관련 일정·기록이 모두 함께 삭제되며 되돌릴 수 없어요.`}
+                              className="btn btn-ghost btn-sm"
+                              style={{ color: "var(--danger)" }}
+                            >
                               삭제
-                            </button>
+                            </ConfirmSubmit>
                           </form>
                         </div>
                       </td>

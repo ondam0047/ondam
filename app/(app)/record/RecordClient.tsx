@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import * as XLSX from "xlsx";
 import { minusMin } from "@/lib/constants";
+import { useBetaUx } from "../BetaUxContext";
 
 type RecordSessionData = {
   ordinal: number;
@@ -573,6 +575,7 @@ function RecordSheet({
   myServices: MyServiceOption[];
   recordForm: string;
 }) {
+  const betaUx = useBetaUx();
   // 서식B(동탄)는 '이용자 상태'와 '서비스 결과'가 별도 칸 → 상태 입력칸을 따로 보여준다.
   const splitStatus = recordForm === "dongtan";
   const monthSet = [...new Set(rows.map((s) => parseYMD(s.use)?.mo).filter(Boolean))];
@@ -1118,7 +1121,7 @@ function RecordSheet({
         <button className="btn" onClick={saveRecord} disabled={saving || !childServiceId}>
           {saving ? "저장 중..." : "현재 내용 저장"}
         </button>
-        {savedForms.length > 0 && (
+        {savedForms.length > 0 ? (
           <select
             value={outFormId}
             onChange={(e) => setOutFormId(e.target.value ? Number(e.target.value) : "")}
@@ -1128,7 +1131,11 @@ function RecordSheet({
             <option value="">기본 양식</option>
             {savedForms.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
           </select>
-        )}
+        ) : betaUx ? (
+          <Link href="/forms" className="sub-mute" style={{ fontSize: 12, whiteSpace: "nowrap" }} title="우리 센터 양식을 저장하면 여기서 선택할 수 있어요">
+            기본 양식 사용 중 · <b>우리 센터 양식 저장 →</b>
+          </Link>
+        ) : null}
         <button className="btn btn-primary" onClick={downloadHwpx} disabled={downloading}>
           {downloading ? "생성 중..." : "한글파일(.hwpx) 다운로드"}
         </button>

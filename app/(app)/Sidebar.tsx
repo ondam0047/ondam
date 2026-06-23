@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useBetaUx } from "./BetaUxContext";
 
 // 인라인 브랜드 마크 (next/image 가 그라디언트 SVG 못 띄우는 케이스 회피)
 function BrandMark({ size = 36 }: { size?: number }) {
@@ -112,6 +113,7 @@ function clearWorkCache() {
 
 export default function Sidebar({ user, isBetaAdmin = false }: { user: SessionUser; isBetaAdmin?: boolean }) {
   const pathname = usePathname();
+  const betaUx = useBetaUx();
   // 그룹·내부 배열 복사(원본 불변 유지)
   const groups: NavGroup[] = NAV_GROUPS.map((g) => ({ ...g, items: [...g.items] }));
   if (isBetaAdmin) {
@@ -156,7 +158,15 @@ export default function Sidebar({ user, isBetaAdmin = false }: { user: SessionUs
       ))}
 
       <form action="/api/auth/logout" method="post" style={{ marginTop: 12 }}>
-        <button type="submit" className="nav-item" style={{ cursor: "pointer" }} onClick={clearWorkCache}>
+        <button
+          type="submit"
+          className="nav-item"
+          style={{ cursor: "pointer" }}
+          onClick={(e) => {
+            if (betaUx && !window.confirm("로그아웃할까요?")) { e.preventDefault(); return; }
+            clearWorkCache();
+          }}
+        >
           <Icon d={IC.logout} />
           <span>로그아웃</span>
         </button>

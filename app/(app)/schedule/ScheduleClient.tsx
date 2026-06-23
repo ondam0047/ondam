@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   WEEK, holiday, pad, parseDaySlots,
 } from "@/lib/constants";
+import { useBetaUx } from "../BetaUxContext";
 
 type Session = { time: string; makeup: boolean };
 type SessionMap = Record<number, Session>; // day-of-month -> Session
@@ -67,6 +68,7 @@ export default function ScheduleClient({
   defaultOrg?: string;
   centerDefaultUnit?: number;
 }) {
+  const betaUx = useBetaUx();
   // 일정표에서 새 아동을 등록하면 여기에 추가 → 드롭다운 즉시 갱신
   const [childrenOpts, setChildrenOpts] = useState<ChildOption[]>(initialChildrenOpts);
   // 오늘 기준 월 옵션 (매 렌더 한 번 계산)
@@ -778,6 +780,12 @@ export default function ScheduleClient({
             </div>
           )}
 
+          {betaUx && typeof selectedChildId === "number" && savedList.length === 0 && (
+            <p className="sub-mute" style={{ marginBottom: 12, fontSize: 12 }}>
+              💡 이 아동의 지난 달 일정표를 저장해두면, 다음 달에 <b>요일·시간 패턴을 그대로 복사</b>할 수 있어요.
+            </p>
+          )}
+
           {typeof selectedChildId === "number" && savedList.length > 0 && (
             <div className="field" style={{ marginBottom: 16 }}>
               <label>이 아동의 저장된 일정표 ({savedList.length}개)</label>
@@ -899,6 +907,12 @@ export default function ScheduleClient({
               </div>
             </div>
           </div>
+
+          {betaUx && !(pattern.length > 0 && defaultSlot) && (
+            <p className="sub-mute" style={{ marginTop: 8, fontSize: 12 }}>
+              💡 반복 요일과 기본 시간대를 정하면, 그 아래에서 <b>요일마다 다른 시간</b>도 설정할 수 있어요.
+            </p>
+          )}
 
           {pattern.length > 0 && defaultSlot && (
             <div className="field" style={{ marginTop: 14 }}>
@@ -1043,7 +1057,7 @@ export default function ScheduleClient({
                 <span className="sub-mute">저장하려면 위에서 "저장된 아동 불러오기"로 선택해주세요.</span>
               )}
               <span style={{ flex: 1 }} />
-              {savedForms.length > 0 && (
+              {savedForms.length > 0 ? (
                 <select
                   value={outFormId}
                   onChange={(e) => setOutFormId(e.target.value ? Number(e.target.value) : "")}
@@ -1053,7 +1067,11 @@ export default function ScheduleClient({
                   <option value="">기본 양식</option>
                   {savedForms.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
                 </select>
-              )}
+              ) : betaUx ? (
+                <Link href="/forms" className="sub-mute" style={{ fontSize: 12, whiteSpace: "nowrap" }} title="우리 센터 양식을 저장하면 여기서 선택할 수 있어요">
+                  기본 양식 사용 중 · <b>우리 센터 양식 저장 →</b>
+                </Link>
+              ) : null}
               <button className="btn btn-primary" onClick={downloadHwpx} disabled={downloadingHwpx}>
                 {downloadingHwpx ? "생성 중..." : "한글파일(.hwpx) 다운로드"}
               </button>

@@ -8,6 +8,8 @@ import UpdateModal from "./UpdateModal";
 import { getCurrentUser, generateApprovalCode, getEffectiveTherapistId } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { ensureLegacyDataLinked, ensureMyServicesAssigned } from "@/lib/migrate-center";
+import { isBetaUx } from "@/lib/feature-flags";
+import { BetaUxProvider } from "./BetaUxContext";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   let user = await getCurrentUser();
@@ -57,17 +59,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const betaEmail = (process.env.BETA_ADMIN_EMAIL ?? "yj2000102@gmail.com").toLowerCase();
   const isBetaAdmin = user.email.toLowerCase() === betaEmail;
 
+  const betaUx = isBetaUx(user.email);
+
   return (
-    <div className="app">
-      <SessionGuard userId={user.id} />
-      <Sidebar user={user} isBetaAdmin={isBetaAdmin} />
-      <div className="main">
-        <Topbar />
-        <main className="content">{children}</main>
+    <BetaUxProvider value={betaUx}>
+      <div className="app">
+        <SessionGuard userId={user.id} />
+        <Sidebar user={user} isBetaAdmin={isBetaAdmin} />
+        <div className="main">
+          <Topbar />
+          <main className="content">{children}</main>
+        </div>
+        <WelcomeTooltip role={user.role} userId={user.id} />
+        <Tour userId={user.id} role={user.role} />
+        <UpdateModal userId={user.id} />
       </div>
-      <WelcomeTooltip role={user.role} userId={user.id} />
-      <Tour userId={user.id} role={user.role} />
-      <UpdateModal userId={user.id} />
-    </div>
+    </BetaUxProvider>
   );
 }
