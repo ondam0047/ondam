@@ -802,7 +802,7 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
             ))}
           </div>
 
-          <div style={{ display: "grid", gap: 5 }}>
+          <div className="sess-rows" style={{ display: "grid", gap: 4 }}>
             {sessions.map((s, i) => (
               <div key={i} style={{ display: "grid", gridTemplateColumns: "90px 64px 64px 1fr 1fr 28px", gap: 4, alignItems: "center" }}>
                 <input className="input" placeholder="3/5" value={s.date}      onChange={(e) => setSess(i, "date",      e.target.value)} style={{ fontSize: 12 }} />

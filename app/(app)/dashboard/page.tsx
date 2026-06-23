@@ -433,14 +433,14 @@ function MyProgressCard({
         <h2>이번 달 진행률</h2>
         <span className="hint">완료 {totalSessions} / 목표 {targetTotal}회</span>
       </div>
-      <div style={{ padding: "22px 22px 26px" }}>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 10 }}>
-          <span style={{ fontFamily: "var(--font-display)", fontSize: 36, fontWeight: 700, letterSpacing: "-0.03em" }}>
-            {progressPct}<span style={{ fontSize: 18 }}>%</span>
+      <div style={{ padding: "16px 18px 18px" }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 8 }}>
+          <span style={{ fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 700, letterSpacing: "-0.03em" }}>
+            {progressPct}<span style={{ fontSize: 16 }}>%</span>
           </span>
           <span className="sub-mute">완료</span>
         </div>
-        <div className="progress" style={{ height: 10 }}>
+        <div className="progress" style={{ height: 8 }}>
           <i style={{ width: `${Math.min(progressPct, 100)}%`, background: "var(--primary)" }} />
         </div>
       </div>
@@ -510,8 +510,8 @@ function WeekScheduleCard({
             <div key={i} style={{
               background: col.isToday ? "var(--primary-soft)" : "var(--surface-2)",
               borderRadius: "var(--r-md)",
-              padding: "10px 8px 12px",
-              minHeight: 220,
+              padding: "9px 8px 10px",
+              minHeight: 150,
               border: col.isToday ? "1px solid var(--primary)" : "1px solid var(--border)",
             }}>
               <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10, padding: "0 4px" }}>
