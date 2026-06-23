@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { SCALAR_ROLES, ROW_ROLES } from "@/lib/record-roles";
 
@@ -68,6 +68,7 @@ type Props = {
 
 export default function ProgramRecordClient({ programId, programName, hasForm, therapist, org, saved, betaUx = false }: Props) {
   const router  = useRouter();
+  const searchParams = useSearchParams();
   const fileRef = useRef<HTMLInputElement>(null);
 
   // ── 기본 정보 ───────────────────────────────────────────────
@@ -153,6 +154,15 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoMapPending, mapResult]);
+
+  // 양식 등록 직후(?map=1) 상세 화면에 오면 매핑 화면을 바로 연다.
+  useEffect(() => {
+    if (searchParams.get("map") === "1" && hasForm) {
+      openMappingEdit();
+      router.replace(`/support/programs/${programId}`); // 쿼리 정리(새로고침 시 재실행 방지)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── 세션 헬퍼 ───────────────────────────────────────────────
   const setSess = (i: number, k: keyof Session, v: string) =>

@@ -22,7 +22,8 @@ export default function NewProgramPage() {
       const res = await fetch("/api/support/programs", { method: "POST", body: fd });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error ?? "생성 실패");
-      router.push(`/support/programs/${d.program.id}`);
+      // 양식을 함께 올렸으면 상세 화면에서 매핑을 바로 열도록 ?map=1
+      router.push(`/support/programs/${d.program.id}${file ? "?map=1" : ""}`);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "오류가 발생했어요.");
       setBusy(false);
