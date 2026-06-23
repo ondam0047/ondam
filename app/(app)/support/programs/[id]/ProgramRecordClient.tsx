@@ -344,7 +344,8 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
     setPicker(null);
   }
 
-  // ── AI 자동매핑 — 규칙이 못 잡은 칸을 LLM이 제안(사람이 확인 후 저장) ──
+  // ── AI 자동매핑 — LLM이 역할 제안. AI가 짚은 칸은 기존 역할도 덮어써 교정한다
+  // (사람이 명시적으로 'AI 자동매핑'을 누른 것이므로). AI가 안 짚은 칸은 그대로 둠.
   async function aiAutoMap() {
     if (!mapResult) return;
     setAiBusy(true); setMapErr(""); setMapMsg("");
@@ -357,22 +358,25 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
       const d = await res.json();
       if (!res.ok) { setMapErr(d.error ?? "AI 매핑 실패"); return; }
       const suggestions: Array<{ table: number; row: number; col: number; p?: number; role: string; confidence: number }> = d.suggestions ?? [];
-      if (suggestions.length === 0) { setMapMsg("AI가 새로 제안할 칸을 찾지 못했어요."); return; }
+      if (suggestions.length === 0) { setMapMsg("AI가 제안할 칸을 찾지 못했어요."); return; }
 
-      // 이미 사람이 지정한 칸(override)은 건드리지 않고 빈 칸만 채움
       const next = { ...mapOverrides };
       const low = new Set(aiLow);
-      let added = 0, lowN = 0;
+      let added = 0, changed = 0, lowN = 0;
       for (const s of suggestions) {
         const k = `${s.table},${s.row},${s.col},${s.p ?? 0}`;
-        if (k in next) continue;
-        next[k] = s.role;
-        added++;
+        const prev = next[k];
+        if (prev === undefined) added++;
+        else if (prev !== s.role) changed++;
+        next[k] = s.role; // 기존 역할이 있어도 덮어써 교정
         if (s.confidence < 0.6) { low.add(k); lowN++; } else { low.delete(k); }
       }
       setMapOverrides(next);
       setAiLow(low);
-      setMapMsg(`AI가 ${added}칸을 제안했어요${lowN ? ` (확인 필요 ${lowN}칸)` : ""}. 오른쪽 예시 미리보기로 확인 후 저장하세요.`);
+      const parts = [];
+      if (added) parts.push(`${added}칸 새로 매핑`);
+      if (changed) parts.push(`${changed}칸 역할 교정`);
+      setMapMsg(`AI 자동매핑 — ${parts.join(", ") || "변경 없음"}${lowN ? ` (확인 필요 ${lowN}칸)` : ""}. 오른쪽 예시 미리보기로 확인 후 저장하세요.`);
     } catch {
       setMapErr("AI 매핑 중 오류가 발생했어요.");
     } finally { setAiBusy(false); }
