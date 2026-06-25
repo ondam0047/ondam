@@ -684,7 +684,9 @@ export default function ScheduleClient({
     const rate = RATE[childCopay];
     if (rate === undefined) return; // 등급 외 값 → 자동계산 안 함(수동 유지)
     const perSession = Math.round(unitNumber * rate);
-    setCostSelf((perSession * totalCount).toLocaleString("ko-KR"));
+    // 5회 이상은 월 최대(=월 본인부담금 등급 상한)로 캡. 점프 없음.
+    const total = Math.min(perSession * totalCount, childCopay);
+    setCostSelf(total.toLocaleString("ko-KR"));
   }, [childCopay, unitNumber, totalCount, sessions, copaySelfTouched]);
 
   async function downloadHwpx() {
