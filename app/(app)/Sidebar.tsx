@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useBetaUx } from "./BetaUxContext";
 
 // 인라인 브랜드 마크 (next/image 가 그라디언트 SVG 못 띄우는 케이스 회피)
@@ -116,7 +116,23 @@ function clearWorkCache() {
 
 export default function Sidebar({ user, isBetaAdmin = false }: { user: SessionUser; isBetaAdmin?: boolean }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const betaUx = useBetaUx();
+  // 같은 경로(/children)라도 쿼리(?closed=1)로 종결함과 내 아동을 구분해 강조.
+  const isActive = (href: string): boolean => {
+    const qi = href.indexOf("?");
+    const path = qi === -1 ? href : href.slice(0, qi);
+    if (pathname !== path && !pathname.startsWith(path + "/")) return false;
+    if (qi === -1) {
+      // 쿼리 없는 항목: 같은 경로에 구분 쿼리(closed)가 붙어 있으면 비활성
+      if (path === "/children" && searchParams.get("closed") === "1") return false;
+      return true;
+    }
+    // 쿼리 있는 항목(종결함): 그 쿼리가 모두 일치할 때만 활성
+    const want = new URLSearchParams(href.slice(qi + 1));
+    for (const [k, v] of want.entries()) if (searchParams.get(k) !== v) return false;
+    return true;
+  };
   // 그룹·내부 배열 복사(원본 불변 유지)
   const groups: NavGroup[] = NAV_GROUPS.map((g) => ({ ...g, items: [...g.items] }));
   if (isBetaAdmin) {
@@ -144,7 +160,7 @@ export default function Sidebar({ user, isBetaAdmin = false }: { user: SessionUs
             <div style={{ height: 1, background: "var(--border)", margin: "10px 14px" }} />
           ) : null}
           {group.items.map((it) => {
-            const active = pathname === it.href || pathname.startsWith(it.href + "/");
+            const active = isActive(it.href);
             return (
               <Link
                 key={it.href}

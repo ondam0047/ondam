@@ -64,7 +64,7 @@ export default async function ChildrenPage({
           </p>
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          {betaUx && (
+          {betaUx && mode !== "closed" && (
             <div style={{ display: "inline-flex", border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
               {([
                 { key: "active", label: "내 아동", href: "/children" },
