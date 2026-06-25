@@ -681,9 +681,11 @@ function RecordSheet({
         }));
         setVouchers((prev) => prev.map((v, i) => sm.get(i + 1)?.voucher ?? v));
         setExtras((prev) => prev.map((v, i) => sm.get(i + 1)?.extra ?? v));
-        // 총이용금액은 저장된 옛 값으로 덮지 않고, 항상 회당단가(시드값)를 유지한다.
-        // (과거에 잘못 저장된 값과 무관하게 '정해놓은 회당단가 그대로' 보이게 함.
-        //  시드가 회당단가로 교정됐으므로 자동저장이 그 값을 다시 써도 일관·무해.)
+        // 총이용금액도 저장값으로 복원 — 회차별로 다른 금액을 저장하면 그대로 유지된다.
+        // (이렇게 해야 재진입 시 화면이 stale 시드값으로 채워져 자동저장에 덮어쓰이는 일이
+        //  없다. 예전 버그로 엑셀 결제금액이 저장된 과거 기록은 마이그레이션
+        //  scripts/fix-record-amounts.ts 로 회당단가로 일괄 교정.)
+        setAmounts((prev) => prev.map((v, i) => sm.get(i + 1)?.amount ?? v));
         setResults((prev) => prev.map((v, i) => sm.get(i + 1)?.result ?? v));
         setStatuses((prev) => prev.map((v, i) => sm.get(i + 1)?.status ?? v));
         setMismatchReasons((prev) => prev.map((v, i) => {
