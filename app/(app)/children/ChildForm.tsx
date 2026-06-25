@@ -251,19 +251,23 @@ export default function ChildForm({
                 />
               </div>
               <div className="field">
-                <label>월 본인부담금 (원) <span className="sub-mute">(선택)</span></label>
-                <input
-                  className="input"
+                <label>바우처 등급 (본인부담) <span className="sub-mute">(선택)</span></label>
+                <select
+                  className="select"
                   name={`svc[${i}][monthlyCopay]`}
-                  type="number"
-                  min={0}
-                  step={1}
                   value={s.monthlyCopay ?? ""}
-                  onChange={(e) => updateSvc(i, { monthlyCopay: e.target.value ? Number(e.target.value) : null })}
-                />
+                  onChange={(e) => updateSvc(i, { monthlyCopay: e.target.value !== "" ? Number(e.target.value) : null })}
+                >
+                  <option value="">— 미설정 —</option>
+                  <option value="0">다형 (면제 · 0원)</option>
+                  <option value="20000">가형 (2만원)</option>
+                  <option value="40000">나형 (4만원)</option>
+                  <option value="60000">라형 (6만원)</option>
+                  <option value="80000">마형 (8만원)</option>
+                </select>
                 <div className="sub-mute" style={{ fontSize: 11, marginTop: 4 }}>
-                  부모님이 매월 내는 금액. 일정표 만들 때 자동 채워져요.
-                  <br />금액이 바뀌면 <b>그 뒤로 새로 만드는 달부터</b> 새 금액이 적용돼요. 이미 만든 지난 달들은 그대로 유지됩니다.
+                  소득수준별 본인부담 등급. 일정표 만들 때 회기 수에 맞춰 본인부담금이 자동 계산돼요.
+                  <br />등급이 바뀌면 <b>그 뒤로 새로 만드는 달부터</b> 적용돼요. 이미 만든 지난 달들은 그대로 유지됩니다.
                 </div>
               </div>
               <div className="field">

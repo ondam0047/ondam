@@ -1168,15 +1168,19 @@ export default function ScheduleClient({
               <input className="input" value={newBirth} onChange={(e) => setNewBirth(e.target.value)} />
             </div>
             <div className="field" style={{ marginBottom: 10 }}>
-              <label>월 본인부담금 (원) <span className="sub-mute">(선택)</span></label>
-              <input
-                className="input"
-                type="number"
-                min={0}
-                step={1000}
+              <label>바우처 등급 (본인부담) <span className="sub-mute">(선택)</span></label>
+              <select
+                className="select"
                 value={newCopay}
                 onChange={(e) => setNewCopay(e.target.value)}
-              />
+              >
+                <option value="">— 미설정 —</option>
+                <option value="0">다형 (면제 · 0원)</option>
+                <option value="20000">가형 (2만원)</option>
+                <option value="40000">나형 (4만원)</option>
+                <option value="60000">라형 (6만원)</option>
+                <option value="80000">마형 (8만원)</option>
+              </select>
             </div>
             <div className="modal-actions">
               <button className="btn btn-primary btn-sm" onClick={createNewChild} disabled={creatingChild || !newName.trim()}>
