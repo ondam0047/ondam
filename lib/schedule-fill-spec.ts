@@ -31,7 +31,7 @@ export function generateScheduleFromForm(
     서비스종류: p.serviceType || p.pvType || "",
     전화: p.pvTel ?? "",
     단가: p.costUnit ?? "",
-    횟수: p.target ? String(p.target) : "",
+    횟수: p.sessions?.length ? String(p.sessions.length) : "",
     총금액: p.costTotal ? won(p.costTotal) : "",
     본인부담금: p.costSelf ?? "",
     주기: p.cycle ?? "",

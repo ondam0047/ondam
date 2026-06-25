@@ -81,10 +81,12 @@ function substituteSectionXml(xml: string, p: SchedulePayload): string {
     `<hp:t>${xmlEscape(p.costTotal.toLocaleString("ko-KR"))}원</hp:t>`
   );
 
+  // 서비스 비용 표의 '횟수'는 이 달 실제 회기 수(=화면·총금액과 동일 기준). 목표회기수(p.target) 아님.
+  const sessionCount = p.sessions.length;
   const newUnit = `<hp:t>${xmlEscape(p.costUnit)}원</hp:t>`;
   const targetRe = new RegExp(escapeRegex(newUnit) + `([\\s\\S]*?)<hp:t>5</hp:t>`);
   out = out.replace(targetRe, (whole) =>
-    whole.replace(/<hp:t>5<\/hp:t>([^<]*)$/, `<hp:t>${p.target}</hp:t>$1`)
+    whole.replace(/<hp:t>5<\/hp:t>([^<]*)$/, `<hp:t>${sessionCount}</hp:t>$1`)
   );
 
   const newTotal = `<hp:t>${xmlEscape(p.costTotal.toLocaleString("ko-KR"))}원</hp:t>`;

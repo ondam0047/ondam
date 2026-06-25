@@ -330,7 +330,9 @@ export default function RecordClient({
             end: String(row[ci.end] || ""),
             pay: String(row[ci.pay] || ""),
             appr: String(row[ci.appr] || ""),
-            amt: String(row[ci.amt] || ""),
+            // 엑셀 '결제금액'(=바우처 지원금 부분, 예 46,200)을 기록지 '총이용금액'에 넣지 않는다.
+            // 총이용금액은 회당 단가(예 60,000)가 기본 — amt 를 비워 두면 RecordSheet 가 단가로 시드한다.
+            amt: "",
             org: String(row[ci.org] || ""),
             payKind,
           });
@@ -547,7 +549,11 @@ export default function RecordClient({
 
             {curChild && (
               <RecordSheet
-                key={curChild}
+                // 회기 수를 key 에 포함 — 더 넓은 엑셀을 재업로드해 회기 수가 바뀌면
+                // RecordSheet 를 리마운트해 내부 상태 배열(times 등)을 새 길이로 재시드한다.
+                // (예전엔 key={curChild} 라 같은 아동 재업로드 시 옛 길이 상태가 남아
+                //  times[i].start 접근에서 크래시 → "다시 시도/대시보드" 에러 화면이 떴음)
+                key={curChild + ":" + grouped[curChild].length}
                 child={curChild}
                 rows={grouped[curChild]}
                 therapist={therapist}
@@ -675,7 +681,9 @@ function RecordSheet({
         }));
         setVouchers((prev) => prev.map((v, i) => sm.get(i + 1)?.voucher ?? v));
         setExtras((prev) => prev.map((v, i) => sm.get(i + 1)?.extra ?? v));
-        // 총이용금액은 저장된 옛 값으로 덮지 않고, 항상 현재 회당단가(시드값)를 유지
+        // 총이용금액은 저장된 옛 값으로 덮지 않고, 항상 회당단가(시드값)를 유지한다.
+        // (과거에 잘못 저장된 값과 무관하게 '정해놓은 회당단가 그대로' 보이게 함.
+        //  시드가 회당단가로 교정됐으므로 자동저장이 그 값을 다시 써도 일관·무해.)
         setResults((prev) => prev.map((v, i) => sm.get(i + 1)?.result ?? v));
         setStatuses((prev) => prev.map((v, i) => sm.get(i + 1)?.status ?? v));
         setMismatchReasons((prev) => prev.map((v, i) => {
@@ -985,7 +993,7 @@ function RecordSheet({
               <td className="rowlbl">시작시간</td>
               {topCols.map((c) => (
                 <td key={c.i}>
-                  <input value={times[c.i].start} onChange={(e) => setStart(c.i, e.target.value)} />
+                  <input value={times[c.i]?.start ?? ""} onChange={(e) => setStart(c.i, e.target.value)} />
                 </td>
               ))}
             </tr>
@@ -993,7 +1001,7 @@ function RecordSheet({
               <td className="rowlbl">종료시간</td>
               {topCols.map((c) => (
                 <td key={c.i}>
-                  <input value={times[c.i].end} onChange={(e) => setEnd(c.i, e.target.value)} />
+                  <input value={times[c.i]?.end ?? ""} onChange={(e) => setEnd(c.i, e.target.value)} />
                 </td>
               ))}
             </tr>
