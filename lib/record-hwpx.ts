@@ -5,11 +5,13 @@ import path from "node:path";
 import { crc32, deflateRawSync } from "node:zlib";
 import {
   buildZip,
-  patchSection0,
+  patchFiles,
+  readHeader,
   readSection0,
   type ZipEntry,
 } from "@/lib/hwpx";
 import { fillCells, type CellEdit, type Coord } from "@/lib/record-fill";
+import { autoFitRecordFont } from "@/lib/record-autofit";
 import type { RecordFormKey } from "@/lib/record-forms";
 
 const MAX_SESSIONS = 5;
@@ -131,6 +133,14 @@ const NAMYANGJU_SPEC: CoordSpec = {
 const COORD_SPECS: Record<Exclude<RecordFormKey, "standard">, CoordSpec> = {
   dongtan: DONGTAN_SPEC,
   namyangju: NAMYANGJU_SPEC,
+};
+
+// 결과(narrative) 표의 위치·결과 칸 열 — 긴 결과 글자크기 자동축소용.
+// 세 양식 모두 결과표는 table index 2, 데이터 행은 1~5(머리행 1개).
+const AUTOFIT: Record<RecordFormKey, { resultTable: number; narrativeCols: number[] }> = {
+  standard: { resultTable: 2, narrativeCols: [3] }, // 이용자 상태 및 서비스 결과
+  dongtan: { resultTable: 2, narrativeCols: [4] }, // 서비스 결과
+  namyangju: { resultTable: 2, narrativeCols: [3] }, // 기타사항(결과 narrative)
 };
 
 const TEMPLATE_FILES: Record<RecordFormKey, string> = {
@@ -274,11 +284,18 @@ export function generateOneRecordSheet(
   form: RecordFormKey = "standard"
 ): Buffer {
   const oldXml = readSection0(templateBuf);
-  const newXml =
+  const oldHeader = readHeader(templateBuf);
+  const filledXml =
     form === "standard"
       ? substituteCoordXml(oldXml, foldStandardExtra(p), STANDARD_SPEC)
       : substituteCoordXml(oldXml, p, COORD_SPECS[form]);
-  return patchSection0(templateBuf, newXml);
+  // 긴 결과 텍스트가 고정 칸을 넘쳐 다음 표와 겹치지 않도록, 칸은 그대로 두고
+  // 결과 글자 크기를 줄여 칸 안에 맞춘다(기록지 1장 고정). section0·header 둘 다 갱신.
+  const fit = autoFitRecordFont(filledXml, oldHeader, AUTOFIT[form]);
+  return patchFiles(templateBuf, {
+    "Contents/section0.xml": fit.section,
+    "Contents/header.xml": fit.header,
+  });
 }
 
 // 회기 수에 따라 1장 또는 N장으로 분할. 항상 Buffer[] 반환.
