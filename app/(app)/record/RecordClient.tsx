@@ -970,9 +970,8 @@ function RecordSheet({
           lineHeight: 1.6,
         }}
       >
-        ✏️ 아래 표의 <b>바우처(분)·추가구매(분)</b>은 회차마다 칸에서 직접 고칠 수 있어요.
-        바우처 지원금이 소진되는 마지막 회차는 보통 20분 / 30분으로 바꿉니다. 저장하면 이 달 기록에 그대로 남습니다.
-        {" "}기본값(40 / 10)과 다른 회차는 <b style={{ background: "#FFF3D4", padding: "0 4px", borderRadius: 3 }}>노란색</b>으로 표시되니 한 번 더 확인하세요.
+        ✏️ <b style={{ background: "#FFF3D4", padding: "0 4px", borderRadius: 3 }}>노란색 칸</b>은 직접 수정할 수 있어요 — 시작·종료시간, 바우처(분)·추가구매(분), 총이용금액.
+        바우처 지원금이 소진되는 마지막 회차는 보통 바우처 20분 / 추가구매 30분으로 바꿉니다. 저장하면 이 달 기록에 그대로 남습니다.
       </div>
       <div className="scroll">
         <table className="prov-tbl">
@@ -1003,8 +1002,7 @@ function RecordSheet({
               {topCols.map((c) => (
                 <td key={c.i}>
                   <input
-                    value={vouchers[c.i]}
-                    style={{ width: 46, ...(vouchers[c.i] !== "40" ? { background: "#FFF3D4", borderColor: "#E0A800", fontWeight: 700 } : {}) }}
+                    value={vouchers[c.i]} style={{ width: 46 }}
                     onChange={(e) => setVouchers((p) => { const n = [...p]; n[c.i] = e.target.value; return n; })}
                   />
                 </td>
@@ -1015,8 +1013,7 @@ function RecordSheet({
               {topCols.map((c) => (
                 <td key={c.i}>
                   <input
-                    value={extras[c.i]}
-                    style={{ width: 46, ...(extras[c.i] !== "10" ? { background: "#FFF3D4", borderColor: "#E0A800", fontWeight: 700 } : {}) }}
+                    value={extras[c.i]} style={{ width: 46 }}
                     onChange={(e) => setExtras((p) => { const n = [...p]; n[c.i] = e.target.value; return n; })}
                   />
                 </td>

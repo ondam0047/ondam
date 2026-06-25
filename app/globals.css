@@ -980,7 +980,8 @@ td.makeup .badge { font-size: 9px; color: #8A6422; font-weight: 700; padding: 0;
 .prov-tbl th, .prov-tbl td { border: 1px solid var(--border); padding: 7px 8px; text-align: center; }
 .prov-tbl th { background: var(--surface-2); font-weight: 700; color: var(--text-soft); }
 .prov-tbl .rowlbl { background: var(--surface-2); font-weight: 600; white-space: nowrap; }
-.prov-tbl input { padding: 5px 6px; font-size: 12px; text-align: center; border: 1px solid transparent; background: transparent; color: var(--text); width: 100%; }
+/* 수정 가능한 칸을 노란색으로 표시(입력 affordance). 인쇄 시엔 아래 @media print 가 흰색 처리. */
+.prov-tbl input { padding: 5px 6px; font-size: 12px; text-align: center; border: 1px solid transparent; background: #FFF3D4; color: var(--text); width: 100%; }
 .prov-tbl input:focus { border-color: var(--primary); background: var(--surface); outline: none; }
 
 /* 회기 카운터 */
