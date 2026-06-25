@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
-import { deleteChild } from "./actions";
+import { deleteChild, closeChild, restoreChild } from "./actions";
 import { WEEK } from "@/lib/constants";
 import { requireUser, getEffectiveTherapistId } from "@/lib/auth";
 import { isBetaUx } from "@/lib/feature-flags";
@@ -11,23 +11,29 @@ export const dynamic = "force-dynamic";
 export default async function ChildrenPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; waiting?: string }>;
+  searchParams: Promise<{ q?: string; waiting?: string; closed?: string }>;
 }) {
   const user = await requireUser();
   const betaUx = isBetaUx(user.email);
   const sp = await searchParams;
   const q = sp.q?.trim() ?? "";
   const onlyWaiting = sp.waiting === "1";
+  const onlyClosed = sp.closed === "1";
+  // 활동 중 / 종결함 / 대기 명단 — 한 번에 하나의 보기.
+  const mode = onlyWaiting ? "waiting" : onlyClosed ? "closed" : "active";
 
   const centerId = user.centerId ?? -1;
   const myTherapistId = await getEffectiveTherapistId(user);
 
   // 본인이 담당하는 ChildService 가 있는 아동만. 대기 명단은 토글로만.
+  // 활동 중은 active=true, 종결함은 active=false 만 노출 (대기 명단은 active 무관).
   const childWhere: Record<string, unknown> = {
     centerId,
     waiting: onlyWaiting,
     services: { some: { therapistId: myTherapistId ?? -1 } },
   };
+  if (mode === "closed") childWhere.active = false;
+  else if (mode === "active") childWhere.active = true;
   if (q) {
     childWhere.OR = [
       { name: { contains: q } },
@@ -42,32 +48,40 @@ export default async function ChildrenPage({
     include: { services: { include: { therapist: true } } },
   });
 
-  const activeCount = children.filter((c) => c.active).length;
+  const listCount = children.length;
 
   return (
     <>
       <div className="section-head">
         <div>
-          <h2>{onlyWaiting ? "대기 명단" : "내 아동"}</h2>
+          <h2>{mode === "waiting" ? "대기 명단" : mode === "closed" ? "종결함" : "내 아동"}</h2>
           <p>
-            {onlyWaiting
-              ? `상담 예정 · 회기 시작 전 ${activeCount}명`
-              : `담당 아동 ${activeCount}명 · 한 아동이 여러 서비스를 받는 경우 함께 관리됩니다.`}
+            {mode === "waiting"
+              ? `상담 예정 · 회기 시작 전 ${listCount}명`
+              : mode === "closed"
+                ? `종결 보관 ${listCount}명 · 종결한 아동을 따로 모아둡니다. 다시 회기를 시작하면 '복귀'를 누르세요.`
+                : `담당 아동 ${listCount}명 · 한 아동이 여러 서비스를 받는 경우 함께 관리됩니다.`}
           </p>
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
           {betaUx && (
             <div style={{ display: "inline-flex", border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
-              <Link href="/children" className="btn btn-sm" style={{
-                borderRadius: 0, border: "none", fontWeight: onlyWaiting ? 500 : 700,
-                background: onlyWaiting ? "transparent" : "var(--primary-soft)",
-                color: onlyWaiting ? "var(--text-soft)" : "var(--primary)",
-              }}>내 아동</Link>
-              <Link href="/children?waiting=1" className="btn btn-sm" style={{
-                borderRadius: 0, border: "none", borderLeft: "1px solid var(--border)", fontWeight: onlyWaiting ? 700 : 500,
-                background: onlyWaiting ? "var(--primary-soft)" : "transparent",
-                color: onlyWaiting ? "var(--primary)" : "var(--text-soft)",
-              }}>대기 명단</Link>
+              {([
+                { key: "active", label: "내 아동", href: "/children" },
+                { key: "closed", label: "종결함", href: "/children?closed=1" },
+                { key: "waiting", label: "대기 명단", href: "/children?waiting=1" },
+              ] as const).map((tab, i) => {
+                const on = mode === tab.key;
+                return (
+                  <Link key={tab.key} href={tab.href} className="btn btn-sm" style={{
+                    borderRadius: 0, border: "none",
+                    borderLeft: i === 0 ? "none" : "1px solid var(--border)",
+                    fontWeight: on ? 700 : 500,
+                    background: on ? "var(--primary-soft)" : "transparent",
+                    color: on ? "var(--primary)" : "var(--text-soft)",
+                  }}>{tab.label}</Link>
+                );
+              })}
             </div>
           )}
           <Link
@@ -112,8 +126,9 @@ export default async function ChildrenPage({
               <input className="input" name="q" defaultValue={q} placeholder="아동 이름 일부" />
             </div>
             {onlyWaiting && <input type="hidden" name="waiting" value="1" />}
+            {onlyClosed && <input type="hidden" name="closed" value="1" />}
             <button className="btn btn-primary" type="submit">적용</button>
-            <Link className="btn btn-ghost" href={onlyWaiting ? "/children?waiting=1" : "/children"}>초기화</Link>
+            <Link className="btn btn-ghost" href={mode === "waiting" ? "/children?waiting=1" : mode === "closed" ? "/children?closed=1" : "/children"}>초기화</Link>
           </form>
         </div>
       </div>
@@ -127,7 +142,11 @@ export default async function ChildrenPage({
           <div className="card-body" style={{ padding: "32px 24px" }}>
             <div style={{ textAlign: "center", maxWidth: 520, margin: "0 auto" }}>
               <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>
-                아직 등록된 아동이 없어요
+                {mode === "closed"
+                  ? "종결함이 비어 있어요"
+                  : mode === "waiting"
+                    ? "대기 명단이 비어 있어요"
+                    : "아직 등록된 아동이 없어요"}
               </div>
               <div className="sub-mute" style={{ fontSize: 13.5, marginBottom: 20, lineHeight: 1.7 }}>
                 매월 일정표·기록지에서 자동으로 회기를 만들려면 먼저 아동을 등록하세요.
@@ -165,7 +184,7 @@ export default async function ChildrenPage({
                   const initial = c.name[0];
                   const visibleServices = c.services.filter((s) => s.therapistId === myTherapistId);
                   return (
-                    <tr key={c.id} style={c.active ? undefined : { opacity: 0.55 }}>
+                    <tr key={c.id} style={mode !== "closed" && !c.active ? { opacity: 0.55 } : undefined}>
                       <td>
                         <Link href={`/children/${c.id}/edit`} title="눌러서 수정" style={{ textDecoration: "none", color: "inherit", display: "block" }}>
                           <div className="row-name">
@@ -210,6 +229,33 @@ export default async function ChildrenPage({
                       </td>
                       <td style={{ textAlign: "right" }}>
                         <div style={{ display: "inline-flex", gap: 6 }}>
+                          {betaUx && (mode === "closed" ? (
+                            <form
+                              action={async () => {
+                                "use server";
+                                await restoreChild(c.id);
+                              }}
+                              style={{ display: "inline" }}
+                            >
+                              <button className="btn btn-ghost btn-sm" type="submit">복귀</button>
+                            </form>
+                          ) : mode === "active" ? (
+                            <form
+                              action={async () => {
+                                "use server";
+                                await closeChild(c.id);
+                              }}
+                              style={{ display: "inline" }}
+                            >
+                              <ConfirmSubmit
+                                enabled={betaUx}
+                                message={`'${c.name}' 아동을 종결할까요?\n종결함으로 옮겨 보관하며, 일정·기록은 그대로 남습니다. 언제든 '복귀'할 수 있어요.`}
+                                className="btn btn-ghost btn-sm"
+                              >
+                                종결
+                              </ConfirmSubmit>
+                            </form>
+                          ) : null)}
                           <form
                             action={async () => {
                               "use server";

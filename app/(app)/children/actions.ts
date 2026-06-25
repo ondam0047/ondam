@@ -168,6 +168,32 @@ export async function updateChild(id: number, formData: FormData) {
   redirect("/children");
 }
 
+// 종결/복귀: 아동의 active 플래그만 토글. 데이터(일정·기록)는 그대로 보관(종결함).
+// 권한은 updateChild 패턴을 따름: 같은 센터 + 본인 담당 서비스가 1건이라도 있어야 함.
+async function setChildActive(id: number, active: boolean) {
+  const user = await requireUser();
+  const child = await prisma.child.findUnique({
+    where: { id },
+    include: { services: true },
+  });
+  if (!child || child.centerId !== user.centerId) return;
+
+  const myId = await getEffectiveTherapistId(user);
+  const hasAccess = child.services.some((s) => s.therapistId === myId);
+  if (!hasAccess) return;
+
+  await prisma.child.update({ where: { id }, data: { active } });
+  revalidatePath("/children");
+}
+
+export async function closeChild(id: number) {
+  await setChildActive(id, false);
+}
+
+export async function restoreChild(id: number) {
+  await setChildActive(id, true);
+}
+
 export async function deleteChild(id: number) {
   const user = await requireUser();
   const child = await prisma.child.findUnique({

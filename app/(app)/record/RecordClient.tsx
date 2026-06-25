@@ -710,7 +710,12 @@ function RecordSheet({
       const recSessions = rec.sessions as RecordSessionData[];
       setResults((prev) => prev.map((v, i) => recSessions[i]?.result ?? v));
       setStatuses((prev) => prev.map((v, i) => recSessions[i]?.status ?? v));
-      setSavedMsg(`✓ ${py}년 ${pm}월 기록 내용을 가져왔어요. 수정 후 저장하세요.`);
+      // 바우처·추가구매(분)·총이용금액도 이월 — 마지막 회차 20/30 같은 회차별 설정을
+      // 매달 다시 입력하지 않도록. 회차 수가 달라도 앞에서부터 가능한 만큼만 복사.
+      setVouchers((prev) => prev.map((v, i) => recSessions[i]?.voucher ?? v));
+      setExtras((prev) => prev.map((v, i) => recSessions[i]?.extra ?? v));
+      setAmounts((prev) => prev.map((v, i) => recSessions[i]?.amount ?? v));
+      setSavedMsg(`✓ ${py}년 ${pm}월 기록 내용을 가져왔어요 (바우처·추가구매 분·총이용금액 포함). 수정 후 저장하세요.`);
     } catch {
       alert("불러오기 실패");
     }
@@ -953,6 +958,22 @@ function RecordSheet({
           )}
         </tbody>
       </table>
+      <div
+        style={{
+          margin: "10px 0",
+          padding: "8px 12px",
+          background: "var(--surface-2)",
+          border: "1px solid var(--border)",
+          borderRadius: "var(--r-sm)",
+          fontSize: 12.5,
+          color: "var(--text-soft)",
+          lineHeight: 1.6,
+        }}
+      >
+        ✏️ 아래 표의 <b>바우처(분)·추가구매(분)</b>은 회차마다 칸에서 직접 고칠 수 있어요.
+        바우처 지원금이 소진되는 마지막 회차는 보통 20분 / 30분으로 바꿉니다. 저장하면 이 달 기록에 그대로 남습니다.
+        {" "}기본값(40 / 10)과 다른 회차는 <b style={{ background: "#FFF3D4", padding: "0 4px", borderRadius: 3 }}>노란색</b>으로 표시되니 한 번 더 확인하세요.
+      </div>
       <div className="scroll">
         <table className="prov-tbl">
           <tbody>
@@ -982,7 +1003,8 @@ function RecordSheet({
               {topCols.map((c) => (
                 <td key={c.i}>
                   <input
-                    value={vouchers[c.i]} style={{ width: 46 }}
+                    value={vouchers[c.i]}
+                    style={{ width: 46, ...(vouchers[c.i] !== "40" ? { background: "#FFF3D4", borderColor: "#E0A800", fontWeight: 700 } : {}) }}
                     onChange={(e) => setVouchers((p) => { const n = [...p]; n[c.i] = e.target.value; return n; })}
                   />
                 </td>
@@ -993,7 +1015,8 @@ function RecordSheet({
               {topCols.map((c) => (
                 <td key={c.i}>
                   <input
-                    value={extras[c.i]} style={{ width: 46 }}
+                    value={extras[c.i]}
+                    style={{ width: 46, ...(extras[c.i] !== "10" ? { background: "#FFF3D4", borderColor: "#E0A800", fontWeight: 700 } : {}) }}
                     onChange={(e) => setExtras((p) => { const n = [...p]; n[c.i] = e.target.value; return n; })}
                   />
                 </td>

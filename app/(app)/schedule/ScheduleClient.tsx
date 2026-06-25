@@ -504,18 +504,26 @@ export default function ScheduleClient({
     }
   }
 
-  function generate() {
-    const [y, m] = ym.split("-").map(Number);
+  // 반복 요일에 해당하는 이 달의 회기 후보일(공휴일 제외), 날짜순.
+  // 생성·목표수 조정 양쪽에서 재사용.
+  function monthPatternDays(y: number, m: number): number[] {
     const dim = new Date(y, m, 0).getDate();
-    const next: SessionMap = {};
-    let count = 0;
+    const out: number[] = [];
     for (let d = 1; d <= dim; d++) {
       const wd = new Date(y, m - 1, d).getDay();
-      if (pattern.includes(wd) && !holiday(y, m, d)) {
-        if (target > 0 && count >= target) break; // 목표 회기 수만큼만 생성
-        next[d] = { time: slotByDow[wd] || defaultSlot, makeup: false };
-        count++;
-      }
+      if (pattern.includes(wd) && !holiday(y, m, d)) out.push(d);
+    }
+    return out;
+  }
+
+  function generate() {
+    const [y, m] = ym.split("-").map(Number);
+    const next: SessionMap = {};
+    // 목표 회기 수만큼만 앞에서부터 채움 (후보일이 모자라면 있는 만큼).
+    const cand = target > 0 ? monthPatternDays(y, m).slice(0, target) : monthPatternDays(y, m);
+    for (const d of cand) {
+      const wd = new Date(y, m - 1, d).getDay();
+      next[d] = { time: slotByDow[wd] || defaultSlot, makeup: false };
     }
     schedTouched.current = true; // 일정표 생성 = 사용자 동작
     setSessions(next);
@@ -527,6 +535,36 @@ export default function ScheduleClient({
     requestAnimationFrame(() => {
       document.getElementById("schedCard")?.scrollIntoView({ behavior: "smooth" });
     });
+  }
+
+  // 목표 회기 수를 바꾸면 미리보기 칸을 자동으로 지우거나 채움.
+  // 줄이면 뒤(늦은 날짜) 칸부터 제거, 늘리면 남은 후보일을 뒤에 추가(목표 수까지).
+  // 이미 수정한 칸(시간·보강)은 그대로 보존. 생성 전(sessions 없음)이면 조정 안 함.
+  function changeTarget(newTarget: number) {
+    setTarget(newTarget);
+    if (!sessions) return; // 아직 생성 전이면 칸 조정 없음
+    const cur = Object.keys(sessions).map(Number).sort((a, b) => a - b);
+    if (cur.length === newTarget) return;
+    schedTouched.current = true; // 목표수 조정 = 사용자 동작
+    if (cur.length > newTarget) {
+      // 줄이기: 뒤(늦은 날짜) 칸부터 제거
+      const next: SessionMap = {};
+      for (const d of cur.slice(0, newTarget)) next[d] = sessions[d];
+      setSessions(next);
+    } else {
+      // 늘리기: 그 달의 남은 후보일을 뒤에 추가
+      const next: SessionMap = { ...sessions };
+      let count = cur.length;
+      for (const d of monthPatternDays(genY, genM)) {
+        if (count >= newTarget) break;
+        if (!next[d]) {
+          const wd = new Date(genY, genM - 1, d).getDay();
+          next[d] = { time: slotByDow[wd] || defaultSlot, makeup: false };
+          count++;
+        }
+      }
+      setSessions(next);
+    }
   }
 
   function resetAll() {
@@ -875,7 +913,7 @@ export default function ScheduleClient({
             </div>
             <div className="field">
               <label>목표 회기 수</label>
-              <select className="select" value={target} onChange={(e) => setTarget(Number(e.target.value))}>
+              <select className="select" value={target} onChange={(e) => changeTarget(Number(e.target.value))}>
                 {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => <option key={i} value={i}>{i}회</option>)}
               </select>
             </div>
