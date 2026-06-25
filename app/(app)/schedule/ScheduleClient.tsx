@@ -108,6 +108,9 @@ export default function ScheduleClient({
   const [pvType, setPvType] = useState(serviceTypes[0] ?? "");
   const [costUnit, setCostUnit] = useState(centerDefaultUnit.toLocaleString("ko-KR"));
   const [costSelf, setCostSelf] = useState("0");
+  // 본인부담금 자동계산: 선택 아동의 월 본인부담금(등급)과 수동수정 여부.
+  const [childCopay, setChildCopay] = useState<number | null>(null);
+  const [copaySelfTouched, setCopaySelfTouched] = useState(false);
   const [writeDate, setWriteDate] = useState("");
   const [downloadingHwpx, setDownloadingHwpx] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -339,6 +342,9 @@ export default function ScheduleClient({
     }
     if (c.defaultUnit) setCostUnit(c.defaultUnit.toLocaleString("ko-KR"));
     if (c.defaultTarget) setTarget(c.defaultTarget);
+    // 새 아동 → 본인부담금 자동계산 재개(등급=월 본인부담금).
+    setChildCopay(c.monthlyCopay ?? null);
+    setCopaySelfTouched(false);
     if (c.monthlyCopay != null) setCostSelf(c.monthlyCopay.toLocaleString("ko-KR"));
   }
 
@@ -379,6 +385,7 @@ export default function ScheduleClient({
     setPvType(s.pvType);
     setCostUnit(s.costUnit);
     setCostSelf(s.costSelf);
+    setCopaySelfTouched(true); // 저장된 본인부담금은 자동계산으로 덮지 않음
     // 회기 패턴 (요일+시간 단위) 추출
     type Pattern = { dow: number; time: string; makeup: boolean };
     const patterns: Pattern[] = [];
@@ -435,6 +442,7 @@ export default function ScheduleClient({
     setPvType(s.pvType);
     setCostUnit(s.costUnit);
     setCostSelf(s.costSelf);
+    setCopaySelfTouched(true); // 저장된 본인부담금은 자동계산으로 덮지 않음
     // 회기 세팅
     const sessMap: SessionMap = {};
     for (const sess of s.sessions) {
@@ -589,6 +597,8 @@ export default function ScheduleClient({
     setMgmt("");
     setCostUnit(centerDefaultUnit.toLocaleString("ko-KR"));
     setCostSelf("0");
+    setChildCopay(null);
+    setCopaySelfTouched(false);
     setWriteDate("");
     setSavedMsg("");
     setLoadedScheduleId(null);
@@ -663,6 +673,19 @@ export default function ScheduleClient({
   }
   const unitNumber = parseInt(costUnit.replace(/[^\d]/g, "")) || 0;
   const costTotal = unitNumber * totalCount;
+
+  // 본인부담금 자동계산: 회당 본인부담(회당단가 × 등급비율) × 회기수.
+  // 등급비율은 월 본인부담금 기준(발달재활 바우처 기준단가표): 0원=0%, 2만=8%,
+  // 4만=15%, 6만=23%, 8만=31%. 회당 60,000 기준 0·4,800·9,000·13,800·18,600 와 일치.
+  // 월 본인부담금이 이 등급에 해당하고, 사용자가 직접 안 고쳤을 때만 자동 갱신.
+  useEffect(() => {
+    if (copaySelfTouched || !sessions || totalCount === 0 || childCopay == null) return;
+    const RATE: Record<number, number> = { 0: 0, 20000: 0.08, 40000: 0.15, 60000: 0.23, 80000: 0.31 };
+    const rate = RATE[childCopay];
+    if (rate === undefined) return; // 등급 외 값 → 자동계산 안 함(수동 유지)
+    const perSession = Math.round(unitNumber * rate);
+    setCostSelf((perSession * totalCount).toLocaleString("ko-KR"));
+  }, [childCopay, unitNumber, totalCount, sessions, copaySelfTouched]);
 
   async function downloadHwpx() {
     if (!sessions) return;
@@ -1078,7 +1101,7 @@ export default function ScheduleClient({
                     </td>
                     <td>{totalCount}</td>
                     <td style={{ fontWeight: 700 }}>{costTotal.toLocaleString("ko-KR")}원</td>
-                    <td><input value={costSelf} onChange={(e) => setCostSelf(e.target.value)} style={{ width: 56 }} /></td>
+                    <td><input value={costSelf} onChange={(e) => { setCostSelf(e.target.value); setCopaySelfTouched(true); }} style={{ width: 56 }} /></td>
                   </tr>
                 </tbody>
               </table>
