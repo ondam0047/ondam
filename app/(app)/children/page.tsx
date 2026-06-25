@@ -15,14 +15,10 @@ export default async function ChildrenPage({
 }) {
   const user = await requireUser();
   const betaUx = isBetaUx(user.email);
-  // 종결함은 베타 참여자(betaLockIn=true) 계정에만 노출.
-  const dbUser = await prisma.user.findUnique({ where: { id: user.id }, select: { betaLockIn: true } });
-  const isBetaTester = dbUser?.betaLockIn ?? false;
   const sp = await searchParams;
   const q = sp.q?.trim() ?? "";
   const onlyWaiting = sp.waiting === "1";
-  // 비베타가 URL로 ?closed=1 접근해도 종결함 비노출 → 활동 중으로 처리.
-  const onlyClosed = sp.closed === "1" && isBetaTester;
+  const onlyClosed = sp.closed === "1";
   // 활동 중 / 종결함 / 대기 명단 — 한 번에 하나의 보기.
   const mode = onlyWaiting ? "waiting" : onlyClosed ? "closed" : "active";
 
@@ -74,7 +70,7 @@ export default async function ChildrenPage({
                 { key: "active", label: "내 아동", href: "/children" },
                 { key: "closed", label: "종결함", href: "/children?closed=1" },
                 { key: "waiting", label: "대기 명단", href: "/children?waiting=1" },
-              ] as const).filter((tab) => tab.key !== "closed" || isBetaTester).map((tab, i) => {
+              ] as const).map((tab, i) => {
                 const on = mode === tab.key;
                 return (
                   <Link key={tab.key} href={tab.href} className="btn btn-sm" style={{
@@ -233,7 +229,7 @@ export default async function ChildrenPage({
                       </td>
                       <td style={{ textAlign: "right" }}>
                         <div style={{ display: "inline-flex", gap: 6 }}>
-                          {isBetaTester && (mode === "closed" ? (
+                          {betaUx && (mode === "closed" ? (
                             <form
                               action={async () => {
                                 "use server";
