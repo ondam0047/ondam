@@ -68,7 +68,6 @@ export default async function ChildrenPage({
             <div style={{ display: "inline-flex", border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
               {([
                 { key: "active", label: "내 아동", href: "/children" },
-                { key: "closed", label: "종결함", href: "/children?closed=1" },
                 { key: "waiting", label: "대기 명단", href: "/children?waiting=1" },
               ] as const).map((tab, i) => {
                 const on = mode === tab.key;

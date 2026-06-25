@@ -59,6 +59,8 @@ const DOWNLOAD_ICON = "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M
 const WAVE_ICON = "M4 9v6 M8 5v14 M12 8v8 M16 4v16 M20 10v4";
 // 기타지원사업 — 클립보드/서류
 const SUPPORT_ICON = "M9 2h6a1 1 0 0 1 1 1v1h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2V3a1 1 0 0 1 1-1z M9 4v2h6V4 M8 11h8 M8 15h5";
+// 종결함 — 보관 상자
+const ARCHIVE_ICON = "M3 4h18v4H3z M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8 M9 12h6";
 
 type NavItem = { href: string; label: string; icon: string; tour?: string };
 type NavGroup = { label?: string; items: NavItem[] };
@@ -81,6 +83,7 @@ const NAV_GROUPS: NavGroup[] = [
   ] },
   { label: "운영", items: [
     { href: "/support",        label: "기타지원사업",   icon: SUPPORT_ICON },
+    { href: "/children?closed=1", label: "종결함",      icon: ARCHIVE_ICON },
   ] },
   { items: [
     { href: "/center", label: "내 설정",        icon: COG_ICON,  tour: "set" },
