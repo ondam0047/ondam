@@ -196,7 +196,7 @@ export function resolveForm(xml: string): ResolveOutput {
   if (cal) spec.scheduleCalendar = cal;
 
   // HEADER
-  const headerLabels: Record<string, RegExp> = { org: /제공기관명/, serviceArea: /제공영역/, name: /성명/, birth: /생년월일/ };
+  const headerLabels: Record<string, RegExp> = { org: /제공기관명|^기관명$/, serviceArea: /제공영역/, name: /성명/, birth: /생년월일/ };
   for (let ti = recordStart; ti < tbls.length; ti++) {
     for (const cell of tbls[ti]) {
       if (isNote(cell.text)) continue;
@@ -269,7 +269,7 @@ export function resolveForm(xml: string): ResolveOutput {
 
   // RESULT 표
   let resultTi = -1;
-  const RES = [/제공일자|서비스일자|서비스제공일자/, /승인일자/, /승인번호/, /이용자.?상태|상태/, /서비스결과|결과/, /기타사항/, /^시간$/];
+  const RES = [/제공일자|서비스일자|서비스제공일자|^일자$|^날짜$/, /승인일자/, /승인번호/, /이용자.?상태|상태/, /서비스결과|결과/, /기타사항/, /^시간$/];
   for (let ti = recordStart; ti < tbls.length && spec.result.length === 0; ti++) {
     if (ti === dt) continue;
     const rows = [...new Set(tbls[ti].map((c) => c.r))].sort((a, b) => a - b);
@@ -279,11 +279,16 @@ export function resolveForm(xml: string): ResolveOutput {
       if (hits.length >= 2) {
         const colOf = (re: RegExp) => { const h = rc.find((c) => re.test(c.norm)); return h ? h.c : null; };
         const map: Record<string, number | null> = {
-          date: colOf(/제공일자|서비스일자|서비스제공일자/), apprDate: colOf(/승인일자/),
+          date: colOf(/제공일자|서비스일자|서비스제공일자|^일자$|^날짜$/), apprDate: colOf(/승인일자/),
           apprNum: colOf(/승인번호/), time: colOf(/^시간$/),
           status: colOf(/이용자.?상태/), result: colOf(/서비스결과|기타사항|상태및서비스결과|상태\s*및/),
         };
-        const dataRows = rows.filter((rr) => rr > r).slice(0, 5);
+        // 데이터 행 — 헤더 다음 행들. 단, 표 전체폭으로 병합된 한 칸짜리 행(섹션 제목·※footer)은 제외.
+        const dataRows = rows.filter((rr) => {
+          if (rr <= r) return false;
+          const rrc = rowCells(tbls[ti], rr);
+          return !(rrc.length === 1 && rrc[0].cs > 1);
+        }).slice(0, 5);
         spec.result = dataRows.map((rr) => {
           const o: Record<string, Coord> = {};
           for (const k of Object.keys(map)) { const cc = map[k]; if (cc != null) o[k] = [ti, rr, cc] as Coord; }

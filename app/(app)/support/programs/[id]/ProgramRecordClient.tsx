@@ -42,6 +42,7 @@ const EX = {
   studentName:   "홍길동",
   therapistName: "김치료",
   org:           "OO언어발달센터",
+  birth:         "2018-03-15",
   school:        "OO초등학교",
   grade:         "3학년",
   dayOfWeek:     "화·목",
@@ -73,6 +74,7 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
 
   // ── 기본 정보 ───────────────────────────────────────────────
   const [studentName,   setStudentName]   = useState("");
+  const [birth,         setBirth]         = useState("");
   const [therapistName, setTherapistName] = useState(therapist);
   const [orgName,       setOrgName]       = useState(org);
   const [year,  setYear]  = useState(String(new Date().getFullYear()));
@@ -171,7 +173,7 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
   const delRow = (i: number) => setSessions((a) => a.filter((_, j) => j !== i));
 
   function newDoc() {
-    setStudentName(""); setSessions([empty()]); setEditingId(null); setMsg(""); setErr("");
+    setStudentName(""); setBirth(""); setSessions([empty()]); setEditingId(null); setMsg(""); setErr("");
     setToolChildId(null); setSummary("");
   }
 
@@ -179,6 +181,7 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
     try {
       const d = JSON.parse(r.payload);
       setStudentName(d.studentName ?? r.student);
+      setBirth(d.birth ?? "");
       setTherapistName(d.therapistName ?? therapist);
       setOrgName(d.org ?? org);
       setYear(String(d.year ?? new Date().getFullYear()));
@@ -219,6 +222,7 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
           studentName: studentName.trim(),
           therapistName: therapistName.trim(),
           org: orgName.trim(),
+          birth: birth.trim() || undefined,
           year: Number(year) || new Date().getFullYear(),
           month: Number(month) || new Date().getMonth() + 1,
           school: school.trim() || undefined,
@@ -263,6 +267,7 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
         studentName:   studentName.trim()   || EX.studentName,
         therapistName: therapistName.trim() || EX.therapistName,
         org:           orgName.trim()       || EX.org,
+        birth:         birth.trim()         || EX.birth,
         year:  Number(year)  || new Date().getFullYear(),
         month: Number(month) || new Date().getMonth() + 1,
         school:       school.trim()       || EX.school,
@@ -697,6 +702,10 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
             <div className="field" style={{ flex: "0 0 150px", margin: 0 }}>
               <label className="label">아동 이름 <span style={{ color: "var(--error)" }}>*</span></label>
               <input className="input" value={studentName} onChange={(e) => setStudentName(e.target.value)} placeholder="홍길동" style={{ fontSize: 13 }} />
+            </div>
+            <div className="field" style={{ flex: "0 0 120px", margin: 0 }}>
+              <label className="label">생년월일</label>
+              <input className="input" value={birth} onChange={(e) => setBirth(e.target.value)} placeholder="2018-03-15" style={{ fontSize: 13 }} />
             </div>
             <div className="field" style={{ flex: "0 0 130px", margin: 0 }}>
               <label className="label">담당 치료사</label>

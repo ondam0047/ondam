@@ -30,6 +30,7 @@ type Payload = {
   studentName:   string;
   therapistName: string;
   org:           string;
+  birth?:        string;   // 생년월일
   year:          number;
   month:         number;
   school?:        string;
@@ -58,6 +59,7 @@ function buildEdits(spec: ResolvedSpec, d: Payload, ordinalBase = 0): CellEdit[]
   // ── 직접 인식된 필드 ──────────────────────────────────────
   put(spec.name, d.studentName);
   put(spec.org, d.org);
+  put(spec.birth, d.birth ?? "");
   (spec.therapist ?? []).forEach((co) => put(co, d.therapistName));
 
   const S = d.sessions;
@@ -76,6 +78,7 @@ function buildEdits(spec: ResolvedSpec, d: Payload, ordinalBase = 0): CellEdit[]
   const scalarVal: Record<string, string> = {
     기관명:   d.org,
     대상자이름: d.studentName,
+    생년월일: d.birth ?? "",
     치료사이름: d.therapistName,
     연도:     d.year  ? String(d.year)  : "",
     월:       d.month ? String(d.month) : "",
