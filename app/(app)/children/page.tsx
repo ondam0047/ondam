@@ -228,6 +228,11 @@ export default async function ChildrenPage({
                       </td>
                       <td style={{ textAlign: "right" }}>
                         <div style={{ display: "inline-flex", gap: 6 }}>
+                          {mode !== "waiting" && (
+                            <Link href={`/children/${c.id}/docs`} className="btn btn-ghost btn-sm" title="저장된 일정표·기록지 보기/다운로드">
+                              서류
+                            </Link>
+                          )}
                           {betaUx && (mode === "closed" ? (
                             <form
                               action={async () => {

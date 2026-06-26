@@ -135,6 +135,17 @@ export async function GET(req: NextRequest) {
     files.push({ name, data: out });
   }
 
+  // 파일이 하나면 압축하지 않고 .hwpx 를 바로 내려준다(단일 아동/단일 월 다운로드 편의).
+  if (files.length === 1) {
+    const fname = encodeURIComponent(files[0].name);
+    return new Response(new Uint8Array(files[0].data), {
+      headers: {
+        "Content-Type": "application/hwp+zip",
+        "Content-Disposition": `attachment; filename*=UTF-8''${fname}`,
+      },
+    });
+  }
+
   const zipBuf = bundleAsZip(files);
   const zipName = encodeURIComponent(`${year}년${pad(month)}월_일정표_모음_${files.length}건.zip`);
   return new Response(new Uint8Array(zipBuf), {
