@@ -28,9 +28,9 @@ function clip(s: string, n = 60): string {
   return t.length > n ? t.slice(0, n) + "…" : t;
 }
 
-// 모델 — 다양한 양식의 공간추론은 어려운 작업이라 기본값을 가장 똑똑한 모델로.
-// 비용을 줄이려면 AI_MAP_MODEL=claude-sonnet-4-6 로 환경변수 지정.
-const MODEL = process.env.AI_MAP_MODEL || "claude-opus-4-8";
+// 모델 — 업그레이드된 입력(2D 격자)·확장사고·결정론 힌트 덕에 Sonnet 4.6 으로 대부분 충분.
+// 특이·난해한 양식에서 더 강한 추론이 필요하면 AI_MAP_MODEL=claude-opus-4-8 로 환경변수 전환.
+const MODEL = process.env.AI_MAP_MODEL || "claude-sonnet-4-6";
 
 // grid(표×셀) → LLM 역할 제안. API 키 없으면 { error:"no_key" }.
 export async function llmSuggestRoles(
