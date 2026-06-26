@@ -106,7 +106,19 @@ export default async function ChildDocsPage(props: { params: Promise<{ id: strin
             {child.birthDate ? ` · 생년월일 ${child.birthDate}` : ""}
           </p>
         </div>
-        <Link className="btn btn-ghost" href={child.active ? "/children" : "/children?closed=1"}>← 목록으로</Link>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          {schedules.length + records.length > 0 && (
+            <a
+              className="btn btn-primary"
+              href={`/api/children/${child.id}/docs-bulk`}
+              style={{ fontWeight: 700 }}
+              title="이 아동의 저장된 일정표·기록지를 한 번에 한글파일(ZIP)로 받기"
+            >
+              전체 한글파일 받기 (.zip)
+            </a>
+          )}
+          <Link className="btn btn-ghost" href={child.active ? "/children" : "/children?closed=1"}>← 목록으로</Link>
+        </div>
       </div>
 
       {section("일정표", schedules, "/api/schedule/hwpx-bulk", "저장된 일정표가 없어요.")}
