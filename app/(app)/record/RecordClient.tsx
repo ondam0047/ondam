@@ -15,6 +15,8 @@ type RecordSessionData = {
   extra?: string | null;
   amount?: string | null;
   result?: string | null;
+  resultExtra?: string | null;
+  retroReason?: string | null;
   status?: string | null;
 };
 
@@ -616,6 +618,8 @@ function RecordSheet({
   const [statuses, setStatuses] = useState(rows.map(() => ""));
   // 제공일자(일정표) ≠ 승인일자(엑셀) 일 때 입력하는 사유. 저장 시 resultExtra 로 들어감.
   const [mismatchReasons, setMismatchReasons] = useState(rows.map(() => ""));
+  // 소급결제 회기의 소급 사유. 저장 시 retroReason 으로 들어가고, 출력 결과 뒤 "* 소급 사유: …" 로 붙음.
+  const [retroReasons, setRetroReasons] = useState(rows.map(() => ""));
   // 일정표에서 가져온 회기 예정일 (제공일자). 일정표 회기 ↔ 엑셀 행을 ordinal 로 매칭.
   // 일정표 없으면 null → 그땐 엑셀의 use 날짜로 대체.
   const [scheduleDays, setScheduleDays] = useState<(number | null)[]>(rows.map(() => null));
@@ -693,6 +697,7 @@ function RecordSheet({
           // 일부 RecordSession 에 resultExtra 가 있을 수도 있음
           return (sess as { resultExtra?: string | null } | undefined)?.resultExtra ?? v;
         }));
+        setRetroReasons((prev) => prev.map((v, i) => sm.get(i + 1)?.retroReason ?? v));
         setSavedMsg(`✓ ${rec.year}년 ${rec.month}월 저장된 기록을 불러왔어요.`);
       } catch {}
     })();
@@ -764,6 +769,7 @@ function RecordSheet({
             apprNumber: s.appr,
             result: results[i],
             resultExtra: mismatchReasons[i] || undefined,
+            retroReason: retroReasons[i] || undefined,
             status: statuses[i] || undefined,
           };
         }),
@@ -806,6 +812,7 @@ function RecordSheet({
           apprNumber: s.appr,
           result: results[i],
           resultExtra: mismatchReasons[i] || undefined,
+          retroReason: retroReasons[i] || undefined,
           status: statuses[i] || undefined,
         };
       });
@@ -860,6 +867,7 @@ function RecordSheet({
           start: times[i].start, end: times[i].end,
           voucher: vouchers[i], extra: extras[i], amount: amounts[i],
           result: results[i],
+          retroReason: retroReasons[i] || undefined,
         })),
       };
       const res = await fetch("/api/record/docx", {
@@ -921,7 +929,7 @@ function RecordSheet({
             ordinal: i + 1, date: pu ? `${pu.mo}/${pu.d}` : "", startTime: times[i].start, endTime: times[i].end,
             voucher: vouchers[i], extra: extras[i], amount: amounts[i],
             useDay: useDayNum !== null ? String(useDayNum) : "", payDay: pp ? String(pp.d) : "",
-            apprNumber: s.appr, result: results[i], resultExtra: mismatchReasons[i] || undefined, status: statuses[i] || undefined,
+            apprNumber: s.appr, result: results[i], resultExtra: mismatchReasons[i] || undefined, retroReason: retroReasons[i] || undefined, status: statuses[i] || undefined,
           };
         }),
         formId: outFormId || undefined,
@@ -938,7 +946,7 @@ function RecordSheet({
     const t = window.setTimeout(() => { void autoSaveRecord(); }, 1800);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [childServiceId, year, monthNumForLoad, rows, times, vouchers, extras, amounts, results, statuses, mismatchReasons, opinion, useDays, outFormId, loadedRecordId]);
+  }, [childServiceId, year, monthNumForLoad, rows, times, vouchers, extras, amounts, results, statuses, mismatchReasons, retroReasons, opinion, useDays, outFormId, loadedRecordId]);
 
   const topCols = rows.map((s, i) => {
     const ud = useDays[i];
@@ -1113,6 +1121,22 @@ function RecordSheet({
                     value={mismatchReasons[i]}
                     onChange={(e) => setMismatchReasons((p) => { const n = [...p]; n[i] = e.target.value; return n; })}
                   />
+                </div>
+              )}
+              {isRetro && (
+                <div style={{ marginTop: 8 }}>
+                  <label style={{ display: "block", fontSize: 12.5, fontWeight: 600, color: "var(--danger)", marginBottom: 4 }}>
+                    소급 사유
+                  </label>
+                  <input
+                    className="input"
+                    value={retroReasons[i]}
+                    placeholder="예) 카드 미소지로 6/8 수업 후 소급결제 진행함"
+                    onChange={(e) => setRetroReasons((p) => { const n = [...p]; n[i] = e.target.value; return n; })}
+                  />
+                  <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 3 }}>
+                    기록지 결과 칸 아래에 <b>* 소급 사유: …</b> 로 표기돼요.
+                  </div>
                 </div>
               )}
             </div>

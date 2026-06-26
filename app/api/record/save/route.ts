@@ -15,6 +15,7 @@ type SessionInput = {
   apprNumber?: string;
   result?: string;
   resultExtra?: string;
+  retroReason?: string;
   status?: string;
 };
 
@@ -105,6 +106,7 @@ export async function POST(req: NextRequest) {
         apprNumber: s.apprNumber || null,
         result: s.result || null,
         resultExtra: s.resultExtra || null,
+        retroReason: s.retroReason || null,
         status: s.status || null,
       })),
     });

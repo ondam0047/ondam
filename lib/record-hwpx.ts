@@ -28,6 +28,7 @@ export type RecordSessionDetail = {
   apprNumber: string;
   result: string;
   resultExtra?: string;
+  retroReason?: string; // 소급결제 사유 — 결과 본문 뒤 "* 소급 사유: …" 로 보존
   status?: string; // 이용자 상태 (상태·결과 칸이 분리된 양식용; 합쳐진 양식은 미사용)
 };
 
@@ -263,16 +264,21 @@ const STANDARD_SPEC: CoordSpec = {
   note: [3, 1, 0], // 부모 상담 종합 의견란
 };
 
-// 표준형 결과칸은 한 칸이므로 보강/불일치 사유(resultExtra)를 결과 본문 뒤에 붙여 보존.
+// 표준형 결과칸은 한 칸이므로 보강/불일치 사유(resultExtra)와 소급결제 사유(retroReason)를
+// 결과 본문 뒤에 붙여 보존. (셀 안 줄바꿈은 안정적이지 않아 한 줄로 이어 붙이고, 마커로 구분)
 function foldStandardExtra(p: RecordPayload): RecordPayload {
   return {
     ...p,
     sessions: p.sessions.map((s) => {
-      const raw = (s.resultExtra ?? "").trim();
-      if (!raw) return s;
-      const extra = raw.startsWith("- ") ? raw : `- ${raw}`;
+      const parts: string[] = [];
       const base = (s.result ?? "").trim();
-      return { ...s, result: base ? `${base} ${extra}` : extra };
+      if (base) parts.push(base);
+      const mismatch = (s.resultExtra ?? "").trim();
+      if (mismatch) parts.push(mismatch.startsWith("- ") ? mismatch : `- ${mismatch}`);
+      const retro = (s.retroReason ?? "").trim();
+      if (retro) parts.push(retro.startsWith("*") ? retro : `* 소급 사유: ${retro}`);
+      if (parts.length === 0) return s;
+      return { ...s, result: parts.join(" ") };
     }),
   };
 }

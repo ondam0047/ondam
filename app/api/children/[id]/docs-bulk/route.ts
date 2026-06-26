@@ -185,6 +185,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
           apprNumber: s.apprNumber ?? "",
           result: s.result ?? "",
           resultExtra: s.resultExtra ?? undefined,
+          retroReason: s.retroReason ?? undefined,
         })),
         opinion: r.opinion ?? undefined,
         serviceType: r.childService.serviceType,

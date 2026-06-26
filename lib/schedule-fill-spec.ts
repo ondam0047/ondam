@@ -52,8 +52,11 @@ export function generateScheduleFromForm(
   spec.schedule?.forEach((s) => {
     if (roleVal[s.role] !== undefined) put(s.coord, roleVal[s.role]);
   });
+  // 셀프 보정/AI 자동매핑 칸 — 일정표 라벨 역할(관리번호·단가·횟수 등)·스칼라 역할 모두 채움.
   spec.manual?.forEach((m) => {
-    if (scalarVal[m.role] !== undefined) put([m.table, m.row, m.col] as Coord, scalarVal[m.role]);
+    const coord = [m.table, m.row, m.col, m.p ?? 0] as Coord;
+    if (roleVal[m.role] !== undefined) put(coord, roleVal[m.role]);
+    else if (scalarVal[m.role] !== undefined) put(coord, scalarVal[m.role]);
   });
 
   // 월 달력 격자 — 날짜 + 회기 시간 본문 (저장 spec 에 없으면 템플릿에서 재탐지)

@@ -8,17 +8,18 @@ export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
 
-  let body: { grid?: SlimCell[][]; title?: string };
+  let body: { grid?: SlimCell[][]; title?: string; formType?: "record" | "schedule" };
   try { body = await req.json(); } catch { return Response.json({ error: "invalid json" }, { status: 400 }); }
   const grid = body.grid;
   if (!Array.isArray(grid) || grid.length === 0) {
     return Response.json({ error: "격자 데이터가 없어요." }, { status: 400 });
   }
+  const formType = body.formType === "record" || body.formType === "schedule" ? body.formType : undefined;
 
   // 제목 추정 — 첫 표의 첫 텍스트 칸
   const title = body.title || grid.flat().map((c) => c?.text?.trim()).find((t) => t && t.length > 2);
 
-  const result = await llmSuggestRoles(grid, { title });
+  const result = await llmSuggestRoles(grid, { title, formType });
   if ("error" in result) {
     const status = result.error === "no_key" ? 503 : 502;
     const msg = result.error === "no_key"

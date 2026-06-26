@@ -1,10 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useBetaUx } from "../BetaUxContext";
+import { rolesForForm } from "@/lib/record-roles";
 
 type Cell = { r: number; c: number; cs: number; rs: number; text: string; role: string | null };
 type Spec = { schedule?: Array<{ role: string }>; detail?: unknown[]; extraSessionCols?: number[]; extraResultRows?: number[] };
-type AnalyzeResult = { coverage: Record<string, boolean>; grid: Cell[][]; spec?: Spec };
+type AnalyzeResult = { coverage: Record<string, boolean>; grid: Cell[][]; spec?: Spec; cached?: { overrides: Record<string, string> } | null };
+type Suggestion = { table: number; row: number; col: number; p?: number; role: string; confidence: number };
+
+// 캐시/AI 가 주는 4-요소 키(t,r,c,p)를 매퍼가 쓰는 3-요소 키(t,r,c)로 정규화.
+function trcKey(t: number, r: number, c: number) { return `${t},${r},${c}`; }
 
 const FIELD_LABEL: Record<string, string> = {
   org: "기관명", name: "이름", birth: "생년월일", date: "날짜",
@@ -13,10 +19,14 @@ const FIELD_LABEL: Record<string, string> = {
 };
 
 export default function FormMapperClient() {
+  const betaUx = useBetaUx();
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<AnalyzeResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  // AI 가 신뢰도 낮게(<0.6) 제안한 칸 — 사람이 꼭 확인하도록 표시. key="t,r,c"
+  const [lowConf, setLowConf] = useState<Set<string>>(new Set());
   const [downloading, setDownloading] = useState(false);
   // 저장된 양식(사용자별 다수)
   const [saved, setSaved] = useState<Array<{ id: number; kind: string; name: string }>>([]);
@@ -34,21 +44,66 @@ export default function FormMapperClient() {
 
   async function analyze() {
     if (!file) return;
-    setLoading(true); setError(null); setResult(null); setOverrides({}); setPicker(null);
+    setLoading(true); setError(null); setResult(null); setOverrides({}); setLowConf(new Set()); setPicker(null);
     try {
       const fd = new FormData();
       fd.append("file", file);
       const r = await fetch("/api/forms/analyze", { method: "POST", body: fd });
-      const d = await r.json();
+      const d = await r.json() as AnalyzeResult & { error?: string };
       if (!r.ok) throw new Error(d.error || "분석 실패");
       setResult(d);
       const hasRecord = d.coverage && (d.coverage.date || d.coverage.result);
-      setKind(hasRecord ? "record" : (d.spec?.schedule?.length ? "schedule" : "record"));
+      const k = hasRecord ? "record" : (d.spec?.schedule?.length ? "schedule" : "record");
+      setKind(k);
       if (file && !formName) setFormName(file.name.replace(/\.hwpx$/i, ""));
+      // 학습 캐시 적중(같은 구조 양식을 전에 매핑) → 그 매핑 자동 적용. 아니면 베타계정은 AI 자동.
+      const cached = d.cached?.overrides;
+      if (cached && Object.keys(cached).length) {
+        const norm: Record<string, string> = {};
+        for (const [key, role] of Object.entries(cached)) {
+          const [t, rr, c] = key.split(",").map(Number);
+          norm[trcKey(t, rr, c)] = role;
+        }
+        setOverrides(norm);
+      } else if (betaUx) {
+        await runAutoMap(d.grid, k);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "분석 중 문제가 생겼어요.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  // AI 자동매핑 — 규칙 엔진이 못 잡은 칸까지 LLM 이 역할 제안(좌표 환각 차단·개인정보 마스킹은 서버에서).
+  // 제안을 overrides 에 병합하고, 신뢰도<0.6 칸은 lowConf 로 표시(사람이 확인).
+  async function runAutoMap(grid?: Cell[][], formTypeArg?: "record" | "schedule") {
+    const g = grid ?? result?.grid;
+    if (!g || !g.length) return;
+    setAiLoading(true); setError(null);
+    try {
+      const r = await fetch("/api/forms/automap", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ grid: g, formType: formTypeArg ?? kind }),
+      });
+      const d = await r.json() as { suggestions?: Suggestion[]; error?: string };
+      if (!r.ok) throw new Error(d.error || "AI 매핑 실패");
+      const low = new Set<string>();
+      setOverrides((prev) => {
+        const next = { ...prev };
+        for (const s of d.suggestions ?? []) {
+          const key = trcKey(s.table, s.row, s.col);
+          next[key] = s.role;
+          if ((s.confidence ?? 1) < 0.6) low.add(key);
+        }
+        return next;
+      });
+      setLowConf(low);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "AI 매핑 중 문제가 생겼어요.");
+    } finally {
+      setAiLoading(false);
     }
   }
 
@@ -101,9 +156,12 @@ export default function FormMapperClient() {
     loadSaved();
   }
 
-  // 셀프 보정 — 지정 가능 역할. 같은 역할을 여러 칸에 지정 가능(예: 대상자이름이 여러 군데).
-  const SCALAR_ROLES = ["기관명", "대상자이름", "치료사이름", "생년월일", "제공영역", "서비스종류"];
-  const ROW_ROLES = ["날짜", "시작", "종료", "바우처(분)", "추가구매", "금액"];
+  // 셀프 보정 — 지정 가능 역할(양식 종류별). 같은 역할을 여러 칸에 지정 가능.
+  // 기록지엔 발달바우처 전용 수동 역할(바우처분·추가구매·금액)을 더한다(AI 사전엔 없고 규칙엔진 담당).
+  const SCALAR_ROLES = rolesForForm(kind).filter((r) => r.kind === "scalar").map((r) => r.role);
+  const ROW_ROLES = kind === "record"
+    ? [...rolesForForm("record").filter((r) => r.kind === "row").map((r) => r.role), "바우처(분)", "추가구매", "금액"]
+    : rolesForForm(kind).filter((r) => r.kind === "row").map((r) => r.role);
   const effRole = (ti: number, cell: Cell): string | null => {
     const k = `${ti},${cell.r},${cell.c}`;
     return k in overrides ? (overrides[k] || null) : cell.role;
@@ -165,6 +223,12 @@ export default function FormMapperClient() {
             <button className="btn btn-primary" onClick={analyze} disabled={!file || loading}>
               {loading ? "분석 중…" : "자동 매핑 분석"}
             </button>
+            {result && (
+              <button className="btn" onClick={() => runAutoMap()} disabled={aiLoading || loading}
+                title="규칙 자동인식이 놓친 칸까지 AI가 역할을 제안해요. 제안 후 칸을 클릭해 고칠 수 있어요.">
+                {aiLoading ? "AI 매핑 중…" : "✨ AI로 칸 자동 매핑"}
+              </button>
+            )}
             {result && (
               <button className="btn" onClick={() => downloadSample(false)} disabled={downloading}>
                 {downloading ? "생성 중…" : "샘플로 채워 받기 (.hwpx)"}
@@ -244,8 +308,13 @@ export default function FormMapperClient() {
           <div className="card">
             <div className="card-body" style={{ display: "grid", gap: 16, overflowX: "auto" }}>
               <p style={{ margin: 0, fontSize: 12.5, color: "var(--text-mute)" }}>
-                양식 표 미리보기 — <span style={{ background: "var(--primary-soft)", color: "var(--primary)", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>색칠된 칸</span>이 자동 인식된 입력 위치예요. <b>칸을 클릭</b>하면 그 자리에서 역할을 고칠 수 있어요.
+                양식 표 미리보기 — <span style={{ background: "var(--primary-soft)", color: "var(--primary)", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>색칠된 칸</span>이 자동 인식된 입력 위치예요. <b>칸을 클릭</b>하면 그 자리에서 역할을 고칠 수 있어요. <b>✨ AI로 칸 자동 매핑</b>으로 규칙이 놓친 칸까지 채울 수 있어요(센터·지자체마다 다른 양식 대응).
               </p>
+              {lowConf.size > 0 && (
+                <p style={{ margin: 0, fontSize: 12.5, color: "#8A6422" }}>
+                  ⚠ AI 신뢰도 낮은 칸 {lowConf.size}개(테두리 주황) — 꼭 클릭해서 맞는지 확인하세요.
+                </p>
+              )}
               <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-start" }}>
                 {result.grid.map((cells, ti) => (
                   <div key={ti} style={{ flex: "0 1 auto", maxWidth: "100%" }}>
@@ -253,6 +322,7 @@ export default function FormMapperClient() {
                     <TableView
                       cells={cells}
                       roleOf={(cell) => effRole(ti, cell)}
+                      lowOf={(cell) => lowConf.has(trcKey(ti, cell.r, cell.c))}
                       onCell={(r, c, text, x, y) => setPicker({ t: ti, r, c, text, x, y })}
                     />
                   </div>
@@ -290,12 +360,16 @@ export default function FormMapperClient() {
                 <button key={role} className="btn btn-sm" onClick={() => assignRole(role)}>{role}</button>
               ))}
             </div>
-            <div style={{ fontSize: 11, color: "var(--text-mute)" }}>회기 행 (클릭한 줄을 날짜 칸들에 적용)</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {ROW_ROLES.map((role) => (
-                <button key={role} className="btn btn-sm" onClick={() => assignRole(role)}>{role}</button>
-              ))}
-            </div>
+            {ROW_ROLES.length > 0 && (
+              <>
+                <div style={{ fontSize: 11, color: "var(--text-mute)" }}>회기 행 (칸마다 i번째 회기로 채움)</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {ROW_ROLES.map((role) => (
+                    <button key={role} className="btn btn-sm" onClick={() => assignRole(role)}>{role}</button>
+                  ))}
+                </div>
+              </>
+            )}
             <div style={{ display: "flex", gap: 6, borderTop: "1px solid var(--border)", paddingTop: 8 }}>
               <button className="btn btn-sm" onClick={() => assignRole("")} style={{ color: "#8A2F1C" }}>역할 비우기</button>
               <button className="btn btn-sm" onClick={() => setPicker(null)}>취소</button>
@@ -308,9 +382,10 @@ export default function FormMapperClient() {
   );
 }
 
-function TableView({ cells, roleOf, onCell }: {
+function TableView({ cells, roleOf, lowOf, onCell }: {
   cells: Cell[];
   roleOf: (cell: Cell) => string | null;
+  lowOf?: (cell: Cell) => boolean;
   onCell: (r: number, c: number, text: string, x: number, y: number) => void;
 }) {
   if (cells.length === 0) return null;
@@ -331,17 +406,18 @@ function TableView({ cells, roleOf, onCell }: {
             if (!(rr === r && cc === c)) covered.add(`${rr},${cc}`);
         const role = roleOf(cell);
         const hl = !!role;
+        const low = hl && !!lowOf?.(cell);
         tds.push(
           <td key={c} colSpan={cell.cs} rowSpan={cell.rs}
             onClick={(e) => onCell(cell.r, cell.c, cell.text, e.clientX, e.clientY)}
-            title="클릭해서 역할 지정/해제"
+            title={low ? "AI 신뢰도 낮음 — 클릭해서 확인/수정" : "클릭해서 역할 지정/해제"}
             style={{
-              border: "1px solid var(--border)", padding: "3px 5px", fontSize: 11, verticalAlign: "top",
+              border: low ? "2px solid #D98324" : "1px solid var(--border)", padding: "3px 5px", fontSize: 11, verticalAlign: "top",
               background: hl ? "var(--primary-soft)" : "var(--surface)",
               minWidth: 40, maxWidth: 160, cursor: "pointer",
             }}>
             {hl && (
-              <div style={{ fontSize: 9, fontWeight: 800, color: "var(--primary)", marginBottom: 1 }}>{role}</div>
+              <div style={{ fontSize: 9, fontWeight: 800, color: low ? "#8A6422" : "var(--primary)", marginBottom: 1 }}>{low ? "⚠ " : ""}{role}</div>
             )}
             <div style={{ color: cell.text ? "var(--text)" : "var(--text-mute)", whiteSpace: "normal", wordBreak: "break-all" }}>
               {cell.text || (hl ? "" : "·")}

@@ -102,6 +102,7 @@ export async function GET(req: NextRequest) {
         apprNumber: s.apprNumber ?? "",
         result: s.result ?? "",
         resultExtra: s.resultExtra ?? undefined,
+        retroReason: s.retroReason ?? undefined,
       })),
       opinion: r.opinion ?? undefined,
       serviceType: r.childService.serviceType,

@@ -19,6 +19,10 @@ type FillData = {
   childBirth: string;
   serviceType: string;
   therapistName: string;
+  // 스칼라 역할(연도·월·종합의견) 채움용 — AI 자동매핑이 잡은 manual 역할에 쓰임.
+  month?: number;
+  year?: number;
+  opinion?: string;
   sessions: RecordSessionDetail[];
   // 통합 양식: 일정표 라벨 보강(역할→값). 단가·본인부담·관리번호·제공일·횟수 등.
   schedExtra?: Record<string, string>;
@@ -35,6 +39,9 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
   const putArr = (arr: Coord[] | undefined, val: (i: number) => string) => {
     (arr ?? []).forEach((co, i) => put(co, val(i)));
   };
+  // 결과 칸 본문 — 결과 + 불일치 사유 + 소급 사유("* 소급 사유: …")를 한 칸에 보존.
+  const composeResult = (s: RecordSessionDetail): string =>
+    [s.result, s.resultExtra, s.retroReason ? `* 소급 사유: ${s.retroReason}` : ""].filter(Boolean).join(" / ");
 
   // 헤더
   put(spec.org, d.org);
@@ -87,7 +94,7 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
     put(row.apprNum, s.apprNumber || "");
     put(row.time, s.startTime || "");
     put(row.status, s.status || "");
-    put(row.result, [s.result, s.resultExtra].filter(Boolean).join(" / "));
+    put(row.result, composeResult(s));
   });
   // 별지(상세 결과)
   spec.detail?.forEach((row, i) => {
@@ -96,7 +103,7 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
     put(row.date, s.useDay || s.date || "");
     put(row.apprDate, s.useDay || "");
     put(row.apprNum, s.apprNumber || "");
-    put(row.result, [s.result, s.resultExtra].filter(Boolean).join(" / "));
+    put(row.result, composeResult(s));
   });
 
   // 일정표 라벨 칸(통합 양식)
@@ -109,12 +116,16 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
   };
   spec.schedule?.forEach((s) => { if (schedVal[s.role] !== undefined) put(s.coord, schedVal[s.role]); });
 
-  // 셀프 보정 칸 — 역할별 실데이터. 회기 행 역할은 날짜 열에 걸쳐.
+  // 셀프 보정/AI 자동매핑 칸 — 역할별 실데이터.
+  // 날짜축(가로 회기표) 역할은 dCols 에 걸쳐 채우고, 결과/비고/회차 등 칸별 역할은
+  // 문서순(표·행·열)으로 i번째 회기 값을 채운다(세로 결과표·흩어진 레이아웃 지원).
   const dCols = spec.date.map((c) => c[2]);
-  const ROW = new Set(["날짜", "시작", "종료", "바우처(분)", "추가구매", "금액"]);
+  const DATE_AXIS = new Set(["날짜", "시작", "종료", "바우처(분)", "추가구매", "금액"]);
+  const ROW = new Set([...DATE_AXIS, "결과", "비고", "회차"]);
   const scalarVal: Record<string, string> = {
     기관명: d.org, 대상자이름: d.childName, 치료사이름: d.therapistName, 생년월일: d.childBirth,
     제공영역: d.serviceType, 서비스종류: d.serviceType,
+    연도: d.year ? String(d.year) : "", 월: d.month ? String(d.month) : "", 종합의견: d.opinion ?? "",
   };
   const rowVal = (role: string, i: number): string => {
     const s = S[i];
@@ -126,14 +137,30 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
       case "바우처(분)": return s.voucher ?? "";
       case "추가구매": return s.extra ?? "";
       case "금액": return s.amount ?? "";
+      case "결과": return composeResult(s);
+      case "회차": return String(i + 1);
+      case "비고": return ""; // 발달바우처엔 회기별 비고 데이터 없음(소급/불일치는 결과 칸에)
       default: return "";
     }
   };
+  // 역할별로 묶기: 같은 역할이 여러 칸이면(AI 매핑) 문서순 i번째 회기,
+  // 한 칸뿐이고 날짜축 역할이면(레거시 수동 1칸) 날짜 칸들에 브로드캐스트.
+  const manualRows: Record<string, Coord[]> = {};
   for (const m of spec.manual ?? []) {
-    if (ROW.has(m.role) && dCols.length) {
-      dCols.forEach((col, i) => put([m.table, m.row, col] as Coord, rowVal(m.role, i)));
+    if (ROW.has(m.role)) {
+      (manualRows[m.role] ??= []).push([m.table, m.row, m.col, m.p ?? 0] as Coord);
     } else if (scalarVal[m.role] !== undefined) {
-      put([m.table, m.row, m.col] as Coord, scalarVal[m.role]);
+      put([m.table, m.row, m.col, m.p ?? 0] as Coord, scalarVal[m.role]);
+    }
+  }
+  for (const role of Object.keys(manualRows)) {
+    const cells = manualRows[role].sort((a, b) =>
+      a[0] - b[0] || a[1] - b[1] || a[2] - b[2] || (a[3] ?? 0) - (b[3] ?? 0));
+    if (cells.length === 1 && DATE_AXIS.has(role) && dCols.length) {
+      const [t, r] = cells[0];
+      dCols.forEach((col, i) => put([t, r, col] as Coord, rowVal(role, i)));
+    } else {
+      cells.forEach((co, i) => put(co, rowVal(role, i)));
     }
   }
 
@@ -203,6 +230,9 @@ export function generateRecordFromForm(
     childBirth: payload.childBirth ?? "",
     serviceType: payload.serviceType ?? "",
     therapistName: therapistName ?? "",
+    month: payload.month,
+    year: yr,
+    opinion: payload.opinion ?? "",
     schedExtra,
     normCharPr,
   };

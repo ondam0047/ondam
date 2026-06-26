@@ -9,7 +9,7 @@
 //  - 확장 사고(adaptive thinking)로 레이아웃 추론, 구조화 출력(json_schema+enum)으로 파싱 신뢰성 확보.
 //  - 고정 시스템부 프롬프트 캐싱.
 
-import { ROLE_DEFS, ALL_ROLES } from "@/lib/record-roles";
+import { ROLE_DEFS, ALL_ROLES, rolesForForm, type FormType } from "@/lib/record-roles";
 
 export type SlimCell = { r: number; c: number; cs: number; rs: number; text: string; role?: string | null; p?: number; paras?: string[] };
 export type LlmSuggestion = { table: number; row: number; col: number; p: number; role: string; confidence: number };
@@ -63,7 +63,7 @@ const MODEL = process.env.AI_MAP_MODEL || "claude-sonnet-4-6";
 // grid(표×셀) → LLM 역할 제안. API 키 없으면 { error:"no_key" }.
 export async function llmSuggestRoles(
   grid: SlimCell[][],
-  opts: { title?: string } = {},
+  opts: { title?: string; formType?: FormType } = {},
 ): Promise<{ suggestions: LlmSuggestion[]; model: string } | { error: string }> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return { error: "no_key" };
@@ -108,11 +108,21 @@ export async function llmSuggestRoles(
   });
   if (id2coord.length === 0) return { suggestions: [], model: MODEL };
 
-  const roleList = ROLE_DEFS.map((r) => `- ${r.role} (${r.kind === "row" ? "회기반복" : "단일"}): ${r.desc}`).join("\n");
+  // 양식 종류(기록지/일정표)에 맞는 역할만 후보로 — enum·프롬프트 모두 이걸로 좁혀 섞임 방지.
+  const candidateRoles = rolesForForm(opts.formType);
+  const roleNames = candidateRoles.map((r) => r.role);
+  const roleList = candidateRoles.map((r) => `- ${r.role} (${r.kind === "row" ? "회기반복" : "단일"}): ${r.desc}`).join("\n");
+  const formTypeLine =
+    opts.formType === "schedule"
+      ? "[양식 종류] 이 양식은 '일정표'다. 회기별 결과/시간 칸이 아니라 관리번호·단가·횟수·총금액·본인부담금·주기·제공일 같은 라벨 칸과 대상자·기관·작성일자 정보를 채운다. (월 달력 격자는 시스템이 따로 처리하니 날짜 칸 하나하나는 매핑하지 말 것.)\n\n"
+      : opts.formType === "record"
+        ? "[양식 종류] 이 양식은 '기록지'다. 회기별 날짜·시간·결과와 대상자 정보를 채운다.\n\n"
+        : "";
 
   // ── 고정 시스템부(프롬프트 캐싱 대상) ──
   const system =
-    "너는 한국의 치료·복지·교육 분야 '서비스 제공 기록지/일지'(.hwpx 표)를 읽고, 각 칸에 들어갈 값의 역할을 분류하는 전문가다.\n\n" +
+    "너는 한국의 치료·복지·교육 분야 '서비스 제공 기록지/일지·일정표'(.hwpx 표)를 읽고, 각 칸에 들어갈 값의 역할을 분류하는 전문가다.\n\n" +
+    formTypeLine +
     "[입력 형식] 각 표는 행(r)×열(c) 격자로 주어진다. 같은 r은 가로 한 줄, 같은 c는 세로 한 열이다. " +
     "각 칸은 `c{열}: [id=번호]내용` 형태이며, 〔가로×세로〕는 병합 칸 크기다. " +
     "라벨 칸은 \"성명\"처럼 원문이 보이고, 값이 들어갈 칸은 (빈칸)=빈 칸, (작성된 값)/(작성된 날짜·시간값)/(작성된 서술값)=이미 값이 든 칸(개인정보 보호를 위해 내용은 가렸지만 모두 '값칸'이다)으로 표시된다. " +
@@ -145,7 +155,7 @@ export async function llmSuggestRoles(
           type: "object",
           properties: {
             id: { type: "integer" },
-            role: { type: "string", enum: [...ALL_ROLES] },
+            role: { type: "string", enum: roleNames },
             confidence: { type: "number" },
           },
           required: ["id", "role", "confidence"],
@@ -169,8 +179,10 @@ export async function llmSuggestRoles(
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 16000,
-        // 다양한 레이아웃 공간추론 — 모델이 스스로 사고 깊이를 조절.
-        thinking: { type: "adaptive" },
+        // 레이아웃 공간추론용 사고 — 단, 예산을 한정한다. adaptive(무제한)는 복잡·다칸
+        // 양식에서 사고가 폭주해 max_tokens 를 사고에 다 써버리고 출력(JSON)을 못 내
+        // parse_failed 가 났다. budget_tokens 로 묶어 출력 토큰(≥10k)을 항상 확보.
+        thinking: { type: "enabled", budget_tokens: 6000 },
         // 출력 형식을 스키마로 강제 — 항상 유효한 JSON(role enum 검증 포함).
         output_config: { format: { type: "json_schema", schema } },
         system: [
