@@ -28,6 +28,34 @@ function clip(s: string, n = 60): string {
   return t.length > n ? t.slice(0, n) + "…" : t;
 }
 
+// ── 개인정보 마스킹 ───────────────────────────────────────────────
+// 매핑에는 '라벨(양식 구조어)'과 칸 구조만 필요하고, 작성된 값(이름·날짜·기관명·임상서술)은
+// 불필요하다. 사용자가 빈 양식이 아니라 작성된 양식을 올려도 Anthropic(국외)에 PII가
+// 전송되지 않도록, 라벨로 인식되는 칸만 원문 전송하고 그 외 작성값은 내용을 가린다.
+const LABEL_TOKENS: string[] = [...new Set(
+  ROLE_DEFS.flatMap((r) => [r.role, ...r.synonyms]).concat([
+    "이름", "대상자", "서비스종류", "주기", "제공일", "관리번호", "작성일자", "제공영역",
+    "상태", "주요기능", "기능상태", "욕구", "서비스목표", "제공인력", "제공자", "내용",
+  ]),
+)].map((s) => s.replace(/\s/g, ""));
+
+function isLabel(norm: string): boolean {
+  if (!norm || norm.length > 16) return false;
+  if (/\d{3,}/.test(norm)) return false; // 숫자가 많으면 값(날짜·번호·금액)
+  return LABEL_TOKENS.some((t) => t.length >= 2 && norm.includes(t));
+}
+
+// 칸 표시값 — 라벨은 원문, 작성값은 마스킹, 빈칸은 (빈칸).
+function cellDisplay(text: string): string {
+  const t = (text ?? "").trim();
+  if (!t) return "(빈칸)";
+  const norm = t.replace(/\s/g, "");
+  if (isLabel(norm)) return `"${clip(t)}"`;
+  if (/\d/.test(norm) && /[.\-/:]/.test(norm)) return "(작성된 날짜·시간값)";
+  if (t.length > 20) return "(작성된 서술값)";
+  return "(작성된 값)";
+}
+
 // 모델 — 업그레이드된 입력(2D 격자)·확장사고·결정론 힌트 덕에 Sonnet 4.6 으로 대부분 충분.
 // 특이·난해한 양식에서 더 강한 추론이 필요하면 AI_MAP_MODEL=claude-opus-4-8 로 환경변수 전환.
 const MODEL = process.env.AI_MAP_MODEL || "claude-sonnet-4-6";
@@ -68,8 +96,8 @@ export async function llmSuggestRoles(
           }
           const id = id2coord.length;
           id2coord.push({ table: ti, row: cell.r, col: cell.c, p: multi ? pi : 0 });
-          const longTag = t.length > 40 ? "(긴서술)" : "";
-          const body = t ? `"${clip(t)}"${longTag}` : "(빈칸)";
+          // 라벨만 원문, 작성된 값은 마스킹 — Anthropic 으로 PII 미전송.
+          const body = cellDisplay(t);
           sub.push(`${multi ? `문단${pi} ` : ""}[id=${id}]${body}`);
         });
         parts.push(`c${cell.c}${span}: ${sub.join(" / ")}${roleHint}`);
@@ -86,8 +114,9 @@ export async function llmSuggestRoles(
   const system =
     "너는 한국의 치료·복지·교육 분야 '서비스 제공 기록지/일지'(.hwpx 표)를 읽고, 각 칸에 들어갈 값의 역할을 분류하는 전문가다.\n\n" +
     "[입력 형식] 각 표는 행(r)×열(c) 격자로 주어진다. 같은 r은 가로 한 줄, 같은 c는 세로 한 열이다. " +
-    "각 칸은 `c{열}: [id=번호]\"내용\"` 형태이며, 〔가로×세로〕는 병합 칸 크기, (빈칸)은 값이 들어갈 빈 칸, " +
-    "(긴서술)은 긴 서술형 칸, 「안내문」은 채우면 안 되는 지시문, «인식:역할»은 1차 규칙엔진이 이미 추정한 역할(참고 힌트)이다.\n\n" +
+    "각 칸은 `c{열}: [id=번호]내용` 형태이며, 〔가로×세로〕는 병합 칸 크기다. " +
+    "라벨 칸은 \"성명\"처럼 원문이 보이고, 값이 들어갈 칸은 (빈칸)=빈 칸, (작성된 값)/(작성된 날짜·시간값)/(작성된 서술값)=이미 값이 든 칸(개인정보 보호를 위해 내용은 가렸지만 모두 '값칸'이다)으로 표시된다. " +
+    "「안내문」은 채우면 안 되는 지시문, «인식:역할»은 1차 규칙엔진이 이미 추정한 역할(참고 힌트)이다.\n\n" +
     "[목표] 라벨 칸이 아니라 '값이 들어갈 칸'의 id에 역할을 부여한다. 값칸은 보통 라벨의 오른쪽(같은 r, 다음 c) 또는 아래(같은 c, 다음 r)의 빈칸/서술칸이다. " +
     "예: r1에 c0=\"성명\"(라벨)·c1=(빈칸)이면 c1이 대상자이름이다. «인식:..» 힌트는 대체로 맞으니 존중하되, 빠뜨린 칸을 보완하고 틀린 힌트는 바로잡는다.\n\n" +
     "[양식 다양성] 바우처 양식뿐 아니라 교육청·지자체·기관 자체 일지 등 라벨이 제각각이다('기관명/제공기관명/센터', '일자/날짜/제공일자', '결과/서비스내용/이용자의 상태 및 재활 결과' 등). " +
