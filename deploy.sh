@@ -84,7 +84,9 @@ PM2_NAME="$(cfg pm2Name)"; [[ -n "$PM2_NAME" ]] || PM2_NAME="baroilji"
 #  - db:gen:postgres: postinstall 이 sqlite 클라이언트로 덮으므로 매번 postgres 로 재생성.
 #  - db:migrate:postgres: 스키마 변경 반영(--skip-migrate 면 생략).
 #  - build && restart: 빌드 성공해야만 pm2 restart(.next 깨진 채 재시작 방지).
-STEPS="cd $REMOTE_PATH && git pull --ff-only origin $BRANCH && npm install --include=dev --no-audit --no-fund && npm run db:gen:postgres"
+# .env 로드(Prisma v7는 config 있으면 .env 자동로드 안 함 → migrate 가 DATABASE_URL 못 읽어
+# 잘못된 기본값으로 접속·P1000 실패. prisma.config.ts 도 막지만 여기서도 방어 + build 환경 제공).
+STEPS="cd $REMOTE_PATH && { [ -f ./.env ] && { set -a; . ./.env; set +a; }; true; } && git pull --ff-only origin $BRANCH && npm install --include=dev --no-audit --no-fund && npm run db:gen:postgres"
 [[ $SKIP_MIGRATE -eq 0 ]] && STEPS="$STEPS && npm run db:migrate:postgres"
 STEPS="$STEPS && npm run build && pm2 restart $PM2_NAME"
 
