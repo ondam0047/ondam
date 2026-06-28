@@ -668,7 +668,6 @@ function RecordSheet({
   const [scheduleDays, setScheduleDays] = useState<(number | null)[]>(rows.map(() => null));
   const [opinion, setOpinion] = useState("");
   const [downloading, setDownloading] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
   const [loadedRecordId, setLoadedRecordId] = useState<number | null>(null);
   const [autoStatus, setAutoStatus] = useState<"" | "saving" | "saved">("");
@@ -773,65 +772,11 @@ function RecordSheet({
       setVouchers((prev) => prev.map((v, i) => recSessions[i]?.voucher ?? v));
       setExtras((prev) => prev.map((v, i) => recSessions[i]?.extra ?? v));
       setAmounts((prev) => prev.map((v, i) => recSessions[i]?.amount ?? v));
-      setSavedMsg(`✓ ${py}년 ${pm}월 기록 내용을 가져왔어요 (바우처·추가구매 분·총이용금액 포함). 수정 후 저장하세요.`);
+      // 가져온 내용은 사용자 입력과 동일하게 취급 → 자동저장이 보존하도록 게이트 해제.
+      recordTouched.current = true;
+      setSavedMsg(`✓ ${py}년 ${pm}월 기록 내용을 가져왔어요 (바우처·추가구매 분·총이용금액 포함). 자동 저장됩니다.`);
     } catch {
       alert("불러오기 실패");
-    }
-  }
-
-  async function saveRecord() {
-    if (!childServiceId) {
-      alert("이 아동이 시스템에 등록돼 있지 않아 저장할 수 없어요. 원장님께 아동 등록을 요청해주세요.");
-      return;
-    }
-    setSaving(true);
-    setSavedMsg("");
-    try {
-      const payload = {
-        childServiceId,
-        year,
-        month: monthNumForLoad,
-        org,
-        childName: child,
-        childBirth: birth,
-        opinion,
-        sessions: rows.map((s, i) => {
-          const pu = parseYMD(s.use);
-          const pp = parseYMD(s.pay);
-          const useDayNum = useDays[i];
-          return {
-            ordinal: i + 1,
-            date: pu ? `${pu.mo}/${pu.d}` : "",
-            startTime: times[i].start,
-            endTime: times[i].end,
-            voucher: vouchers[i],
-            extra: extras[i],
-            amount: amounts[i],
-            useDay: useDayNum !== null ? String(useDayNum) : "",
-            payDay: pp ? String(pp.d) : "",
-            apprNumber: s.appr,
-            result: results[i],
-            resultExtra: mismatchReasons[i] || undefined,
-            retroReason: retroReasons[i] || undefined,
-            status: statuses[i] || undefined,
-          };
-        }),
-        formId: outFormId || undefined, // 출력 양식 기억(일괄 출력에 사용)
-      };
-      const res = await fetch("/api/record/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const j = await res.json();
-      if (!res.ok) {
-        alert("저장 실패: " + (j.error ?? res.status));
-        return;
-      }
-      setLoadedRecordId(j.recordId);
-      setSavedMsg(`✓ ${child} ${monthNumForLoad}월 기록지를 저장했어요.`);
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -1215,9 +1160,6 @@ function RecordSheet({
           title="이전 달 기록의 결과·총평을 복사 (수정 후 저장)"
         >
           전월 기록 가져오기
-        </button>
-        <button className="btn" onClick={saveRecord} disabled={saving || !childServiceId}>
-          {saving ? "저장 중..." : "현재 내용 저장"}
         </button>
         {savedForms.length > 0 ? (
           <select
