@@ -31,11 +31,19 @@ type FillData = {
   normCharPr?: number;
 };
 
+// 서비스종류 등 '헤더 칸'은 보통 본문 값 칸보다 작은 글자로 설계돼 있어, 값 칸 글자통일
+// (normCharPr=날짜 칸 글자크기)을 강제하면 칸을 넘쳐 두 줄이 된다. 이 역할들은 칸 고유 글자크기를 유지.
+const SERVICE_ROLES = new Set(["서비스종류", "제공영역"]);
+
 function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
   const edits: CellEdit[] = [];
-  const put = (coord: Coord | undefined, value: string) => {
+  // 글자통일(normCharPr)에서 제외할 칸 — 칸 고유 글자크기 유지(헤더 칸 넘침 방지).
+  const keepNative = new Set<CellEdit>();
+  const put = (coord: Coord | undefined, value: string, native = false) => {
     if (!coord || value === undefined || value === null) return;
-    edits.push({ table: coord[0], row: coord[1], col: coord[2], p: coord[3], value: String(value) });
+    const e: CellEdit = { table: coord[0], row: coord[1], col: coord[2], p: coord[3], value: String(value) };
+    edits.push(e);
+    if (native) keepNative.add(e);
   };
   const putArr = (arr: Coord[] | undefined, val: (i: number) => string) => {
     (arr ?? []).forEach((co, i) => put(co, val(i)));
@@ -48,8 +56,8 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
   put(spec.org, d.org);
   put(spec.name, d.childName);
   put(spec.birth, d.childBirth);
-  put(spec.serviceArea, d.serviceType);
-  put(spec.serviceName, d.serviceType);
+  put(spec.serviceArea, d.serviceType, true);
+  put(spec.serviceName, d.serviceType, true);
   (spec.therapist ?? []).forEach((co) => put(co, d.therapistName));
 
   const S = d.sessions;
@@ -151,7 +159,7 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
     if (ROW.has(m.role)) {
       (manualRows[m.role] ??= []).push([m.table, m.row, m.col, m.p ?? 0] as Coord);
     } else if (scalarVal[m.role] !== undefined) {
-      put([m.table, m.row, m.col, m.p ?? 0] as Coord, scalarVal[m.role]);
+      put([m.table, m.row, m.col, m.p ?? 0] as Coord, scalarVal[m.role], SERVICE_ROLES.has(m.role));
     }
   }
   for (const role of Object.keys(manualRows)) {
@@ -165,8 +173,11 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
     }
   }
 
-  // 모든 값 칸에 정규화 글자속성 적용(검정·동일 크기·굵게/기울임/밑줄 없음).
-  return d.normCharPr != null ? edits.map((e) => ({ ...e, charPr: d.normCharPr })) : edits;
+  // 값 칸에 정규화 글자속성 적용(검정·동일 크기·굵게/기울임/밑줄 없음).
+  // 단, 헤더 칸(서비스종류 등 keepNative)은 칸 고유 글자크기를 유지해 넘침을 막는다.
+  return d.normCharPr != null
+    ? edits.map((e) => (keepNative.has(e) ? e : { ...e, charPr: d.normCharPr }))
+    : edits;
 }
 
 // 저장 양식으로 기록지 .hwpx 생성. 회기 5개 초과면 5개씩 나눠 여러 장.

@@ -5,7 +5,6 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireRole, generateApprovalCode } from "@/lib/auth";
 import { THERAPIST_TYPES, THERAPIST_TO_SERVICE, DEFAULT_SERVICE_TYPES } from "@/lib/constants";
-import { RECORD_FORM_KEYS } from "@/lib/record-forms";
 
 export async function updateCenter(formData: FormData) {
   const me = await requireRole(["OWNER", "ADMIN"]);
@@ -19,9 +18,6 @@ export async function updateCenter(formData: FormData) {
   const phone = String(formData.get("phone") ?? "").trim();
   const slotsRaw = String(formData.get("slots") ?? "").trim();
   const defaultUnit = Number(formData.get("defaultUnit") ?? 60000) || 60000;
-  // 기록지 서식(서식A/B/C) — 유효 키만 저장, 아니면 표준으로 폴백.
-  const recordFormRaw = String(formData.get("recordForm") ?? "").trim();
-  const recordForm = (RECORD_FORM_KEYS as readonly string[]).includes(recordFormRaw) ? recordFormRaw : "standard";
   if (!userName) {
     redirect("/center?err=" + encodeURIComponent("내 이름은 비울 수 없어요"));
   }
@@ -53,7 +49,6 @@ export async function updateCenter(formData: FormData) {
         serviceTypes,
         slots: slots.join(","),
         defaultUnit,
-        recordForm,
       },
     });
     await tx.user.update({

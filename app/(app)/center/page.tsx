@@ -3,7 +3,6 @@ import { requireRole, getEffectiveTherapistId } from "@/lib/auth";
 import { THERAPIST_TYPES } from "@/lib/constants";
 import { updateCenter } from "./actions";
 import SlotsEditor from "./SlotsEditor";
-import RecordFormField from "./RecordFormField";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +21,7 @@ export default async function CenterPage({
       where: { id: centerId },
       select: {
         name: true, address: true, phone: true, serviceTypes: true,
-        slots: true, defaultUnit: true, recordForm: true,
+        slots: true, defaultUnit: true,
       },
     }),
     prisma.user.findUnique({ where: { id: me.id }, select: { name: true, therapistType: true } }),
@@ -120,9 +119,6 @@ export default async function CenterPage({
                 <div className="sub-mute" style={{ fontSize: 11, marginTop: 8 }}>
                   본인이 운영하는 회기 시간들. 일정표·세션 편집에서 드롭다운 옵션으로 사용됩니다.
                 </div>
-              </div>
-              <div className="field" style={{ gridColumn: "1 / -1" }}>
-                <RecordFormField defaultValue={center.recordForm} />
               </div>
             </div>
 
