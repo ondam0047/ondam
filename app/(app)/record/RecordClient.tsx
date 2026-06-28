@@ -124,6 +124,8 @@ export default function RecordClient({
 
   const [grouped, setGrouped] = useState<Grouped>({});
   const [curChild, setCurChild] = useState<string | null>(null);
+  // 현재 직접시작 아동의 일정표 회기 수 — 기록지 회기 수와 다르면 '다시 불러오기' 안내(일정표를 나중에 수정한 경우).
+  const [schedCount, setSchedCount] = useState<number | null>(null);
 
   // 일정표·기록지 사이 이동 시 미리보기 화면 그대로 복원
   const LS_DRAFT = "baroilji_record_draft";
@@ -158,6 +160,28 @@ export default function RecordClient({
     setHydrated(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 직접시작(단일 아동) 기록지의 일정표 회기 수를 불러와 기록지 회기 수와 비교.
+  // (엑셀 다중아동 등은 비교하지 않음 — Object.keys(grouped).length===1 일 때만)
+  useEffect(() => {
+    const single = Object.keys(grouped).length === 1;
+    if (typeof manualCSId !== "number" || !manualYm || !curChild || !single) { setSchedCount(null); return; }
+    const cs = myServices.find((s) => s.id === manualCSId);
+    const tag = cs ? (cs.hasMultipleServices ? `${cs.name} · ${cs.serviceType}` : cs.name) : null;
+    if (!cs || tag !== curChild) { setSchedCount(null); return; }
+    const [y, m] = manualYm.split("-").map(Number);
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`/api/schedule/load?childServiceId=${manualCSId}&year=${y}&month=${m}`);
+        if (!r.ok || cancelled) { if (!cancelled) setSchedCount(null); return; }
+        const d = await r.json();
+        const n = Array.isArray(d?.sessions) ? d.sessions.length : 0;
+        if (!cancelled) setSchedCount(n > 0 ? n : null);
+      } catch { if (!cancelled) setSchedCount(null); }
+    })();
+    return () => { cancelled = true; };
+  }, [manualCSId, manualYm, curChild, grouped, myServices]);
 
   // 일정표/대시보드에서 ?cs=&ym= 로 넘어오면 해당 아동·월로 자동 작성 시작
   const searchParams = useSearchParams();
@@ -549,6 +573,23 @@ export default function RecordClient({
               ))}
             </div>
 
+            {curChild && schedCount != null && grouped[curChild] && grouped[curChild].length !== schedCount && (
+              <div className="flash warn" style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <span>
+                  ⚠ 일정표 회기(<b>{schedCount}회</b>)와 기록지 회기(<b>{grouped[curChild].length}회</b>)가 달라요.
+                  일정표를 수정했다면 일정표 기준으로 다시 불러오세요. (입력한 결과는 회기 순서대로 다시 채워져요)
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  style={{ marginLeft: "auto", fontWeight: 700 }}
+                  onClick={() => startManual()}
+                  disabled={manualLoading}
+                >
+                  {manualLoading ? "불러오는 중..." : `일정표 ${schedCount}회로 다시 불러오기`}
+                </button>
+              </div>
+            )}
             {curChild && (
               <RecordSheet
                 // 회기 수를 key 에 포함 — 더 넓은 엑셀을 재업로드해 회기 수가 바뀌면
