@@ -25,6 +25,8 @@ export default function FormMapperClient() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
+  // AI 매핑은 보통 30~80초 걸려 — 멈춘 줄 오해 않도록 경과 초를 보여준다.
+  const [aiElapsed, setAiElapsed] = useState(0);
   // AI 가 신뢰도 낮게(<0.6) 제안한 칸 — 사람이 꼭 확인하도록 표시. key="t,r,c"
   const [lowConf, setLowConf] = useState<Set<string>>(new Set());
   const [downloading, setDownloading] = useState(false);
@@ -36,6 +38,13 @@ export default function FormMapperClient() {
   // 셀프 보정: 칸 클릭으로 역할 지정/해제. key="t,r,c" → 역할(빈문자열=해제)
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [picker, setPicker] = useState<{ t: number; r: number; c: number; text: string; x: number; y: number } | null>(null);
+
+  // AI 매핑 동안 1초마다 경과 초 증가(끝나면 0으로 리셋).
+  useEffect(() => {
+    if (!aiLoading) { setAiElapsed(0); return; }
+    const t = setInterval(() => setAiElapsed((s) => s + 1), 1000);
+    return () => clearInterval(t);
+  }, [aiLoading]);
 
   const loadSaved = useCallback(() => {
     fetch("/api/forms/saved").then((r) => (r.ok ? r.json() : { forms: [] })).then((d) => setSaved(d.forms ?? [])).catch(() => {});
@@ -226,7 +235,7 @@ export default function FormMapperClient() {
             {result && (
               <button className="btn" onClick={() => runAutoMap()} disabled={aiLoading || loading}
                 title="규칙 자동인식이 놓친 칸까지 AI가 역할을 제안해요. 제안 후 칸을 클릭해 고칠 수 있어요.">
-                {aiLoading ? "AI 매핑 중…" : "✨ AI로 칸 자동 매핑"}
+                {aiLoading ? `AI 매핑 중… ${aiElapsed}초` : "✨ AI로 칸 자동 매핑"}
               </button>
             )}
             {result && (
@@ -241,9 +250,36 @@ export default function FormMapperClient() {
               </button>
             )}
           </div>
+          {aiLoading && (
+            <div role="status" aria-live="polite" style={{
+              display: "grid", gap: 8, padding: "12px 14px", borderRadius: 10,
+              background: "var(--primary-soft)", border: "1px solid var(--primary)",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, fontWeight: 700, color: "var(--primary)" }}>
+                <span className="ai-spin" style={{
+                  width: 14, height: 14, borderRadius: "50%", display: "inline-block",
+                  border: "2px solid currentColor", borderTopColor: "transparent",
+                }} />
+                ✨ AI가 양식 칸을 분석하고 있어요
+                <span style={{ marginLeft: "auto", fontVariantNumeric: "tabular-nums", color: "var(--text-soft)", fontWeight: 600 }}>
+                  {aiElapsed}초 경과
+                </span>
+              </div>
+              {/* 정확한 진행률은 알 수 없어 — 예상 60초 기준으로 95%까지 서서히 차오르는 표시 */}
+              <div style={{ height: 6, borderRadius: 999, background: "rgba(0,0,0,0.08)", overflow: "hidden" }}>
+                <div style={{
+                  height: "100%", width: `${Math.min(95, Math.round((aiElapsed / 60) * 95))}%`,
+                  background: "var(--primary)", borderRadius: 999, transition: "width 1s linear",
+                }} />
+              </div>
+              <div style={{ fontSize: 12, color: "var(--text-soft)" }}>
+                보통 30~80초 걸려요. 창을 닫지 말고 잠시만 기다려 주세요{aiElapsed >= 90 ? " — 양식이 커서 조금 더 걸리고 있어요." : "."}
+              </div>
+            </div>
+          )}
           <p style={{ margin: 0, fontSize: 12.5, color: "var(--text-mute)", lineHeight: 1.6 }}>
             편집 가능한 <b>.hwpx</b> 빈 양식만 분석돼요(.hwp·스캔·PDF 미지원). 분석 후 <b>샘플로 채워 받기</b>로
-            실제 한글 파일에 더미 데이터가 제대로 들어가는지 먼저 확인하세요.
+            실제 한글 파일에 더미 데이터가 제대로 들어가는지 먼저 확인하세요. <b>✨ AI로 칸 자동 매핑</b>은 30~80초 정도 걸려요.
           </p>
         </div>
       </div>

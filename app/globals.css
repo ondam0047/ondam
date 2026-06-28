@@ -1330,3 +1330,7 @@ label.fl { display: block; font-size: 12px; color: var(--text-soft); margin-bott
   .month-row .m-cell { display: flex; align-items: center; gap: 8px; }
   .month-row .m-label { display: inline; min-width: 48px; }
 }
+
+/* AI 자동매핑 진행 스피너 */
+@keyframes ai-spin { to { transform: rotate(360deg); } }
+.ai-spin { animation: ai-spin 0.8s linear infinite; }
