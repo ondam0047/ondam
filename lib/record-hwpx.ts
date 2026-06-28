@@ -155,6 +155,12 @@ function push(edits: CellEdit[], c: Coord | undefined, value: string) {
   edits.push({ table: c[0], row: c[1], col: c[2], p: c[3], value });
 }
 
+// 승인일자 등 날짜 칸은 '월일'만 — 앞의 4자리 연도+구분자(년/./-//공백)를 떼어낸다.
+// "2026-06-02"→"06-02", "2026.6.2"→"6.2", "2026년 6월 2일"→"6월 2일". 일 숫자·"6/2"는 그대로.
+export function monthDayOnly(s: string): string {
+  return String(s ?? "").replace(/^\s*\d{4}\s*[년.\-/]\s*/, "").trim();
+}
+
 // 총금액을 바우처분:추가구매분 비율로 나눔. 합은 항상 총액과 일치(반올림 차이는 자부담에 흡수).
 function splitAmount(
   amount: string,
@@ -211,7 +217,7 @@ function buildCoordEdits(spec: CoordSpec, p: RecordPayload): CellEdit[] {
     if (r) {
       push(edits, r.date, s?.date ?? "");
       push(edits, r.time, s?.endTime ?? "");
-      push(edits, r.apprDate, s ? s.payDay || s.date || "" : "");
+      push(edits, r.apprDate, s ? monthDayOnly(s.payDay || s.date || "") : "");
       push(edits, r.apprNum, s?.apprNumber ?? "");
       push(edits, r.status, s?.status ?? ""); // 이용자 상태 (분리 칸 양식만; 없으면 no-op)
       push(edits, r.result, s?.result ?? "");
@@ -223,7 +229,7 @@ function buildCoordEdits(spec: CoordSpec, p: RecordPayload): CellEdit[] {
       const d = spec.detail[i];
       if (!d) continue;
       push(edits, d.date, s?.date ?? "");
-      push(edits, d.apprDate, s ? s.payDay || s.date || "" : "");
+      push(edits, d.apprDate, s ? monthDayOnly(s.payDay || s.date || "") : "");
       push(edits, d.apprNum, s?.apprNumber ?? "");
       push(edits, d.result, s?.result ?? "");
     }

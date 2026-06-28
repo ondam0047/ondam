@@ -9,7 +9,7 @@ import { buildCalendarEdits, type CalSession } from "@/lib/schedule-calendar";
 import { getCellRunCharPr, addClonedCharPr } from "@/lib/hwpx-charpr";
 import { autoFitRecordFont } from "@/lib/record-autofit";
 import { holiday } from "@/lib/constants";
-import type { RecordPayload, RecordSessionDetail } from "@/lib/record-hwpx";
+import { monthDayOnly, type RecordPayload, type RecordSessionDetail } from "@/lib/record-hwpx";
 
 const num = (s?: string) => Number(String(s ?? "").replace(/[^0-9.-]/g, "")) || 0;
 const won = (n: number) => n.toLocaleString("ko-KR");
@@ -91,7 +91,7 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
     const s = S[i];
     if (!s) return;
     put(row.date, s.useDay || s.date || "");
-    put(row.apprDate, s.useDay || "");
+    put(row.apprDate, monthDayOnly(s.useDay || ""));
     put(row.apprNum, s.apprNumber || "");
     put(row.time, s.startTime || "");
     put(row.status, s.status || "");
@@ -102,7 +102,7 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
     const s = S[i];
     if (!s) return;
     put(row.date, s.useDay || s.date || "");
-    put(row.apprDate, s.useDay || "");
+    put(row.apprDate, monthDayOnly(s.useDay || ""));
     put(row.apprNum, s.apprNumber || "");
     put(row.result, composeResult(s));
   });
