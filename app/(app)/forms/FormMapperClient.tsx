@@ -6,7 +6,7 @@ import { rolesForForm } from "@/lib/record-roles";
 
 type Cell = { r: number; c: number; cs: number; rs: number; text: string; role: string | null };
 type Spec = { schedule?: Array<{ role: string }>; detail?: unknown[]; extraSessionCols?: number[]; extraResultRows?: number[] };
-type AnalyzeResult = { coverage: Record<string, boolean>; grid: Cell[][]; spec?: Spec; cached?: { overrides: Record<string, string> } | null };
+type AnalyzeResult = { coverage: Record<string, boolean>; grid: Cell[][]; spec?: Spec; cached?: { overrides: Record<string, string> } | null; warning?: string };
 type Suggestion = { table: number; row: number; col: number; p?: number; role: string; confidence: number };
 
 // 캐시/AI 가 주는 4-요소 키(t,r,c,p)를 매퍼가 쓰는 3-요소 키(t,r,c)로 정규화.
@@ -23,6 +23,8 @@ export default function FormMapperClient() {
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<AnalyzeResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // 발달바우처 양식 확인 경고(차단은 아니지만 사용자 확인 권유)
+  const [warning, setWarning] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   // AI 매핑은 보통 30~80초 걸려 — 멈춘 줄 오해 않도록 경과 초를 보여준다.
@@ -55,7 +57,7 @@ export default function FormMapperClient() {
   async function analyze(f?: File) {
     const target = f ?? file;
     if (!target) return;
-    setLoading(true); setError(null); setResult(null); setOverrides({}); setLowConf(new Set()); setPicker(null);
+    setLoading(true); setError(null); setWarning(null); setResult(null); setOverrides({}); setLowConf(new Set()); setPicker(null);
     try {
       const fd = new FormData();
       fd.append("file", target);
@@ -63,6 +65,7 @@ export default function FormMapperClient() {
       const d = await r.json() as AnalyzeResult & { error?: string };
       if (!r.ok) throw new Error(d.error || "분석 실패");
       setResult(d);
+      setWarning(d.warning ?? null);
       const hasRecord = d.coverage && (d.coverage.date || d.coverage.result);
       const k = hasRecord ? "record" : (d.spec?.schedule?.length ? "schedule" : "record");
       setKind(k);
@@ -231,7 +234,7 @@ export default function FormMapperClient() {
               <input type="file" accept=".hwpx" style={{ display: "none" }}
                 onChange={(e) => {
                   const f = e.target.files?.[0] ?? null;
-                  setFile(f); setResult(null); setError(null);
+                  setFile(f); setResult(null); setError(null); setWarning(null);
                   if (f) void analyze(f);
                 }} />
             </label>
@@ -294,6 +297,11 @@ export default function FormMapperClient() {
       {error && (
         <div style={{ padding: "10px 14px", borderRadius: 10, fontSize: 13.5, lineHeight: 1.6, background: "#F6E4DE", color: "#8A2F1C", border: "1px solid #E6C3B8" }}>
           {error}
+        </div>
+      )}
+      {warning && !error && (
+        <div style={{ padding: "10px 14px", borderRadius: 10, fontSize: 13.5, lineHeight: 1.6, background: "#FBF3DD", color: "#8A6422", border: "1px solid #E8D9A8" }}>
+          ⚠ {warning}
         </div>
       )}
 

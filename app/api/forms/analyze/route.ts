@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { readSection0 } from "@/lib/hwpx";
 import { resolveForm } from "@/lib/record-resolver";
 import { formFingerprint } from "@/lib/record-fingerprint";
+import { classifyDevVoucherForm } from "@/lib/form-gate";
 
 // 업로드한 .hwpx 기록지 양식을 자동매핑 → 커버리지 + 격자(미리보기용) + spec.
 export async function POST(req: NextRequest) {
@@ -23,6 +24,13 @@ export async function POST(req: NextRequest) {
   }
 
   const { spec, coverage, grid } = resolveForm(xml);
+
+  // 발달바우처 전용 게이트 — 타사업(지역사회바우처·교육청 등) 양식은 차단.
+  const gate = classifyDevVoucherForm(grid, spec);
+  if (gate.verdict === "block") {
+    return Response.json({ error: gate.reason }, { status: 422 });
+  }
+
   // 미리보기용으로 격자를 가볍게 — norm 제외
   const slimGrid = grid.map((cells) =>
     cells.map((c) => ({ r: c.r, c: c.c, cs: c.cs, rs: c.rs, text: c.text, role: c.role ?? null, p: c.p, paras: c.paras })),
@@ -41,5 +49,6 @@ export async function POST(req: NextRequest) {
     }
   } catch { /* 캐시 조회 실패는 무시 */ }
 
-  return Response.json({ coverage, grid: slimGrid, spec, fingerprint, cached });
+  const warning = gate.verdict === "warn" ? gate.reason : undefined;
+  return Response.json({ coverage, grid: slimGrid, spec, fingerprint, cached, warning });
 }

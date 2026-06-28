@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { readSection0, patchSection0 } from "@/lib/hwpx";
 import { resolveForm, applyOverrides } from "@/lib/record-resolver";
 import { removeTableColumns, removeTableRows } from "@/lib/record-trim";
+import { classifyDevVoucherForm } from "@/lib/form-gate";
 
 const KINDS = new Set(["record", "schedule"]);
 
@@ -36,7 +37,13 @@ export async function POST(req: NextRequest) {
   let specJson: string;
   try {
     let xml = readSection0(buf);
-    let spec = resolveForm(xml).spec;
+    const resolved = resolveForm(xml);
+    let spec = resolved.spec;
+    // 발달바우처 전용 게이트(방어) — 타사업 양식은 저장 거부.
+    const gate = classifyDevVoucherForm(resolved.grid, spec);
+    if (gate.verdict === "block") {
+      return Response.json({ error: gate.reason }, { status: 422 });
+    }
     // 회기 칸·결과표 행이 5개를 넘으면 저장 시 자동으로 5칸/5행으로 정리.
     // → 출력이 항상 5회기 기준이 되고, 6회기 이상이면 자동으로 두 장으로 나뉜다.
     let trimmed = false;
