@@ -291,10 +291,12 @@ export function generateOneRecordSheet(
 ): Buffer {
   const oldXml = readSection0(templateBuf);
   const oldHeader = readHeader(templateBuf);
+  // 불일치·소급 사유를 결과칸에 보존 — 내장 양식(표준·동탄·남양주) 모두 결과칸은 한 칸이라 공통 적용.
+  const folded = foldStandardExtra(p);
   const filledXml =
     form === "standard"
-      ? substituteCoordXml(oldXml, foldStandardExtra(p), STANDARD_SPEC)
-      : substituteCoordXml(oldXml, p, COORD_SPECS[form]);
+      ? substituteCoordXml(oldXml, folded, STANDARD_SPEC)
+      : substituteCoordXml(oldXml, folded, COORD_SPECS[form]);
   // 긴 결과 텍스트가 고정 칸을 넘쳐 다음 표와 겹치지 않도록, 칸은 그대로 두고
   // 결과 글자 크기를 줄여 칸 안에 맞춘다(기록지 1장 고정). section0·header 둘 다 갱신.
   const fit = autoFitRecordFont(filledXml, oldHeader, AUTOFIT[form]);

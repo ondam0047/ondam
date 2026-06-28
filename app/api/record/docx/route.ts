@@ -16,6 +16,7 @@ type SessionDetail = {
   extra: string;
   amount: string;
   result: string;
+  resultExtra?: string;
   retroReason?: string;
 };
 
@@ -130,10 +131,13 @@ export async function POST(req: NextRequest) {
     ]}),
   ];
   p.sessions.forEach((s, i) => {
-    // 소급 사유가 있으면 결과 본문 아래 별도 단락("* 소급 사유: …")으로 표기
-    const resultCell = s.retroReason
-      ? multiCell([para(s.result || "(미작성)"), para(`* 소급 사유: ${s.retroReason}`)])
-      : cell(s.result || "(미작성)");
+    // 결과 본문 아래에 불일치 사유("- …")·소급 사유("* 소급 사유: …")를 별도 단락으로 표기.
+    const lines = [para(s.result || "(미작성)")];
+    const mismatch = (s.resultExtra ?? "").trim();
+    if (mismatch) lines.push(para(mismatch.startsWith("-") ? mismatch : `- ${mismatch}`));
+    const retro = (s.retroReason ?? "").trim();
+    if (retro) lines.push(para(`* 소급 사유: ${retro}`));
+    const resultCell = lines.length > 1 ? multiCell(lines) : cell(s.result || "(미작성)");
     resultRows.push(new TableRow({ children: [
       cell(String(i + 1)),
       cell(`제공 ${s.use} · 승인 ${s.pay} · 번호 ${s.appr}`),

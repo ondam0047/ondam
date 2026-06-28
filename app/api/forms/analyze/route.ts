@@ -14,6 +14,10 @@ export async function POST(req: NextRequest) {
   const form = await req.formData();
   const file = form.get("file");
   if (!(file instanceof Blob)) return Response.json({ error: "no file" }, { status: 400 });
+  // 발달바우처 전용 게이트는 '우리 센터 양식(forms)'에만 적용. 기타지원사업(scope=support)은
+  // 지역사회서비스·교육청 등 타사업 양식을 쓰므로 게이트를 적용하지 않는다.
+  const scope = String(form.get("scope") ?? "");
+  const applyGate = scope !== "support";
 
   let xml: string;
   try {
@@ -25,8 +29,8 @@ export async function POST(req: NextRequest) {
 
   const { spec, coverage, grid } = resolveForm(xml);
 
-  // 발달바우처 전용 게이트 — 타사업(지역사회바우처·교육청 등) 양식은 차단.
-  const gate = classifyDevVoucherForm(grid, spec);
+  // 발달바우처 전용 게이트 — 타사업(지역사회바우처·교육청 등) 양식은 차단. (기타지원사업은 제외)
+  const gate = applyGate ? classifyDevVoucherForm(grid, spec) : { verdict: "allow" as const };
   if (gate.verdict === "block") {
     return Response.json({ error: gate.reason }, { status: 422 });
   }

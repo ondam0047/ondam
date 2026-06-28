@@ -301,6 +301,7 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
     try {
       const fd = new FormData();
       fd.append("file", file);
+      fd.append("scope", "support"); // 기타지원사업 — 발달바우처 전용 게이트 미적용
       const res = await fetch("/api/forms/analyze", { method: "POST", body: fd });
       const d   = await res.json();
       if (!res.ok) throw new Error(d.error ?? "분석 실패");

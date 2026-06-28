@@ -27,6 +27,10 @@ export async function POST(req: NextRequest) {
   // 1인 사물함 — 가져온 아동은 모두 본인에게 배정
   const therapistId = await getEffectiveTherapistId(user);
 
+  // 단가 미입력 시 센터 기본단가로 폴백(0원으로 저장돼 총금액이 0이 되는 것 방지).
+  const center = await prisma.center.findUnique({ where: { id: centerId }, select: { defaultUnit: true } });
+  const fallbackUnit = center?.defaultUnit ?? 60000;
+
   const body = (await req.json()) as Body;
   const rows = body.children ?? [];
 
@@ -73,7 +77,7 @@ export async function POST(req: NextRequest) {
         serviceType,
         defaultSlot: r.defaultSlot?.trim() || null,
         defaultDays: r.defaultDays?.trim() || null,
-        defaultUnit: r.defaultUnit ?? 0,
+        defaultUnit: r.defaultUnit ?? fallbackUnit,
         defaultTarget: r.defaultTarget ?? 5,
         monthlyCopay: r.monthlyCopay ?? null,
       },

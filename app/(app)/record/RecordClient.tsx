@@ -627,7 +627,8 @@ function RecordSheet({
   const betaUx = useBetaUx();
   // 서식B(동탄)는 '이용자 상태'와 '서비스 결과'가 별도 칸 → 상태 입력칸을 따로 보여준다.
   const splitStatus = recordForm === "dongtan";
-  const monthSet = [...new Set(rows.map((s) => parseYMD(s.use)?.mo).filter(Boolean))];
+  const parsedUse = rows.map((s) => parseYMD(s.use)).filter(Boolean) as { y: number; mo: number; d: number }[];
+  const monthSet = [...new Set(parsedUse.map((p) => p.mo))];
   const month = monthSet[0] ?? "";
   // DB 매칭: 본인 담당 ChildService 중 라벨/이름이 일치.
   // 직접 시작 모드는 라벨이 'name · serviceType' 인 경우가 있음.
@@ -636,7 +637,8 @@ function RecordSheet({
     return tag === child;
   }) ?? myServices.find((c) => c.name === child);
   const childServiceId = matchedService?.id ?? null;
-  const year = new Date().getFullYear(); // 단순화: 올해 기준 (대부분 맞음)
+  // 연도도 이용일자 기준 — 연말경계(예: 1월에 작년 12월 기록 작성) 시 올해로 어긋나 분실되는 것 방지.
+  const year = parsedUse[0]?.y || new Date().getFullYear();
   const birth = rows[0]?.birth ?? "";
   const org = rows[0]?.org ?? "";
 
@@ -908,6 +910,7 @@ function RecordSheet({
           start: times[i].start, end: times[i].end,
           voucher: vouchers[i], extra: extras[i], amount: amounts[i],
           result: results[i],
+          resultExtra: mismatchReasons[i] || undefined,
           retroReason: retroReasons[i] || undefined,
         })),
       };

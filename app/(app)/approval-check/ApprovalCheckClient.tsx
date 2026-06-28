@@ -34,7 +34,7 @@ function timeToMin(hhmm: string): number | null {
 const SESSION_MIN = 50;   // 1 회기 기본 길이
 const TOL = 10;           // 허용 오차 (앞쪽 ±10분)
 
-type Violation = { kind: "too_close"; gap: number; expectedMin: number };
+type Violation = { kind: "too_close"; gap: number; expectedMin: number; same?: boolean };
 
 // 같은 날 직전 결제와의 간격이 회기 길이보다 짧으면 (= 이전 회기와 겹침) 위반.
 // 간격이 멀어진 건 휴식·블록 전환이므로 검사 제외.
@@ -44,7 +44,9 @@ function checkRowAgainstPrev(prev: Row, curr: Row): Violation | null {
   const b = timeToMin(curr.payTime);
   if (a == null || b == null) return null;
   const gap = b - a;
-  if (gap <= 0) return null;
+  if (gap < 0) return null;   // 정렬 역전(이론상 없음) — 건너뜀
+  // 간격 0 = 같은 시각 결제(중복/재업로드) → 가장 심한 겹침. 절대 놓치면 안 됨.
+  if (gap === 0) return { kind: "too_close", gap, expectedMin: SESSION_MIN - TOL, same: true };
   if (gap < SESSION_MIN - TOL) {
     return { kind: "too_close", gap, expectedMin: SESSION_MIN - TOL };
   }
@@ -150,9 +152,16 @@ export default function ApprovalCheckClient() {
   // 휴식 시간(≥120분) 으로 떨어진 건 검사 제외.
   const violations = useMemo(() => {
     const out = new Map<number, Violation>();
-    for (let i = 1; i < rows.length; i++) {
-      const v = checkRowAgainstPrev(rows[i - 1], rows[i]);
-      if (v) out.set(i, v);
+    // 소급결제는 처리일에 여러 건이 몇 초~분 간격으로 몰려 결제시간 간격이 무의미 → 검사에서 제외.
+    // (소급 행을 건너뛰고, 직전 '비소급' 행과 비교)
+    let prevIdx = -1;
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i].payKind.includes("소급")) continue;
+      if (prevIdx >= 0) {
+        const v = checkRowAgainstPrev(rows[prevIdx], rows[i]);
+        if (v) out.set(i, v);
+      }
+      prevIdx = i;
     }
     return out;
   }, [rows]);
@@ -231,7 +240,7 @@ export default function ApprovalCheckClient() {
             <div className="tip" style={{ marginBottom: 12, fontSize: 12.5, lineHeight: 1.6 }}>
               빨간색 행 = 직전 결제와 간격이 40분(50분 ± 10분 허용) 미만 — 이전 회기와 겹침.
               간격이 멀어진 건 휴식·블록 전환으로 보고 검사하지 않아요.
-              소급결제 건은 별도 사유서가 필요합니다.
+              소급결제 건은 결제시간 간격이 무의미해 겹침 검사에서 제외하며, 별도 사유서가 필요합니다.
             </div>
 
             <div className="scroll">
@@ -268,7 +277,9 @@ export default function ApprovalCheckClient() {
                             <>
                               <span style={{ fontFamily: "monospace", fontWeight: 700 }}>{v.gap}분</span>
                               <span style={{ marginLeft: 6, fontSize: 11 }}>
-                                (이전 회기와 겹침 — {v.expectedMin - v.gap}분 빠름)
+                                {v.same
+                                  ? "(직전 결제와 같은 시각 — 중복/겹침)"
+                                  : `(이전 회기와 겹침 — ${v.expectedMin - v.gap}분 빠름)`}
                               </span>
                             </>
                           ) : ""}

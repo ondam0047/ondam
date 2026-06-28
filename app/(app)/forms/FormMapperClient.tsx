@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useBetaUx } from "../BetaUxContext";
 import { rolesForForm } from "@/lib/record-roles";
 
-type Cell = { r: number; c: number; cs: number; rs: number; text: string; role: string | null };
+type Cell = { r: number; c: number; cs: number; rs: number; text: string; role: string | null; p?: number };
 type Spec = { schedule?: Array<{ role: string }>; detail?: unknown[]; extraSessionCols?: number[]; extraResultRows?: number[] };
 type AnalyzeResult = { coverage: Record<string, boolean>; grid: Cell[][]; spec?: Spec; cached?: { overrides: Record<string, string> } | null; warning?: string };
 type Suggestion = { table: number; row: number; col: number; p?: number; role: string; confidence: number };
@@ -186,9 +186,14 @@ export default function FormMapperClient() {
     setOverrides({ ...overrides, [K]: role }); // role "" = 해제. 중복제거 안 함(다중 허용)
     setPicker(null);
   }
+  // 저장 시 칸의 채움 문단(p)을 함께 보낸다 — resolver가 grid 셀에 부여한 p를 되살려
+  // 다문단 칸에서 엉뚱한 문단(p0)에 값이 채워지는 것을 막는다(서버 applyOverrides가 p를 사용).
+  const cellP = new Map<string, number>();
+  (result?.grid ?? []).forEach((cells, ti) =>
+    cells.forEach((c) => cellP.set(`${ti},${c.r},${c.c}`, c.p ?? 0)));
   const overridesArray = Object.entries(overrides).map(([k, role]) => {
     const [t, r, c] = k.split(",").map(Number);
-    return { table: t, row: r, col: c, role };
+    return { table: t, row: r, col: c, p: cellP.get(k) ?? 0, role };
   });
 
   const KIND_LABEL: Record<string, string> = { record: "기록지", schedule: "일정표" };

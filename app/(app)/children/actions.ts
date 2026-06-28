@@ -136,6 +136,13 @@ export async function updateChild(id: number, formData: FormData) {
       if (!incomingIds.includes(existing.id)) {
         // 본인 담당이 아닌 서비스는 삭제할 수 없음
         if (existing.therapistId !== forcedTherapistId) continue;
+        // 저장된 일정표·기록지가 있으면 삭제하지 않는다 — ChildService 삭제는 Schedule·Record 를
+        // 연쇄 삭제(onDelete: Cascade)하므로, 서류가 통째로 사라지는 데이터 손실을 막는다.
+        const [schedN, recN] = await Promise.all([
+          tx.schedule.count({ where: { childServiceId: existing.id } }),
+          tx.record.count({ where: { childServiceId: existing.id } }),
+        ]);
+        if (schedN > 0 || recN > 0) continue; // 저장 서류 보존 — 서비스는 남겨둠
         await tx.childService.delete({ where: { id: existing.id } });
       }
     }

@@ -7,6 +7,7 @@ import { removeTableColumns, removeTableRows } from "@/lib/record-trim";
 import { detectCalendarFromXml, type ResolvedSpec } from "@/lib/record-resolver";
 import { buildCalendarEdits, type CalSession } from "@/lib/schedule-calendar";
 import { getCellRunCharPr, addClonedCharPr } from "@/lib/hwpx-charpr";
+import { autoFitRecordFont } from "@/lib/record-autofit";
 import { holiday } from "@/lib/constants";
 import type { RecordPayload, RecordSessionDetail } from "@/lib/record-hwpx";
 
@@ -237,6 +238,14 @@ export function generateRecordFromForm(
     normCharPr,
   };
 
+  // 결과 narrative 칸을 표별로 모아둔다 — 출력 시 긴 결과가 칸을 넘쳐 다음 표와 겹치는 걸
+  // 막기 위해 글자 자동축소(autoFitRecordFont)를 적용한다(내장 standard 양식과 동일 처리).
+  const narrByTable = new Map<number, Set<number>>();
+  const addNarr = (co?: Coord) => { if (co) (narrByTable.get(co[0]) ?? narrByTable.set(co[0], new Set()).get(co[0])!).add(co[2]); };
+  spec.result?.forEach((row) => addNarr(row.result));
+  spec.detail?.forEach((row) => addNarr(row.result));
+  for (const m of spec.manual ?? []) if (m.role === "결과") addNarr([m.table, m.row, m.col, m.p ?? 0] as Coord);
+
   return chunks.map((sessionChunk) => {
     let xml = baseXml;
     if (spec.dateTable != null && spec.extraSessionCols?.length) {
@@ -252,8 +261,18 @@ export function generateRecordFromForm(
     xml = fillCells(xml, edits);
     // 제목의 "( N월 )" 채우기 (빈 양식은 "(  월)" 처럼 비어 있음)
     if (payload.month) xml = xml.replace(/(기록지\s*\(\s*)\d*(\s*월)/, `$1${payload.month}$2`);
-    return header
-      ? patchFiles(template, { "Contents/section0.xml": xml, "Contents/header.xml": header })
+    // 결과 칸 글자 자동축소 — 긴 결과가 칸을 넘쳐 아래 표와 겹치는 것 방지.
+    let outHeader = header;
+    if (narrByTable.size) {
+      let h = outHeader ?? readHeader(template);
+      for (const [tbl, cols] of narrByTable) {
+        const fit = autoFitRecordFont(xml, h, { resultTable: tbl, narrativeCols: [...cols] });
+        xml = fit.section; h = fit.header;
+      }
+      outHeader = h;
+    }
+    return outHeader
+      ? patchFiles(template, { "Contents/section0.xml": xml, "Contents/header.xml": outHeader })
       : patchSection0(template, xml);
   });
 }
