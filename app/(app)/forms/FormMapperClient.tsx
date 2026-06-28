@@ -51,12 +51,14 @@ export default function FormMapperClient() {
   }, []);
   useEffect(() => { loadSaved(); }, [loadSaved]);
 
-  async function analyze() {
-    if (!file) return;
+  // 파일 선택 즉시 자동 분석(규칙 기반·무료·즉시). f 를 직접 받음 — setFile 은 비동기라 state 의존 X.
+  async function analyze(f?: File) {
+    const target = f ?? file;
+    if (!target) return;
     setLoading(true); setError(null); setResult(null); setOverrides({}); setLowConf(new Set()); setPicker(null);
     try {
       const fd = new FormData();
-      fd.append("file", file);
+      fd.append("file", target);
       const r = await fetch("/api/forms/analyze", { method: "POST", body: fd });
       const d = await r.json() as AnalyzeResult & { error?: string };
       if (!r.ok) throw new Error(d.error || "분석 실패");
@@ -64,7 +66,7 @@ export default function FormMapperClient() {
       const hasRecord = d.coverage && (d.coverage.date || d.coverage.result);
       const k = hasRecord ? "record" : (d.spec?.schedule?.length ? "schedule" : "record");
       setKind(k);
-      if (file && !formName) setFormName(file.name.replace(/\.hwpx$/i, ""));
+      if (!formName) setFormName(target.name.replace(/\.hwpx$/i, ""));
       // 학습 캐시 적중(같은 구조 양식을 전에 매핑) → 그 매핑 자동 적용. 아니면 베타계정은 AI 자동.
       const cached = d.cached?.overrides;
       if (cached && Object.keys(cached).length) {
@@ -223,30 +225,35 @@ export default function FormMapperClient() {
       <div className="card">
         <div className="card-body" style={{ display: "grid", gap: 14 }}>
           <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-            <label className="btn" style={{ cursor: "pointer" }}>
-              {file ? "다른 파일 선택" : ".hwpx 양식 선택"}
+            {/* 1단계: 파일 선택 → 즉시 자동 분석(별도 '분석' 버튼 없음) */}
+            <label className="btn btn-primary" style={{ cursor: "pointer" }}>
+              {loading ? "분석 중…" : file ? "다른 양식 선택" : ".hwpx 양식 선택"}
               <input type="file" accept=".hwpx" style={{ display: "none" }}
-                onChange={(e) => { setFile(e.target.files?.[0] ?? null); setResult(null); setError(null); }} />
+                onChange={(e) => {
+                  const f = e.target.files?.[0] ?? null;
+                  setFile(f); setResult(null); setError(null);
+                  if (f) void analyze(f);
+                }} />
             </label>
             {file && <span style={{ fontSize: 13, color: "var(--text-soft)" }}>{file.name}</span>}
-            <button className="btn btn-primary" onClick={analyze} disabled={!file || loading}>
-              {loading ? "분석 중…" : "자동 매핑 분석"}
-            </button>
+            {/* 2단계: (선택) AI 보완 매핑 */}
             {result && (
               <button className="btn" onClick={() => runAutoMap()} disabled={aiLoading || loading}
                 title="규칙 자동인식이 놓친 칸까지 AI가 역할을 제안해요. 제안 후 칸을 클릭해 고칠 수 있어요.">
                 {aiLoading ? `AI 매핑 중… ${aiElapsed}초` : "✨ AI로 칸 자동 매핑"}
               </button>
             )}
+            {/* 3단계: 샘플로 확인 */}
             {result && (
               <button className="btn" onClick={() => downloadSample(false)} disabled={downloading}>
-                {downloading ? "생성 중…" : "샘플로 채워 받기 (.hwpx)"}
+                {downloading ? "생성 중…" : "샘플로 확인 (.hwpx)"}
               </button>
             )}
             {result && ((result.spec?.extraSessionCols?.length ?? 0) > 0 || (result.spec?.extraResultRows?.length ?? 0) > 0) && (
-              <button className="btn" onClick={() => downloadSample(true)} disabled={downloading}
+              <button className="btn btn-ghost" onClick={() => downloadSample(true)} disabled={downloading}
+                style={{ fontSize: 12.5 }}
                 title="회기 칸·결과표 행이 5개를 넘는 양식에서 초과분을 제거해 5칸/5행으로 정리(실험)">
-                {downloading ? "생성 중…" : `5칸으로 정리해서 받기${(result.spec?.extraSessionCols?.length ?? 0) > 0 ? ` (회기 ${result.spec?.extraSessionCols?.length}칸↓)` : ""}${(result.spec?.extraResultRows?.length ?? 0) > 0 ? ` (결과 ${result.spec?.extraResultRows?.length}행↓)` : ""}`}
+                {downloading ? "생성 중…" : `5칸으로 정리해 받기${(result.spec?.extraSessionCols?.length ?? 0) > 0 ? ` (회기 ${result.spec?.extraSessionCols?.length}↓)` : ""}${(result.spec?.extraResultRows?.length ?? 0) > 0 ? ` (결과 ${result.spec?.extraResultRows?.length}↓)` : ""}`}
               </button>
             )}
           </div>
@@ -278,8 +285,8 @@ export default function FormMapperClient() {
             </div>
           )}
           <p style={{ margin: 0, fontSize: 12.5, color: "var(--text-mute)", lineHeight: 1.6 }}>
-            편집 가능한 <b>.hwpx</b> 빈 양식만 분석돼요(.hwp·스캔·PDF 미지원). 분석 후 <b>샘플로 채워 받기</b>로
-            실제 한글 파일에 더미 데이터가 제대로 들어가는지 먼저 확인하세요. <b>✨ AI로 칸 자동 매핑</b>은 30~80초 정도 걸려요.
+            <b>① 양식 선택</b>하면 바로 자동 인식해요(편집 가능한 <b>.hwpx</b> 빈 양식만 · .hwp·스캔·PDF 미지원).
+            놓친 칸이 있으면 <b>② ✨ AI로 칸 자동 매핑</b>(30~80초)으로 채우고, <b>③ 샘플로 확인</b> 후 저장하세요.
           </p>
         </div>
       </div>
