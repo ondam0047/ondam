@@ -43,10 +43,34 @@ export function generateScheduleFromForm(
     생년월일: p.childBirth ?? "", 제공영역: p.serviceType || p.pvType || "", 서비스종류: p.serviceType || p.pvType || "",
   };
 
+  // ── 글자속성(charPr) 주입: 값 글자 통일 + 달력. header 1회 패치. ──
+  let header = readHeader(template);
+  let usedHeader = false;
+  const mk = (baseId: number | null, opts: { height?: number; textColor?: string; normalize?: boolean }): number | undefined => {
+    if (baseId == null) return undefined;
+    const r = addClonedCharPr(header, baseId, opts);
+    if (!r) return undefined;
+    header = r.xml; usedHeader = true;
+    return r.id;
+  };
+  // 월 달력 격자(저장 spec 에 없으면 템플릿에서 재탐지)
+  const cal = spec.scheduleCalendar ?? detectCalendarFromXml(xml);
+  // 통합 양식(일정표+기록지 한 표, 예: 성심)이면 시간 칸이 좁아 6pt 로 한 줄 맞춤.
+  const isCombined = /제공기관명/.test(xml);
+
+  // 라벨/스칼라 값 글자 통일 — 첫 라벨 값칸(없으면 달력 내용칸) 기준으로 검정·동일크기·굵게/기울임/밑줄 제거.
+  const labelBase: Coord | undefined =
+    spec.schedule?.[0]?.coord
+    ?? (spec.manual?.[0] ? [spec.manual[0].table, spec.manual[0].row, spec.manual[0].col, spec.manual[0].p ?? 0] as Coord : undefined)
+    ?? (cal ? [cal.table, cal.weeks[0].contentRow, cal.cols[0].startCol] as Coord : undefined);
+  const labelNormCharPr = labelBase
+    ? mk(getCellRunCharPr(xml, labelBase[0], labelBase[1], labelBase[2]), { normalize: true, textColor: "#000000" })
+    : undefined;
+
   const edits: CellEdit[] = [];
   const put = (coord: Coord, value: string) => {
     if (value === undefined || value === null) return;
-    edits.push({ table: coord[0], row: coord[1], col: coord[2], p: coord[3], value });
+    edits.push({ table: coord[0], row: coord[1], col: coord[2], p: coord[3], value, charPr: labelNormCharPr });
   };
 
   spec.schedule?.forEach((s) => {
@@ -59,45 +83,27 @@ export function generateScheduleFromForm(
     else if (scalarVal[m.role] !== undefined) put(coord, scalarVal[m.role]);
   });
 
-  // 월 달력 격자 — 날짜 + 회기 시간 본문 (저장 spec 에 없으면 템플릿에서 재탐지)
-  const cal = spec.scheduleCalendar ?? detectCalendarFromXml(xml);
-  // 통합 양식(일정표+기록지 한 표, 예: 성심)이면 시간 칸이 좁아 6pt 로 한 줄 맞춤.
-  const isCombined = /제공기관명/.test(xml);
-  let header: string | null = null;
+  // 월 달력 격자 — 날짜 숫자·시간·공휴일 이름을 모두 통일(검정·동일크기·굵게/기울임/밑줄 제거).
   if (cal && p.year && p.month) {
-    let redCharPr: number | undefined;
-    let timeCharPr: number | undefined;
-    let holidayCharPr: number | undefined;
-    header = readHeader(template);
-    // 빨간날(일요일·공휴일) 색상 — 평일 날짜 칸의 글자속성을 복제해 빨강 charPr 생성.
     const wkCol = cal.cols.find((c) => c.dow !== 0) ?? cal.cols[0];
     const baseNum = getCellRunCharPr(xml, cal.table, cal.weeks[0].numberRow, wkCol.startCol);
-    if (baseNum != null) {
-      const r = addClonedCharPr(header, baseNum, { textColor: "#FF0000" });
-      if (r) { header = r.xml; redCharPr = r.id; }
-    }
-    // 내용칸 글자속성 기준 — 시간(통합양식 6pt) + 공휴일 이름(빨강[+6pt])
+    const numCharPr = mk(baseNum, { normalize: true, textColor: "#000000" });        // 평일 날짜(검정 통일)
+    const redCharPr = mk(baseNum, { normalize: true, textColor: "#FF0000" });        // 일요일·공휴일(빨강 통일)
     const conBase = getCellRunCharPr(xml, cal.table, cal.weeks[0].contentRow, cal.cols[0].startCol);
-    if (conBase != null) {
-      if (isCombined) {
-        const r = addClonedCharPr(header, conBase, { height: 600 });
-        if (r) { header = r.xml; timeCharPr = r.id; }
-      }
-      const rh = addClonedCharPr(header, conBase, { textColor: "#FF0000", ...(isCombined ? { height: 600 } : {}) });
-      if (rh) { header = rh.xml; holidayCharPr = rh.id; }
-    }
-    if (redCharPr == null && timeCharPr == null && holidayCharPr == null) header = null;
+    const conH = isCombined ? { height: 600 } : {};                                  // 통합양식이면 시간 6pt 한 줄
+    const timeCharPr = mk(conBase, { normalize: true, textColor: "#000000", ...conH }); // 회기 시간(통일)
+    const holidayCharPr = mk(conBase, { normalize: true, textColor: "#FF0000", ...conH }); // 공휴일 이름(빨강 통일)
     edits.push(...buildCalendarEdits(
       cal, p.year, p.month,
       (p.sessions ?? []).map((s) => ({ day: s.day, time: s.time })),
-      { redCharPr, timeCharPr, holidayCharPr, holidays: p.holidays ?? [] },
+      { numCharPr, redCharPr, timeCharPr, holidayCharPr, holidays: p.holidays ?? [] },
     ));
   }
 
   xml = fillCells(xml, edits);
   // 제목 "( N월 )"
   if (p.month) xml = xml.replace(/(일정표\s*\(\s*)\d*(\s*월)/, `$1${p.month}$2`);
-  return header
+  return usedHeader
     ? patchFiles(template, { "Contents/section0.xml": xml, "Contents/header.xml": header })
     : patchSection0(template, xml);
 }

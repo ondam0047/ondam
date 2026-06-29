@@ -7,8 +7,9 @@ import type { ScheduleCalendar } from "@/lib/record-resolver";
 
 export type CalSession = { day: number; time: string };
 export type CalOpts = {
-  redCharPr?: number;     // 일요일·공휴일 날짜에 적용할 빨강 charPr
-  timeCharPr?: number;    // 회기 시간 칸에 적용할 글자크기(예: 6pt) charPr — 한 줄 맞춤
+  numCharPr?: number;     // 평일 날짜 숫자에 적용할 글자 통일 charPr(검정·동일크기·굵게/기울임/밑줄 제거)
+  redCharPr?: number;     // 일요일·공휴일 날짜에 적용할 빨강(통일) charPr
+  timeCharPr?: number;    // 회기 시간 칸에 적용할 통일 charPr(통합양식이면 6pt) — 한 줄 맞춤
   holidayCharPr?: number; // 공휴일 이름칸 charPr(빨강[+통합양식이면 6pt])
   holidays?: { day: number; name: string }[]; // 공휴일(일자+이름)
 };
@@ -55,7 +56,8 @@ export function buildCalendarEdits(
       const isRed = !!d && (col.dow === 0 || holName != null);
       edits.push({
         table: numC[0], row: numC[1], col: numC[2], value: d ? String(d) : "",
-        charPr: isRed && opts.redCharPr != null ? opts.redCharPr : undefined,
+        // 빨간날=빨강 통일, 평일=검정 통일(없으면 native). 날짜 숫자 크기·모양 일관.
+        charPr: isRed ? (opts.redCharPr ?? opts.numCharPr) : opts.numCharPr,
       });
       // 내용칸: 공휴일이면 공휴일 이름(빨강), 아니면 회기 시간
       if (holName != null) {
