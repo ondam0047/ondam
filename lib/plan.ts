@@ -88,6 +88,11 @@ export function canAddProgram(user: PlanUser, currentCount: number, now: Date = 
   return currentCount < maxCustomPrograms(user, now);
 }
 
+// 우리 센터 양식(기록지·일정표) — 종류별 최대 저장 개수. 기타지원사업과 동일 등급별 상한(Solo 2 / Pro 5 / 체험·베타 5).
+export function maxCenterForms(user: PlanUser, now: Date = new Date()): number {
+  return maxCustomPrograms(user, now);
+}
+
 // 헤더/배지용 라벨.
 export function planLabel(user: PlanUser, now: Date = new Date()): string {
   if (isTrialOpen(user, now)) {

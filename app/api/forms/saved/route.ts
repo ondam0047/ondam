@@ -5,8 +5,10 @@ import { readSection0, patchSection0 } from "@/lib/hwpx";
 import { resolveForm, applyOverrides, scopeSpecToKind } from "@/lib/record-resolver";
 import { removeTableColumns, removeTableRows } from "@/lib/record-trim";
 import { classifyDevVoucherForm } from "@/lib/form-gate";
+import { maxCenterForms, planLabel } from "@/lib/plan";
 
 const KINDS = new Set(["record", "schedule"]);
+const KIND_LABEL: Record<string, string> = { record: "기록지", schedule: "일정표" };
 
 // 내 저장 양식 목록(기록지/일정표 각각 다수)
 export async function GET() {
@@ -17,7 +19,9 @@ export async function GET() {
     orderBy: [{ kind: "asc" }, { createdAt: "asc" }],
     select: { id: true, kind: true, name: true, createdAt: true },
   });
-  return Response.json({ forms });
+  const planRow = await prisma.user.findUnique({ where: { id: user.id }, select: { plan: true, trialEndsAt: true } });
+  const planUser = { plan: planRow?.plan ?? "trial", trialEndsAt: planRow?.trialEndsAt ?? null };
+  return Response.json({ forms, maxPerKind: maxCenterForms(planUser), planName: planLabel(planUser) });
 }
 
 // 업로드 양식 저장(자동매핑 spec 포함)
@@ -32,6 +36,18 @@ export async function POST(req: NextRequest) {
   if (!(file instanceof Blob)) return Response.json({ error: "no file" }, { status: 400 });
   if (!name) return Response.json({ error: "이름을 입력하세요." }, { status: 400 });
   if (!KINDS.has(kind)) return Response.json({ error: "종류(기록지/일정표)를 선택하세요." }, { status: 400 });
+
+  // 요금제별 종류당 저장 개수 상한(Solo 2 / Pro 5 / 체험·베타 5) — 초과 시 거부.
+  const planRow = await prisma.user.findUnique({ where: { id: user.id }, select: { plan: true, trialEndsAt: true } });
+  const planUser = { plan: planRow?.plan ?? "trial", trialEndsAt: planRow?.trialEndsAt ?? null };
+  const max = maxCenterForms(planUser);
+  const used = await prisma.recordForm.count({ where: { ownerUserId: user.id, kind } });
+  if (used >= max) {
+    return Response.json(
+      { error: `${planLabel(planUser)} 요금제에서는 ${KIND_LABEL[kind]} 양식을 ${max}개까지 저장할 수 있어요. 기존 양식을 삭제하고 다시 시도하거나 요금제를 올려주세요.` },
+      { status: 403 },
+    );
+  }
 
   let buf = Buffer.from(await file.arrayBuffer());
   let specJson: string;

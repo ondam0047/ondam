@@ -81,8 +81,10 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
   // AI 가 신뢰도 낮게(<0.6) 제안한 칸 — 사람이 꼭 확인하도록 표시. key="t,r,c"
   const [lowConf, setLowConf] = useState<Set<string>>(new Set());
   const [downloading, setDownloading] = useState(false);
-  // 저장된 양식(사용자별 다수)
+  // 저장된 양식(사용자별 다수) + 요금제별 종류당 상한
   const [saved, setSaved] = useState<Array<{ id: number; kind: string; name: string }>>([]);
+  const [maxPerKind, setMaxPerKind] = useState<number>(5);
+  const [planName, setPlanName] = useState<string>("");
   const [formName, setFormName] = useState("");
   const [kind, setKind] = useState<"record" | "schedule">("record");
   const [savingForm, setSavingForm] = useState(false);
@@ -101,7 +103,11 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
   }, [aiLoading]);
 
   const loadSaved = useCallback(() => {
-    fetch("/api/forms/saved").then((r) => (r.ok ? r.json() : { forms: [] })).then((d) => setSaved(d.forms ?? [])).catch(() => {});
+    fetch("/api/forms/saved").then((r) => (r.ok ? r.json() : { forms: [] })).then((d) => {
+      setSaved(d.forms ?? []);
+      if (typeof d.maxPerKind === "number") setMaxPerKind(d.maxPerKind);
+      if (typeof d.planName === "string") setPlanName(d.planName);
+    }).catch(() => {});
   }, []);
   useEffect(() => { loadSaved(); }, [loadSaved]);
 
@@ -349,12 +355,22 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
       {/* 저장된 양식(기록지/일정표 각각 다수) */}
       <div className="card">
         <div className="card-body" style={{ display: "grid", gap: 12 }}>
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>저장된 양식</h3>
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>저장된 양식</h3>
+            {planName && <span style={{ fontSize: 12, color: "var(--text-mute)" }}>현재 요금제: <b>{planName}</b></span>}
+          </div>
+          {/* 요금제별 저장 개수 안내 — 어디에도 표시가 없어 추가(센터마다 다른 양식 대비 여러 개 저장 가능) */}
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "9px 12px", borderRadius: 8, background: "var(--surface-2)", border: "1px solid var(--border)", fontSize: 12.5, color: "var(--text-soft)", lineHeight: 1.55 }}>
+            <span style={{ fontSize: 14, lineHeight: 1.3 }}>ℹ️</span>
+            <span>기록지·일정표 양식을 <b>종류별로 각각 {maxPerKind}개</b>까지 저장할 수 있어요(센터마다 양식이 다르면 여러 개 저장). 요금제별 한도 — <b>Solo 2개</b>·<b>Pro 5개</b>(무료체험·베타 5개).</span>
+          </div>
           {(["record", "schedule"] as const).map((k) => {
             const list = k === "record" ? recordForms : scheduleForms;
             return (
               <div key={k}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-soft)", marginBottom: 4 }}>{KIND_LABEL[k]} ({list.length})</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-soft)", marginBottom: 4 }}>
+                  {KIND_LABEL[k]} <span style={{ color: list.length >= maxPerKind ? "#8A2F1C" : "var(--text-mute)" }}>({list.length}/{maxPerKind})</span>
+                </div>
                 {list.length === 0 ? (
                   <p style={{ margin: 0, fontSize: 12.5, color: "var(--text-mute)" }}>저장된 {KIND_LABEL[k]}가 없어요. 아래에서 양식을 올려 저장하세요. (센터마다 다르면 여러 개 저장)</p>
                 ) : (
@@ -509,10 +525,22 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
               </span>
               <input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder={`양식 이름 (예: A센터 ${KIND_LABEL[kind]})`}
                 style={{ flex: 1, minWidth: 180, padding: "8px 12px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface)", fontSize: 14, color: "var(--text)" }} />
-              <button className="btn btn-primary" onClick={saveForm} disabled={savingForm || !formName.trim()}>
-                {savingForm ? "저장 중…" : "저장"}
-              </button>
+              {(() => {
+                const used = (kind === "record" ? recordForms : scheduleForms).length;
+                const atLimit = used >= maxPerKind;
+                return (
+                  <button className="btn btn-primary" onClick={saveForm} disabled={savingForm || !formName.trim() || atLimit}
+                    title={atLimit ? `${KIND_LABEL[kind]} 양식은 ${maxPerKind}개까지 저장할 수 있어요. 기존 양식을 삭제 후 저장하세요.` : undefined}>
+                    {savingForm ? "저장 중…" : atLimit ? `저장 (한도 ${used}/${maxPerKind})` : "저장"}
+                  </button>
+                );
+              })()}
             </div>
+            {(kind === "record" ? recordForms : scheduleForms).length >= maxPerKind && (
+              <p style={{ margin: "8px 16px 0", fontSize: 12.5, color: "#8A2F1C", lineHeight: 1.55 }}>
+                {KIND_LABEL[kind]} 양식이 한도({maxPerKind}개)에 찼어요. 기존 양식을 삭제하면 새로 저장할 수 있어요{planName.includes("Solo") ? " (Pro로 올리면 5개까지)" : ""}.
+              </p>
+            )}
           </div>
 
           <div className="card">
