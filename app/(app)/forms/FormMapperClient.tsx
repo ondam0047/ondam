@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useBetaUx } from "../BetaUxContext";
-import { rolesForForm } from "@/lib/record-roles";
+import { rolesForForm, isFilledValue } from "@/lib/record-roles";
 
 type Cell = { r: number; c: number; cs: number; rs: number; text: string; role: string | null; p?: number };
 type Spec = { schedule?: Array<{ role: string }>; detail?: unknown[]; extraSessionCols?: number[]; extraResultRows?: number[] };
@@ -236,6 +236,17 @@ export default function FormMapperClient() {
   const scheduleForms = saved.filter((f) => f.kind === "schedule");
   const missing = result ? Object.entries(result.coverage).filter(([, v]) => !v).map(([k]) => FIELD_LABEL[k] ?? k) : [];
 
+  // 양식 점검 — 값이 들어갈(역할 지정된) 칸에 이미 작성 내용이 있으면 '빈 양식이 아님'. 경고만 표시(진행은 가능).
+  const filledCells = result
+    ? result.grid.flatMap((cells, ti) =>
+        cells.flatMap((cell) => {
+          const role = effRole(ti, cell);
+          // 서명/확인란은 손서명용 — 플레이스홀더 글자가 있어도 '작성됨'으로 보지 않음.
+          return role && role !== "서명" && isFilledValue(cell.text) ? [{ ti, r: cell.r, c: cell.c, role, text: cell.text.trim() }] : [];
+        }),
+      )
+    : [];
+
   // 인라인 예시 미리보기 — 현재 지정된 역할에 SAMPLE 값을 채운 좌표맵(키 "t,r,c").
   // 회기 행(ROW) 역할은 표·행·열 순으로 정렬해 i번째 회기 예시를 순서대로 배정.
   function exampleFillMap(): Map<string, string> {
@@ -297,6 +308,11 @@ export default function FormMapperClient() {
 
       <div className="card">
         <div className="card-body" style={{ display: "grid", gap: 14 }}>
+          {/* 항상 보이는 파일 형식 안내 — 선생님이 잘못된 파일로 헛걸음하지 않도록 */}
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "9px 12px", borderRadius: 8, background: "var(--primary-soft)", border: "1px solid var(--primary)", fontSize: 12.5, color: "var(--primary)", lineHeight: 1.55 }}>
+            <span style={{ fontSize: 15, lineHeight: 1.3 }}>📎</span>
+            <span><b>.hwpx 파일만</b> 인식해요 — 한글 <b>.hwp</b>·PDF·스캔·이미지·사진은 안 돼요. 한글에서 <b>“다른 이름으로 저장 → 한글 표준 형식(.hwpx)”</b>으로 저장한 <b>빈 양식</b>을 올려주세요.</span>
+          </div>
           <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
             {/* 1단계: 파일 선택 → 즉시 자동 분석(별도 '분석' 버튼 없음) */}
             <label className="btn btn-primary" style={{ cursor: "pointer" }}>
@@ -304,6 +320,15 @@ export default function FormMapperClient() {
               <input type="file" accept=".hwpx" style={{ display: "none" }}
                 onChange={(e) => {
                   const f = e.target.files?.[0] ?? null;
+                  e.target.value = ""; // 같은 파일 다시 고를 수 있게 초기화
+                  if (f && !/\.hwpx$/i.test(f.name)) {
+                    // .hwpx 아닌 파일은 서버로 보내기 전에 즉시 거절(헛걸음 방지). .hwp는 변환법을 단계별로 안내.
+                    setFile(null); setResult(null); setWarning(null);
+                    setError(/\.hwp$/i.test(f.name)
+                      ? `‘${f.name}’은(는) 한글 옛 형식(.hwp)이에요. 한글에서 이 파일을 연 뒤 ① [파일] → ② [다른 이름으로 저장] → ③ 파일 형식을 ‘한글 표준 문서 (*.hwpx)’로 선택해 저장하고, 그 .hwpx 파일을 올려주세요.`
+                      : `‘${f.name}’은(는) .hwpx 파일이 아니에요(.hwp·PDF·이미지·스캔 미지원). 한글에서 “다른 이름으로 저장 → 한글 표준 문서(*.hwpx)”로 변환한 뒤 올려주세요.`);
+                    return;
+                  }
                   setFile(f); setResult(null); setError(null); setWarning(null);
                   if (f) void analyze(f);
                 }} />
@@ -425,6 +450,15 @@ export default function FormMapperClient() {
                   ✓ 핵심 칸을 모두 인식했어요. 샘플로 채워 받아 실제로 맞는지 확인하세요.
                 </p>
               )}
+              {filledCells.length > 0 && (
+                <p style={{ margin: 0, fontSize: 13, color: "#8A6422", lineHeight: 1.55 }}>
+                  ⚠ 값이 들어갈 칸 {filledCells.length}곳에 <b>이미 내용</b>이 적혀 있어요(빈 양식이 아닐 수 있어요) —{" "}
+                  {filledCells.slice(0, 4).map((f, i) => (
+                    <span key={i}>{i > 0 ? ", " : ""}<b>{f.role}</b>=&ldquo;{f.text.length > 12 ? f.text.slice(0, 12) + "…" : f.text}&rdquo;</span>
+                  ))}
+                  {filledCells.length > 4 ? ` 외 ${filledCells.length - 4}곳` : ""}. 출력물에 옛 내용이 남을 수 있으니 <b>빈 양식</b> 사용을 권해요(이대로 진행도 가능).
+                </p>
+              )}
             </div>
           </div>
 
@@ -460,6 +494,7 @@ export default function FormMapperClient() {
                               cells={cells}
                               roleOf={(cell) => effRole(ti, cell)}
                               lowOf={(cell) => lowConf.has(trcKey(ti, cell.r, cell.c))}
+                              filledOf={(cell) => effRole(ti, cell) !== "서명" && isFilledValue(cell.text)}
                               onCell={(r, c, text, x, y) => setPicker({ t: ti, r, c, text, x, y })}
                             />
                           </div>
@@ -538,10 +573,11 @@ export default function FormMapperClient() {
   );
 }
 
-function TableView({ cells, roleOf, lowOf, onCell }: {
+function TableView({ cells, roleOf, lowOf, filledOf, onCell }: {
   cells: Cell[];
   roleOf: (cell: Cell) => string | null;
   lowOf?: (cell: Cell) => boolean;
+  filledOf?: (cell: Cell) => boolean;
   onCell: (r: number, c: number, text: string, x: number, y: number) => void;
 }) {
   if (cells.length === 0) return null;
@@ -563,19 +599,20 @@ function TableView({ cells, roleOf, lowOf, onCell }: {
         const role = roleOf(cell);
         const hl = !!role;
         const low = hl && !!lowOf?.(cell);
+        const filled = hl && !!filledOf?.(cell); // 값 칸인데 이미 작성됨 — 빈 양식 아님(경고)
         tds.push(
           <td key={c} colSpan={cell.cs} rowSpan={cell.rs}
             onClick={(e) => onCell(cell.r, cell.c, cell.text, e.clientX, e.clientY)}
-            title={low ? "AI 신뢰도 낮음 — 클릭해서 확인/수정" : "클릭해서 역할 지정/해제"}
+            title={filled ? "이 칸엔 값이 들어가는데 이미 내용이 적혀 있어요 — 빈 양식을 권해요" : low ? "AI 신뢰도 낮음 — 클릭해서 확인/수정" : "클릭해서 역할 지정/해제"}
             style={{
               border: low ? "2px solid #D98324" : "1px solid var(--border)", padding: "3px 5px", fontSize: 11, verticalAlign: "top",
-              background: hl ? "var(--primary-soft)" : "var(--surface)",
+              background: filled ? "#FBEFD6" : hl ? "var(--primary-soft)" : "var(--surface)",
               minWidth: 40, maxWidth: 160, cursor: "pointer",
             }}>
             {hl && (
-              <div style={{ fontSize: 9, fontWeight: 800, color: low ? "#8A6422" : "var(--primary)", marginBottom: 1 }}>{low ? "⚠ " : ""}{role}</div>
+              <div style={{ fontSize: 9, fontWeight: 800, color: filled || low ? "#8A6422" : "var(--primary)", marginBottom: 1 }}>{filled ? "⚠ " : low ? "⚠ " : ""}{role}{filled ? " · 작성됨" : ""}</div>
             )}
-            <div style={{ color: cell.text ? "var(--text)" : "var(--text-mute)", whiteSpace: "normal", wordBreak: "break-all" }}>
+            <div style={{ color: filled ? "#8A6422" : cell.text ? "var(--text)" : "var(--text-mute)", fontWeight: filled ? 700 : 400, whiteSpace: "normal", wordBreak: "break-all" }}>
               {cell.text || (hl ? "" : "·")}
             </div>
           </td>,

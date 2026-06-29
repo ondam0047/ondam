@@ -13,6 +13,9 @@ export const ROLE_DEFS: RoleDef[] = [
   { role: "치료사이름", kind: "scalar", desc: "담당 치료사·제공인력 이름",            synonyms: ["제공인력", "담당", "담당자", "치료사"] },
   { role: "생년월일",  kind: "scalar", desc: "대상자 생년월일",                       synonyms: ["생년월일", "생일"] },
   { role: "서비스종류", kind: "scalar", desc: "서비스·치료 종류(언어재활 등)",          synonyms: ["서비스종류", "제공영역", "서비스 종류", "치료종류", "영역", "서비스유형"] },
+  // 서명/확인란 — 관리자·보호자·이용자가 직접 손서명하는 칸. 인식만 하고 값은 채우지 않는다(빈칸 유지).
+  // 정부 표준 [서식 11호] 제공기록지의 관리자 서명·보호자 서명·이용자(확인) 칸 대응.
+  { role: "서명",     kind: "scalar", desc: "관리자·보호자·이용자 서명/확인란 — 자동으로 채우지 않고 비워 둠(손서명)", synonyms: ["서명", "관리자 서명", "보호자 서명", "이용자 확인", "이용자(확인)", "서명 또는 인", "확인란", "날인", "(인)"] },
   // ── 기록지 전용(scalar) ──
   { role: "연도",     kind: "scalar", desc: "기록 연도(예: 2026)",                   synonyms: ["년", "연도", "년도"], forms: ["record"] },
   { role: "월",       kind: "scalar", desc: "기록 월(예: 6)",                         synonyms: ["월"], forms: ["record"] },
@@ -41,6 +44,17 @@ export const ROLE_DEFS: RoleDef[] = [
   { role: "작성일자",   kind: "scalar", desc: "양식 작성일자",                          synonyms: ["작성일자", "작성일", "작성 일자"], forms: ["schedule"] },
   { role: "전화",       kind: "scalar", desc: "연락처·전화번호",                        synonyms: ["전화", "연락처", "전화번호", "휴대전화"], forms: ["schedule"] },
 ];
+
+// 양식 점검 — 역할(값)이 지정된 칸에 이미 실제 작성 내용이 있으면 '빈 양식이 아님'을 뜻한다.
+// 구조문자·공백·단위안내(년/월/일/시/분/회차…)를 지운 뒤 숫자나 한글 2자 이상이 남으면 작성된 것으로 본다.
+// 빈 템플릿의 "(  /  )"·"년 월 일" 같은 안내 칸은 작성으로 보지 않는다(오탐 최소화).
+export function isFilledValue(text: string): boolean {
+  const cleaned = String(text ?? "")
+    .replace(/[\s()/:~.,\-_·…|[\]{}'"%]/g, "")
+    .replace(/[년월일시분초회차주]/g, "");
+  if (/\d/.test(cleaned)) return true;
+  return (cleaned.match(/[가-힣]/g)?.length ?? 0) >= 2;
+}
 
 // 양식 종류별 후보 역할(미지정이면 공통이라 양쪽에 포함). formType 없으면 전체.
 export function rolesForForm(formType?: FormType): RoleDef[] {

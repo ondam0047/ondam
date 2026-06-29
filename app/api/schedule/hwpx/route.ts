@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "양식에 데이터를 채우는 중 문제가 생겼어요." }, { status: 500 });
     }
   } else {
+    // 우리 센터 양식 미등록 — 발달바우처 기본 서식(내장 표준 일정표)으로 출력.
     let templateBuf: Buffer;
     try {
       templateBuf = await readScheduleTemplate();

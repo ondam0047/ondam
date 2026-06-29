@@ -678,7 +678,12 @@ function RecordSheet({
   useEffect(() => {
     fetch("/api/forms/saved")
       .then((r) => (r.ok ? r.json() : { forms: [] }))
-      .then((d) => setSavedForms((d.forms ?? []).filter((f: { kind: string }) => f.kind === "record")))
+      .then((d) => {
+        const rf = (d.forms ?? []).filter((f: { kind: string }) => f.kind === "record");
+        setSavedForms(rf);
+        // 우리 센터 양식이 등록돼 있으면 그 양식을 기본 선택(없으면 발달바우처 기본 서식).
+        setOutFormId((prev) => prev || (rf[0]?.id ?? ""));
+      })
       .catch(() => {});
   }, []);
 
@@ -1126,17 +1131,17 @@ function RecordSheet({
           <select
             value={outFormId}
             onChange={(e) => setOutFormId(e.target.value ? Number(e.target.value) : "")}
-            title="출력에 사용할 양식"
+            title="출력 양식 — 우리 센터 양식 또는 발달바우처 기본 서식"
             style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", fontSize: 13, color: "var(--text)" }}
           >
-            <option value="">기본 양식</option>
+            <option value="">발달바우처 기본 서식</option>
             {savedForms.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
           </select>
-        ) : betaUx ? (
-          <Link href="/forms" className="sub-mute" style={{ fontSize: 12, whiteSpace: "nowrap" }} title="우리 센터 양식을 저장하면 여기서 선택할 수 있어요">
-            기본 양식 사용 중 · <b>우리 센터 양식 저장 →</b>
+        ) : (
+          <Link href="/forms" className="sub-mute" style={{ fontSize: 12, whiteSpace: "nowrap" }} title="우리 센터 양식을 올리면 평소 쓰던 양식으로 출력돼요(안 올리면 발달바우처 기본 서식 사용)">
+            발달바우처 기본 서식 사용 중 · <b>우리 센터 양식 올리기 →</b>
           </Link>
-        ) : null}
+        )}
         <button className="btn btn-primary" onClick={downloadHwpx} disabled={downloading}>
           {downloading ? "생성 중..." : "한글파일(.hwpx) 다운로드"}
         </button>

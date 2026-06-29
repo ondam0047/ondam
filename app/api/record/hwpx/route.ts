@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "양식에 데이터를 채우는 중 문제가 생겼어요." }, { status: 500 });
     }
   } else {
-    // 기본(코드 내장) 양식
+    // 우리 센터 양식 미등록 — 발달바우처 기본 서식(코드 내장 표준 양식)으로 출력.
     const center = user.centerId
       ? await prisma.center.findUnique({ where: { id: user.centerId }, select: { recordForm: true } })
       : null;

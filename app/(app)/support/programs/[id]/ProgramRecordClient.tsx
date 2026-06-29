@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { SCALAR_ROLES, ROW_ROLES } from "@/lib/record-roles";
+import { SCALAR_ROLES, ROW_ROLES, isFilledValue } from "@/lib/record-roles";
 
 // ── 매핑 관련 타입 ──────────────────────────────────────────────
 type Cell     = { r: number; c: number; cs: number; rs: number; text: string; role: string | null; p?: number; paras?: string[] };
@@ -294,7 +294,16 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
   // ── 양식 파일 선택 → 자동분석 ──────────────────────────────
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
+    if (fileRef.current) fileRef.current.value = ""; // 같은 파일 다시 고를 수 있게 초기화
     if (!file) return;
+    if (!/\.hwpx$/i.test(file.name)) {
+      // .hwpx 아닌 파일은 서버로 보내기 전에 즉시 거절(헛걸음 방지). .hwp는 변환법을 단계별로 안내.
+      setMapErr(/\.hwp$/i.test(file.name)
+        ? `‘${file.name}’은(는) 한글 옛 형식(.hwp)이에요. 한글에서 이 파일을 연 뒤 ① [파일] → ② [다른 이름으로 저장] → ③ 파일 형식을 ‘한글 표준 문서 (*.hwpx)’로 선택해 저장하고, 그 .hwpx 파일을 올려주세요.`
+        : `‘${file.name}’은(는) .hwpx 파일이 아니에요(.hwp·PDF·이미지·스캔 미지원). 한글에서 “다른 이름으로 저장 → 한글 표준 문서(*.hwpx)”로 변환한 뒤 올려주세요.`);
+      setMapMsg("");
+      return;
+    }
     setMapFile(file); setMapResult(null); setMapOverrides({}); setPicker(null); setAiLow(new Set());
     setMapMsg(""); setMapErr("");
     setAnalyzing(true);
@@ -459,6 +468,19 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
     ? Object.entries(mapResult.coverage).filter(([, v]) => !v).map(([k]) => FIELD_LABEL[k] ?? k)
     : [];
 
+  // 양식 점검 — 값이 들어갈(역할 지정된) 칸에 이미 작성 내용이 있으면 '빈 양식이 아님'. 경고만(진행 가능).
+  const filledCells = mapResult
+    ? mapResult.grid.flatMap((cells, ti) =>
+        cells.flatMap((cell) => {
+          const np = Math.max(1, cell.paras?.length ?? 1);
+          let role: string | null = null;
+          for (let p = 0; p < np; p++) { const r = effRole(ti, cell, p); if (r) { role = r; break; } }
+          // 서명/확인란은 손서명용 — 플레이스홀더 글자가 있어도 '작성됨'으로 보지 않음.
+          return role && role !== "서명" && isFilledValue(cell.text) ? [{ ti, r: cell.r, c: cell.c, role, text: cell.text.trim() }] : [];
+        }),
+      )
+    : [];
+
   return (
     <>
       {/* 헤더 */}
@@ -513,10 +535,11 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
           )}
         </div>
 
-        {!mapFile && !localHasForm && (
-          <p style={{ margin: 0, padding: "8px 16px", fontSize: 12, color: "var(--text-mute)", lineHeight: 1.5, borderTop: "1px solid var(--border)" }}>
-            .hwp는 미지원 — 한글에서 &ldquo;다른 이름으로 저장 → .hwpx&rdquo;로 변환 후 업로드하세요.
-          </p>
+        {!localHasForm && (
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 8, margin: 0, padding: "9px 16px", fontSize: 12.5, color: "var(--primary)", lineHeight: 1.55, borderTop: "1px solid var(--border)", background: "var(--primary-soft)" }}>
+            <span style={{ fontSize: 15, lineHeight: 1.3 }}>📎</span>
+            <span><b>.hwpx 파일만</b> 인식해요 — 한글 <b>.hwp</b>·PDF·스캔·이미지·사진은 안 돼요. 한글에서 <b>“다른 이름으로 저장 → 한글 표준 형식(.hwpx)”</b>으로 저장한 <b>빈 양식</b>을 올려주세요.</span>
+          </div>
         )}
 
         {mapMsg && <p style={{ margin: 0, padding: "8px 16px", fontSize: 12, color: "var(--success, green)", borderTop: "1px solid var(--border)" }}>{mapMsg}</p>}
@@ -543,6 +566,15 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
                 ? <p style={{ margin: "8px 0 0", fontSize: 12, color: "#8A6422" }}>⚠ 못 찾은 칸: {missing.join(", ")} — 아래 표에서 클릭해 역할을 직접 지정하세요.</p>
                 : <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--primary)" }}>✓ 핵심 칸을 모두 인식했어요.</p>
               }
+              {filledCells.length > 0 && (
+                <p style={{ margin: "8px 0 0", fontSize: 12, color: "#8A6422", lineHeight: 1.55 }}>
+                  ⚠ 값이 들어갈 칸 {filledCells.length}곳에 <b>이미 내용</b>이 적혀 있어요(빈 양식이 아닐 수 있어요) —{" "}
+                  {filledCells.slice(0, 4).map((f, i) => (
+                    <span key={i}>{i > 0 ? ", " : ""}<b>{f.role}</b>=&ldquo;{f.text.length > 12 ? f.text.slice(0, 12) + "…" : f.text}&rdquo;</span>
+                  ))}
+                  {filledCells.length > 4 ? ` 외 ${filledCells.length - 4}곳` : ""}. 출력물에 옛 내용이 남을 수 있으니 <b>빈 양식</b> 사용을 권해요(이대로 진행도 가능).
+                </p>
+              )}
               <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--text-mute)" }}>
                 학교·학년·요일·정기시간·치료목표·현행수준·<b>연도·월</b> 칸은 클릭해 역할을 지정하세요.
                 회차·날짜·시간이 칸마다 흩어져 있으면 각 칸을 클릭해 <b>회차·날짜·시작·종료</b> 역할로 지정하면 순서대로 채워져요.
@@ -1045,19 +1077,20 @@ function TableView({ cells, roleOf, onCell, lowOf }: {
             {paras.map((ptext, pi) => {
               const role = roleOf(cell, pi);
               const low = role ? lowOf?.(cell, pi) ?? false : false;
+              const filled = !!role && role !== "서명" && isFilledValue(ptext); // 값 칸인데 이미 작성됨 — 빈 양식 아님(경고). 서명란 제외.
               return (
                 <div key={pi}
                   onClick={(e) => onCell(cell.r, cell.c, pi, ptext, e.clientX, e.clientY)}
-                  title={low ? "AI 제안 — 신뢰도 낮음, 확인하세요" : "클릭해서 역할 지정/해제"}
+                  title={filled ? "이 칸엔 값이 들어가는데 이미 내용이 적혀 있어요 — 빈 양식을 권해요" : low ? "AI 제안 — 신뢰도 낮음, 확인하세요" : "클릭해서 역할 지정/해제"}
                   style={{
                     cursor: "pointer", borderRadius: 3,
-                    border: low ? "2px solid #E8912D" : multi ? "1px dashed var(--border)" : "none",
-                    background: low ? "#FFF4E0" : role ? "var(--primary-soft)" : "transparent",
+                    border: low ? "2px solid #E8912D" : filled ? "1px solid #D98324" : multi ? "1px dashed var(--border)" : "none",
+                    background: filled ? "#FBEFD6" : low ? "#FFF4E0" : role ? "var(--primary-soft)" : "transparent",
                     padding: multi ? "1px 3px" : 0,
                     marginBottom: multi && pi < paras.length - 1 ? 2 : 0,
                   }}>
-                  {role && <div style={{ fontSize: 9, fontWeight: 800, color: low ? "#B5651D" : "var(--primary)", marginBottom: 1 }}>{low ? "? " : ""}{role}</div>}
-                  <div style={{ color: ptext ? "var(--text)" : "var(--text-mute)", whiteSpace: "normal", wordBreak: "break-all" }}>
+                  {role && <div style={{ fontSize: 9, fontWeight: 800, color: filled || low ? "#B5651D" : "var(--primary)", marginBottom: 1 }}>{filled ? "⚠ " : low ? "? " : ""}{role}{filled ? " · 작성됨" : ""}</div>}
+                  <div style={{ color: filled ? "#8A6422" : ptext ? "var(--text)" : "var(--text-mute)", fontWeight: filled ? 700 : 400, whiteSpace: "normal", wordBreak: "break-all" }}>
                     {ptext || (role ? "" : "·")}
                   </div>
                 </div>
