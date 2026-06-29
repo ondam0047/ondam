@@ -3,6 +3,41 @@
 // 근거/설계: Downloads/기록지양식.md. PoC: scripts/resolver-poc.mjs (실제 6종 100%).
 
 import type { Coord } from "@/lib/record-fill";
+import { ROLE_DEFS } from "@/lib/record-roles";
+
+// 역할 → 양식 종류. ROLE_DEFS.forms 미지정=공통(양쪽), ["record"]/["schedule"]=전용.
+// 회기 추가 역할 3종(바우처분·추가구매·금액)은 ROLE_DEFS 밖이지만 기록지 전용.
+const RECORD_ONLY_ROLES = new Set<string>([
+  ...ROLE_DEFS.filter((r) => r.forms?.length === 1 && r.forms[0] === "record").map((r) => r.role),
+  "바우처(분)", "추가구매", "금액",
+]);
+const SCHEDULE_ONLY_ROLES = new Set<string>(
+  ROLE_DEFS.filter((r) => r.forms?.length === 1 && r.forms[0] === "schedule").map((r) => r.role),
+);
+
+// 통합 양식(기록지+일정표 한 파일, 예: 성심)을 두 슬롯에 같은 파일로 올릴 때, 슬롯(kind) 영역만
+// 채우도록 spec 을 좁힌다. 기록지: 일정표 영역(라벨·달력) 제거 → 기록지 출력이 일정표 칸을 안 건드림.
+// 일정표: 기록지 회기/결과 채움 필드 제거 → 일정표 출력은 라벨·달력만(이미 무시하지만 명시적 분리).
+export function scopeSpecToKind(spec: ResolvedSpec, kind: "record" | "schedule"): ResolvedSpec {
+  if (kind === "record") {
+    return {
+      ...spec,
+      schedule: undefined,
+      scheduleCalendar: undefined,
+      noSchedule: true, // 출력기 달력 재탐지 차단 — 통합 양식의 일정표 영역을 건드리지 않음
+      manual: spec.manual?.filter((m) => !SCHEDULE_ONLY_ROLES.has(m.role)),
+    };
+  }
+  return {
+    ...spec,
+    date: [], start: [], end: [], voucher: [], extra: [], amount: [],
+    voucherAmount: undefined, copayAmount: undefined, therapist: undefined,
+    serviceArea: undefined, serviceName: undefined, serviceBlocks: undefined,
+    result: [], detail: undefined,
+    dateTable: undefined, resultTable: undefined, extraSessionCols: undefined, extraResultRows: undefined,
+    manual: spec.manual?.filter((m) => !RECORD_ONLY_ROLES.has(m.role)),
+  };
+}
 
 // 일정표 라벨 칸의 데이터 출처 — 실제 채움(출력 연동) 단계에서 사용.
 // 사용자 규칙: 서비스 제공자명 = 치료사 이름, 서비스 종류 = 치료사 종류(therapistType) 기반.
@@ -103,6 +138,8 @@ export type ResolvedSpec = {
   schedule?: Array<{ role: string; coord: Coord }>;
   // 일정표 월 달력 격자(2단계) — 날짜 숫자 + 회기 시간 본문 채움용 기하 정보.
   scheduleCalendar?: ScheduleCalendar;
+  // 기록지 슬롯으로 좁힌 통합 양식 — 출력기가 XML에서 달력을 재탐지해 채우지 않도록(일정표 영역 보존).
+  noSchedule?: boolean;
   // 셀프 보정으로 사용자가 직접 지정한 칸(역할 중복 허용 — 같은 값을 여러 칸에 채움).
   // p: 한 칸 안의 문단 인덱스(기본 0). 한 셀에 여러 줄이 든 양식의 문단 단위 매핑용.
   manual?: Array<{ role: string; table: number; row: number; col: number; p?: number }>;

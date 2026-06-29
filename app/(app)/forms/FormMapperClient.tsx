@@ -20,6 +20,19 @@ const FIELD_LABEL: Record<string, string> = {
 
 const KIND_LABEL: Record<string, string> = { record: "기록지", schedule: "일정표" };
 
+// 통합 양식(기록지+일정표 한 파일)을 슬롯별로 자기 영역만 매핑·미리보기 하기 위한 역할 분류.
+// 공통 역할은 양쪽 슬롯에서 보이고, 일정표 역할(일정·/달력· 접두사 + 일정표 전용 스칼라)은 일정표 슬롯에서만.
+const COMMON_ROLES = new Set(["기관명", "대상자이름", "치료사이름", "생년월일", "서비스종류", "제공영역", "서명"]);
+const SCHEDULE_ONLY_ROLES = new Set(["관리번호", "단가", "횟수", "총금액", "본인부담금", "주기", "제공일", "작성일자", "전화"]);
+function roleVisibleForKind(role: string | null, kind: "record" | "schedule"): boolean {
+  if (!role) return false;
+  if (COMMON_ROLES.has(role)) return true; // 공통 칸은 양쪽에서 표시
+  const isSchedule = role.startsWith("일정·") || role.startsWith("달력·") || SCHEDULE_ONLY_ROLES.has(role);
+  return kind === "schedule" ? isSchedule : !isSchedule;
+}
+// 기록지 커버리지 키 중 공통(양쪽 표시) — 일정표 슬롯에선 이 외 회기/결과 배지는 숨김.
+const COMMON_COVERAGE = new Set(["org", "name", "birth"]);
+
 // 인라인 예시 미리보기용 — 회기 행 역할(순서대로 채움). 규칙 인식(영문 필드키)·수동 지정(한글 역할명) 둘 다 커버.
 const ROW_PREVIEW = new Set([
   "date", "start", "end", "voucher", "extra", "amount", "result",
@@ -104,11 +117,15 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
       const d = await r.json() as AnalyzeResult & { error?: string };
       if (!r.ok) throw new Error(d.error || "분석 실패");
       setResult(d);
-      // 슬롯에서 고른 kind 를 그대로 쓴다(자동 추정으로 덮어쓰지 않음). 양식이 다른 종류로 보이면 경고만.
+      // 슬롯에서 고른 kind 를 그대로 쓴다(자동 추정으로 덮어쓰지 않음).
+      // 결합 양식(기록지+일정표 한 파일, 예: 성심)은 둘 다 있으니 경고 안 함 — 각 슬롯에 같은 파일을 올려 영역만 매핑.
+      // 한쪽만 인식됐는데 슬롯과 반대면 그때만 "슬롯 확인" 경고.
       const hasRecord = !!(d.coverage && (d.coverage.date || d.coverage.result));
-      const detected: "record" | "schedule" | null = hasRecord ? "record" : (d.spec?.schedule?.length ? "schedule" : null);
-      if (detected && detected !== kind) {
-        setWarning(`이 양식은 ‘${KIND_LABEL[detected]}’처럼 보여요. 지금 ‘${KIND_LABEL[kind]} 양식’ 슬롯에 올리고 있어요 — 슬롯이 맞는지 확인하세요.`);
+      const hasSchedule = (d.spec?.schedule?.length ?? 0) > 0;
+      if (kind === "record" && !hasRecord && hasSchedule) {
+        setWarning("이 양식은 ‘일정표’처럼 보여요. 지금 ‘기록지 양식’ 슬롯에 올리고 있어요 — 슬롯이 맞는지 확인하세요.");
+      } else if (kind === "schedule" && !hasSchedule && hasRecord) {
+        setWarning("이 양식은 ‘기록지’처럼 보여요. 지금 ‘일정표 양식’ 슬롯에 올리고 있어요 — 슬롯이 맞는지 확인하세요.");
       } else {
         setWarning(d.warning ?? null);
       }
@@ -194,7 +211,9 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
       const fd = new FormData();
       fd.append("file", file);
       if (overridesArray.length) fd.append("overrides", JSON.stringify(overridesArray));
-      const r = await fetch(`/api/forms/sample${trim ? "?trim=1" : ""}`, { method: "POST", body: fd });
+      const qs = new URLSearchParams({ kind });
+      if (trim) qs.set("trim", "1");
+      const r = await fetch(`/api/forms/sample?${qs}`, { method: "POST", body: fd });
       if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || "샘플 생성 실패"); }
       const blob = await r.blob();
       const url = URL.createObjectURL(blob);
@@ -254,6 +273,11 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
     const k = `${ti},${cell.r},${cell.c}`;
     return k in overrides ? (overrides[k] || null) : cell.role;
   };
+  // 현재 슬롯(kind)에서 보일 역할만 — 통합 양식의 다른 영역 칸은 이 슬롯에서 숨겨 자기 영역만 매핑.
+  const visRole = (ti: number, cell: Cell): string | null => {
+    const r = effRole(ti, cell);
+    return roleVisibleForKind(r, kind) ? r : null;
+  };
   function assignRole(role: string) {
     if (!picker) return;
     const K = `${picker.t},${picker.r},${picker.c}`;
@@ -272,13 +296,18 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
 
   const recordForms = saved.filter((f) => f.kind === "record");
   const scheduleForms = saved.filter((f) => f.kind === "schedule");
-  const missing = result ? Object.entries(result.coverage).filter(([, v]) => !v).map(([k]) => FIELD_LABEL[k] ?? k) : [];
+  // 커버리지/누락 칸 — 일정표 슬롯에선 공통 칸(기관명·이름·생년월일)만 따진다(회기/결과는 기록지 영역).
+  const coverageEntries = result
+    ? Object.entries(result.coverage).filter(([k]) => kind === "record" || COMMON_COVERAGE.has(k))
+    : [];
+  const missing = coverageEntries.filter(([, v]) => !v).map(([k]) => FIELD_LABEL[k] ?? k);
 
   // 양식 점검 — 값이 들어갈(역할 지정된) 칸에 이미 작성 내용이 있으면 '빈 양식이 아님'. 경고만 표시(진행은 가능).
   const filledCells = result
     ? result.grid.flatMap((cells, ti) =>
         cells.flatMap((cell) => {
-          const role = effRole(ti, cell);
+          // 이 슬롯(kind)에서 보이는 역할만 점검 — 다른 영역(통합 양식)의 작성값은 무시.
+          const role = visRole(ti, cell);
           // 서명/확인란은 손서명용 — 플레이스홀더 글자가 있어도 '작성됨'으로 보지 않음.
           return role && role !== "서명" && isFilledValue(cell.text) ? [{ ti, r: cell.r, c: cell.c, role, text: cell.text.trim() }] : [];
         }),
@@ -293,7 +322,7 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
     const rowCells: Record<string, Array<{ ti: number; r: number; c: number }>> = {};
     result.grid.forEach((cells, ti) =>
       cells.forEach((cell) => {
-        const role = effRole(ti, cell);
+        const role = visRole(ti, cell);
         if (!role) return;
         if (ROW_PREVIEW.has(role)) {
           (rowCells[role] ??= []).push({ ti, r: cell.r, c: cell.c });
@@ -491,7 +520,7 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
             <div className="card-body" style={{ display: "grid", gap: 10 }}>
               <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>인식 결과</h3>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {Object.entries(result.coverage).map(([k, ok]) => (
+                {coverageEntries.map(([k, ok]) => (
                   <span key={k} className="badge" style={{
                     fontSize: 12, padding: "4px 10px", borderColor: "transparent",
                     background: ok ? "#DDEBD3" : "#F6E4DE", color: ok ? "#3F6132" : "#8A2F1C",
@@ -559,9 +588,9 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
                             <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-soft)", marginBottom: 4 }}>표 {ti + 1}</div>
                             <TableView
                               cells={cells}
-                              roleOf={(cell) => effRole(ti, cell)}
-                              lowOf={(cell) => lowConf.has(trcKey(ti, cell.r, cell.c))}
-                              filledOf={(cell) => effRole(ti, cell) !== "서명" && isFilledValue(cell.text)}
+                              roleOf={(cell) => visRole(ti, cell)}
+                              lowOf={(cell) => lowConf.has(trcKey(ti, cell.r, cell.c)) && roleVisibleForKind(effRole(ti, cell), kind)}
+                              filledOf={(cell) => { const r = visRole(ti, cell); return !!r && r !== "서명" && isFilledValue(cell.text); }}
                               onCell={(r, c, text, x, y) => setPicker({ t: ti, r, c, text, x, y })}
                             />
                           </div>

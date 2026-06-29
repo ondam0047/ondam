@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { readSection0, patchSection0 } from "@/lib/hwpx";
-import { resolveForm, applyOverrides } from "@/lib/record-resolver";
+import { resolveForm, applyOverrides, scopeSpecToKind } from "@/lib/record-resolver";
 import { removeTableColumns, removeTableRows } from "@/lib/record-trim";
 import { classifyDevVoucherForm } from "@/lib/form-gate";
 
@@ -48,7 +48,8 @@ export async function POST(req: NextRequest) {
     // → 출력이 항상 5회기 기준이 되고, 6회기 이상이면 자동으로 두 장으로 나뉜다.
     let trimmed = false;
     if (spec.dateTable != null && spec.extraSessionCols?.length) {
-      xml = removeTableColumns(xml, spec.dateTable, spec.extraSessionCols); trimmed = true;
+      // 남은 회기열에 지운 폭을 재분배 → 표 너비 유지로 우측이 다른 표와 정렬됨.
+      xml = removeTableColumns(xml, spec.dateTable, spec.extraSessionCols, { redistributeTo: spec.date.map((d) => d[2]) }); trimmed = true;
     }
     if (spec.resultTable != null && spec.extraResultRows?.length) {
       xml = removeTableRows(xml, spec.resultTable, spec.extraResultRows); trimmed = true;
@@ -61,6 +62,8 @@ export async function POST(req: NextRequest) {
     if (typeof ovRaw === "string" && ovRaw.length > 1) {
       try { applyOverrides(spec, JSON.parse(ovRaw)); } catch { /* noop */ }
     }
+    // 통합 양식(같은 파일을 두 슬롯에 올림)이어도 이 슬롯(kind)의 영역만 채우도록 spec 을 좁혀 저장.
+    spec = scopeSpecToKind(spec, kind as "record" | "schedule");
     specJson = JSON.stringify(spec);
   } catch {
     return Response.json({ error: "편집 가능한 .hwpx 가 아니에요." }, { status: 422 });

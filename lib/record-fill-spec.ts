@@ -202,8 +202,9 @@ export function generateRecordFromForm(
     const time = [s.startTime, s.endTime].filter(Boolean).join("~");
     return { day, time };
   }).filter((s) => s.day > 0);
-  // 저장 spec 에 달력이 없으면(구버전) 템플릿에서 재탐지
-  const cal = spec.scheduleCalendar ?? detectCalendarFromXml(baseXml);
+  // 저장 spec 에 달력이 없으면(구버전) 템플릿에서 재탐지. 단, 기록지 슬롯으로 좁힌 통합 양식
+  // (noSchedule)은 재탐지하지 않음 — 일정표 영역(달력)을 기록지 출력이 건드리지 않게 한다.
+  const cal = spec.noSchedule ? null : (spec.scheduleCalendar ?? detectCalendarFromXml(baseXml));
 
   // ── 글자속성(charPr) 주입: 값 칸 통일(정규화) + (통합양식) 달력. header 1회 패치. ──
   let header: string | null = null;

@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { readSection0, readHeader, patchSection0, patchFiles } from "@/lib/hwpx";
 import { getCellRunCharPr, addClonedCharPr } from "@/lib/hwpx-charpr";
 import { fillCells } from "@/lib/record-fill";
-import { resolveForm, buildSampleEdits, applyOverrides } from "@/lib/record-resolver";
+import { resolveForm, buildSampleEdits, applyOverrides, scopeSpecToKind } from "@/lib/record-resolver";
 import { removeTableColumns, removeTableRows } from "@/lib/record-trim";
 
 function parseOverrides(v: FormDataEntryValue | null) {
@@ -28,8 +28,12 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "분석할 수 없는 파일이에요." }, { status: 422 });
   }
 
-  const { spec } = resolveForm(xml);
+  const resolved = resolveForm(xml);
+  let spec = resolved.spec;
   applyOverrides(spec, parseOverrides(form.get("overrides")));
+  // 슬롯(kind)이 지정되면 그 영역만 채워 미리보기 — 통합 양식을 두 슬롯에 같은 파일로 올릴 때 영역 분리.
+  const kindParam = new URL(req.url).searchParams.get("kind");
+  if (kindParam === "record" || kindParam === "schedule") spec = scopeSpecToKind(spec, kindParam);
 
   // 값 칸 글자 통일(normCharPr) — 실제 출력과 동일하게 미리보기에서도 글자 모양/색/크기를 맞춘다.
   // 대표 값 칸(날짜·이름·시작·기관)의 글자속성을 복제해 검정·동일크기·굵게/기울임/밑줄 제거.
