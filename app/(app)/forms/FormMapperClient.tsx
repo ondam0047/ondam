@@ -18,6 +18,40 @@ const FIELD_LABEL: Record<string, string> = {
   amount: "금액", result: "결과표",
 };
 
+// 인라인 예시 미리보기용 — 회기 행 역할(순서대로 채움). 규칙 인식(영문 필드키)·수동 지정(한글 역할명) 둘 다 커버.
+const ROW_PREVIEW = new Set([
+  "date", "start", "end", "voucher", "extra", "amount", "result",
+  "날짜", "시작", "종료", "바우처(분)", "추가구매", "금액", "결과", "비고", "회차",
+]);
+// 역할별 예시 값(ROW 역할은 배열). 양식이 이렇게 채워진다는 걸 화면에서 바로 보여주기 위함.
+const SAMPLE: Record<string, string | string[]> = {
+  org: "OO언어발달센터", name: "홍길동", birth: "2018-03-15",
+  date: ["3/5", "3/12", "3/19", "3/26", "4/2"],
+  start: ["10:00", "10:00", "10:00", "10:00", "10:00"],
+  end: ["10:50", "10:50", "10:50", "10:50", "10:50"],
+  voucher: ["40", "40", "40", "40", "40"],
+  extra: ["10", "10", "10", "10", "10"],
+  amount: ["65,000", "65,000", "65,000", "65,000", "65,000"],
+  result: ["2어절 모방 산출 80%", "목표어 산출 증가", "이야기 다시말하기", "받침 발음 연습", "대화 차례 지키기"],
+  기관명: "OO언어발달센터", 대상자이름: "홍길동", 대상자명: "홍길동", 치료사이름: "김치료",
+  생년월일: "2018-03-15", 제공영역: "언어재활", 서비스종류: "언어재활",
+  제공자: "OO언어발달센터", 제공자명: "OO언어발달센터", 담당: "김치료",
+  연도: "2026", 월: "6", 학교: "OO초등학교", 학년: "3학년", 요일: "화·목", 정기시간: "10:00~10:50",
+  치료목표: "2어절 문장 산출 향상", 현행수준: "1~2어절 수준 발화",
+  종합의견: "목표 행동에 꾸준한 향상을 보이며 참여 태도가 적극적임. 가정 연계 지도 권장.",
+  관리번호: "M-2026-0001", 단가: "65,000", 횟수: "5", 총금액: "325,000", 본인부담금: "0",
+  주기: "주 1회", 제공일: "화·목", 작성일자: "2026-06-01", 전화: "02-000-0000",
+  날짜: ["3/5", "3/12", "3/19", "3/26", "4/2"],
+  시작: ["10:00", "10:00", "10:00", "10:00", "10:00"],
+  종료: ["10:50", "10:50", "10:50", "10:50", "10:50"],
+  "바우처(분)": ["40", "40", "40", "40", "40"],
+  추가구매: ["10", "10", "10", "10", "10"],
+  금액: ["65,000", "65,000", "65,000", "65,000", "65,000"],
+  결과: ["2어절 모방 산출 80%", "목표어 산출 증가", "이야기 다시말하기", "받침 발음 연습", "대화 차례 지키기"],
+  비고: ["적극 참여", "컨디션 양호", "피로감 호소", "특이사항 없음", "보호자 상담"],
+  회차: ["1", "2", "3", "4", "5"],
+};
+
 export default function FormMapperClient() {
   const betaUx = useBetaUx();
   const [file, setFile] = useState<File | null>(null);
@@ -40,6 +74,7 @@ export default function FormMapperClient() {
   // 셀프 보정: 칸 클릭으로 역할 지정/해제. key="t,r,c" → 역할(빈문자열=해제)
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [picker, setPicker] = useState<{ t: number; r: number; c: number; text: string; x: number; y: number } | null>(null);
+  const [mapPreview, setMapPreview] = useState(true);
 
   // AI 매핑 동안 1초마다 경과 초 증가(끝나면 0으로 리셋).
   useEffect(() => {
@@ -200,6 +235,36 @@ export default function FormMapperClient() {
   const recordForms = saved.filter((f) => f.kind === "record");
   const scheduleForms = saved.filter((f) => f.kind === "schedule");
   const missing = result ? Object.entries(result.coverage).filter(([, v]) => !v).map(([k]) => FIELD_LABEL[k] ?? k) : [];
+
+  // 인라인 예시 미리보기 — 현재 지정된 역할에 SAMPLE 값을 채운 좌표맵(키 "t,r,c").
+  // 회기 행(ROW) 역할은 표·행·열 순으로 정렬해 i번째 회기 예시를 순서대로 배정.
+  function exampleFillMap(): Map<string, string> {
+    const m = new Map<string, string>();
+    if (!result) return m;
+    const rowCells: Record<string, Array<{ ti: number; r: number; c: number }>> = {};
+    result.grid.forEach((cells, ti) =>
+      cells.forEach((cell) => {
+        const role = effRole(ti, cell);
+        if (!role) return;
+        if (ROW_PREVIEW.has(role)) {
+          (rowCells[role] ??= []).push({ ti, r: cell.r, c: cell.c });
+        } else {
+          const ex = SAMPLE[role];
+          if (typeof ex === "string") m.set(trcKey(ti, cell.r, cell.c), ex);
+        }
+      }),
+    );
+    for (const role of Object.keys(rowCells)) {
+      const list = Array.isArray(SAMPLE[role]) ? (SAMPLE[role] as string[]) : [];
+      rowCells[role]
+        .sort((a, b) => a.ti - b.ti || a.r - b.r || a.c - b.c)
+        .forEach((cell, i) => {
+          const v = list[i] ?? list[list.length - 1] ?? "";
+          if (v) m.set(trcKey(cell.ti, cell.r, cell.c), v);
+        });
+    }
+    return m;
+  }
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
@@ -364,28 +429,61 @@ export default function FormMapperClient() {
           </div>
 
           <div className="card">
-            <div className="card-body" style={{ display: "grid", gap: 16, overflowX: "auto" }}>
-              <p style={{ margin: 0, fontSize: 12.5, color: "var(--text-mute)" }}>
-                양식 표 미리보기 — <span style={{ background: "var(--primary-soft)", color: "var(--primary)", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>색칠된 칸</span>이 자동 인식된 입력 위치예요. <b>칸을 클릭</b>하면 그 자리에서 역할을 고칠 수 있어요. <b>✨ AI로 칸 자동 매핑</b>으로 규칙이 놓친 칸까지 채울 수 있어요(센터·지자체마다 다른 양식 대응).
-              </p>
+            <div className="card-body" style={{ display: "grid", gap: 12, overflowX: "auto" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                <p style={{ margin: 0, fontSize: 12.5, color: "var(--text-mute)", flex: 1, minWidth: 220 }}>
+                  양식 표 미리보기 — <span style={{ background: "var(--primary-soft)", color: "var(--primary)", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>색칠된 칸</span>이 자동 인식된 입력 위치예요. <b>칸을 클릭</b>하면 그 자리에서 역할을 고칠 수 있어요. <b>✨ AI로 칸 자동 매핑</b>으로 규칙이 놓친 칸까지 채울 수 있어요(센터·지자체마다 다른 양식 대응).
+                </p>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-soft)", cursor: "pointer", whiteSpace: "nowrap" }}>
+                  <input type="checkbox" checked={mapPreview} onChange={(e) => setMapPreview(e.target.checked)} />
+                  예시로 채워서 미리보기
+                </label>
+              </div>
               {lowConf.size > 0 && (
                 <p style={{ margin: 0, fontSize: 12.5, color: "#8A6422" }}>
                   ⚠ AI 신뢰도 낮은 칸 {lowConf.size}개(테두리 주황) — 꼭 클릭해서 맞는지 확인하세요.
                 </p>
               )}
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-start" }}>
-                {result.grid.map((cells, ti) => (
-                  <div key={ti} style={{ flex: "0 1 auto", maxWidth: "100%" }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-soft)", marginBottom: 4 }}>표 {ti + 1}</div>
-                    <TableView
-                      cells={cells}
-                      roleOf={(cell) => effRole(ti, cell)}
-                      lowOf={(cell) => lowConf.has(trcKey(ti, cell.r, cell.c))}
-                      onCell={(r, c, text, x, y) => setPicker({ t: ti, r, c, text, x, y })}
-                    />
+              {(() => {
+                const fm = mapPreview ? exampleFillMap() : null;
+                return (
+                  <div style={{ display: "grid", gridTemplateColumns: mapPreview ? "1fr 1fr" : "1fr", gap: 14, alignItems: "start" }}>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: "var(--text-soft)", marginBottom: 6 }}>
+                        ✏️ 칸 매핑 <span style={{ fontWeight: 400, color: "var(--text-mute)" }}>— 칸 클릭해 역할 지정</span>
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-start" }}>
+                        {result.grid.map((cells, ti) => (
+                          <div key={ti} style={{ flex: "0 1 auto", maxWidth: "100%" }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-soft)", marginBottom: 4 }}>표 {ti + 1}</div>
+                            <TableView
+                              cells={cells}
+                              roleOf={(cell) => effRole(ti, cell)}
+                              lowOf={(cell) => lowConf.has(trcKey(ti, cell.r, cell.c))}
+                              onCell={(r, c, text, x, y) => setPicker({ t: ti, r, c, text, x, y })}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    {mapPreview && fm && (
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 800, color: "var(--primary)", marginBottom: 6 }}>
+                          👁 예시 미리보기 <span style={{ fontWeight: 400, color: "var(--text-mute)" }}>— 지정한 역할이 이렇게 채워져요</span>
+                        </div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-start" }}>
+                          {result.grid.map((cells, ti) => (
+                            <div key={ti} style={{ flex: "0 1 auto", maxWidth: "100%" }}>
+                              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-soft)", marginBottom: 4 }}>표 {ti + 1}</div>
+                              <PreviewTable cells={cells} valOf={(cell) => fm.get(trcKey(ti, cell.r, cell.c)) ?? ""} />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                ))}
-              </div>
+                );
+              })()}
             </div>
           </div>
         </>
@@ -479,6 +577,49 @@ function TableView({ cells, roleOf, lowOf, onCell }: {
             )}
             <div style={{ color: cell.text ? "var(--text)" : "var(--text-mute)", whiteSpace: "normal", wordBreak: "break-all" }}>
               {cell.text || (hl ? "" : "·")}
+            </div>
+          </td>,
+        );
+      } else {
+        tds.push(<td key={c} style={{ border: "1px solid var(--border)", background: "var(--surface-2)" }} />);
+      }
+    }
+    rows.push(<tr key={r}>{tds}</tr>);
+  }
+  return (
+    <table style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>
+      <tbody>{rows}</tbody>
+    </table>
+  );
+}
+
+// 예시 미리보기 표 — 역할 지정 칸은 예시값(굵게·강조 배경), 나머지는 원본 텍스트(흐리게).
+function PreviewTable({ cells, valOf }: { cells: Cell[]; valOf: (cell: Cell) => string }) {
+  if (cells.length === 0) return null;
+  const maxR = Math.max(...cells.map((c) => c.r + c.rs));
+  const maxC = Math.max(...cells.map((c) => c.c + c.cs));
+  const at = new Map<string, Cell>();
+  cells.forEach((c) => at.set(`${c.r},${c.c}`, c));
+  const covered = new Set<string>();
+  const rows: React.ReactNode[] = [];
+  for (let r = 0; r < maxR; r++) {
+    const tds: React.ReactNode[] = [];
+    for (let c = 0; c < maxC; c++) {
+      if (covered.has(`${r},${c}`)) continue;
+      const cell = at.get(`${r},${c}`);
+      if (cell) {
+        for (let rr = r; rr < r + cell.rs; rr++)
+          for (let cc = c; cc < c + cell.cs; cc++)
+            if (!(rr === r && cc === c)) covered.add(`${rr},${cc}`);
+        const v = valOf(cell);
+        tds.push(
+          <td key={c} colSpan={cell.cs} rowSpan={cell.rs}
+            style={{
+              border: "1px solid var(--border)", padding: "3px 5px", fontSize: 11, verticalAlign: "top",
+              background: v ? "var(--primary-soft)" : "var(--surface)", minWidth: 40, maxWidth: 160,
+            }}>
+            <div style={{ color: v ? "var(--text)" : "var(--text-mute)", fontWeight: v ? 700 : 400, whiteSpace: "normal", wordBreak: "break-all" }}>
+              {v || cell.text || "·"}
             </div>
           </td>,
         );
