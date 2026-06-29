@@ -343,8 +343,8 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
           <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
             {/* 1단계: 파일 선택 → 즉시 자동 분석(별도 '분석' 버튼 없음) */}
             <label className="btn btn-primary" style={{ cursor: "pointer" }}>
-              {loading ? "분석 중…" : file ? "다른 양식 선택" : ".hwpx 양식 선택"}
-              <input type="file" accept=".hwpx" style={{ display: "none" }}
+              {loading ? "분석 중…" : file ? "다른 양식 선택" : hwpAutoConvert ? "한글 양식 선택 (.hwp·.hwpx)" : ".hwpx 양식 선택"}
+              <input type="file" accept={hwpAutoConvert ? ".hwp,.hwpx" : ".hwpx"} style={{ display: "none" }}
                 onChange={(e) => {
                   const f = e.target.files?.[0] ?? null;
                   e.target.value = ""; // 같은 파일 다시 고를 수 있게 초기화
