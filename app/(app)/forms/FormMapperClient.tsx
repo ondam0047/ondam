@@ -294,7 +294,9 @@ export default function FormMapperClient() {
           )}
           <p style={{ margin: 0, fontSize: 12.5, color: "var(--text-mute)", lineHeight: 1.6 }}>
             <b>① 양식 선택</b>하면 바로 자동 인식해요(편집 가능한 <b>.hwpx</b> 빈 양식만 · .hwp·스캔·PDF 미지원).
-            놓친 칸이 있으면 <b>② ✨ AI로 칸 자동 매핑</b>(30~80초)으로 채우고, <b>③ 샘플로 확인</b> 후 저장하세요.
+            {betaUx
+              ? <> <b>② AI가 자동으로 칸을 매핑</b>해요(30~80초). 결과가 안 맞으면 <b>✨ AI로 칸 자동 매핑</b>으로 다시 실행하고, <b>③ 샘플로 확인</b> 후 저장하세요.</>
+              : <> 놓친 칸이 있으면 <b>② ✨ AI로 칸 자동 매핑</b>(30~80초)으로 채우고, <b>③ 샘플로 확인</b> 후 저장하세요.</>}
           </p>
         </div>
       </div>

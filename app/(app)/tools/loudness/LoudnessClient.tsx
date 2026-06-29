@@ -488,7 +488,7 @@ export default function LoudnessClient() {
       )}
       {!isRecording && samples.length > 0 && (
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
-          <button className="btn btn-primary" onClick={downloadPitchReport}>📄 리포트 다운로드</button>
+          <button className="btn btn-primary btn-sm" onClick={downloadPitchReport}>리포트 다운로드</button>
           <span style={{ fontSize: 12, color: "var(--text-mute)" }}>HTML 리포트로 저장 → 열어서 인쇄/PDF 가능</span>
         </div>
       )}

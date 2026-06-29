@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getCurrentSession } from "@/lib/voice/currentSessionStorage";
-import { saveTrainingRecord, type ModuleType } from "@/lib/voice/trainingStorage";
+import { type ModuleType } from "@/lib/voice/trainingStorage";
 import {
   countKoreanSyllables,
   splitIntoChunks,
@@ -284,20 +284,6 @@ function usePacingTrainer(
             const resultFeedback = getRateFeedback(actualSps, targetSps);
             setMeasuredSps(Number(actualSps.toFixed(2)));
             setFeedback(resultFeedback);
-
-            saveTrainingRecord({
-              id: crypto.randomUUID(),
-              savedAt: new Date().toISOString(),
-              moduleType,
-              clientName: clientName,
-              sessionNote: sessionNote.trim(),
-              practiceText: practiceText.trim(),
-              targetSps,
-              measuredSps: Number(actualSps.toFixed(2)),
-              feedback: resultFeedback,
-              chunkMode,
-              recordingSec: Number(sec.toFixed(2)),
-            });
           }
         }
 
@@ -468,7 +454,7 @@ function TrainerView({
               </strong>
               <div style={{ display: "flex", gap: 8 }}>
                 <button type="button" className="btn btn-sm" onClick={t.addSentence} disabled={t.isRunning}>＋ 문장 추가</button>
-                <button type="button" className="btn btn-sm" onClick={t.resetSettingsToDefault} disabled={t.isRunning}>설정 초기화</button>
+                <button type="button" className="btn btn-sm" onClick={t.resetSettingsToDefault} disabled={t.isRunning}>초기화</button>
               </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 340px), 1fr))", gap: 8 }}>

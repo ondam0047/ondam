@@ -840,45 +840,6 @@ function RecordSheet({
     }
   }
 
-  async function downloadDocx() {
-    setDownloading(true);
-    try {
-      const payload = {
-        childName: child,
-        childBirth: birth,
-        org,
-        therapist,
-        month: String(month),
-        opinion,
-        sessions: rows.map((s, i) => ({
-          use: s.use, pay: s.pay, appr: s.appr,
-          start: times[i].start, end: times[i].end,
-          voucher: vouchers[i], extra: extras[i], amount: amounts[i],
-          result: results[i],
-          resultExtra: mismatchReasons[i] || undefined,
-          retroReason: retroReasons[i] || undefined,
-        })),
-      };
-      const res = await fetch("/api/record/docx", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        alert("한글파일 생성에 실패했어요.");
-        return;
-      }
-      const blob = await res.blob();
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `${child}_${month}월_기록지.docx`;
-      a.click();
-      URL.revokeObjectURL(a.href);
-    } finally {
-      setDownloading(false);
-    }
-  }
-
   function setEnd(i: number, v: string) {
     setTimes((prev) => {
       const next = [...prev];

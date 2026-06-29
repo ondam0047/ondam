@@ -113,7 +113,6 @@ export default function ScheduleClient({
   const [copaySelfTouched, setCopaySelfTouched] = useState(false);
   const [writeDate, setWriteDate] = useState("");
   const [downloadingHwpx, setDownloadingHwpx] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
   const [autoStatus, setAutoStatus] = useState<"" | "saving" | "saved">("");
   const schedTouched = useRef(false); // 사용자가 실제 편집했을 때만 자동저장(로컬 임시본이 서버 최신본 덮어쓰기 방지)
@@ -418,7 +417,7 @@ export default function ScheduleClient({
     setGenM(m);
     setWriteDate(defaultWriteDate(y, m));
     setLoadedScheduleId(null);
-    setSavedMsg(`✓ ${s.year}년 ${s.month}월 일정을 패턴으로 가져와 ${y}년 ${m}월에 적용했어요. 저장하면 새 일정표가 됩니다.`);
+    setSavedMsg(`✓ ${s.year}년 ${s.month}월 일정을 패턴으로 가져와 ${y}년 ${m}월에 적용했어요. 새 일정표로 자동 저장됩니다.`);
     requestAnimationFrame(() => {
       document.getElementById("schedCard")?.scrollIntoView({ behavior: "smooth" });
     });
@@ -459,42 +458,6 @@ export default function ScheduleClient({
     requestAnimationFrame(() => {
       document.getElementById("schedCard")?.scrollIntoView({ behavior: "smooth" });
     });
-  }
-
-  async function saveSchedule() {
-    if (!sessions || typeof selectedChildId !== "number") return;
-    setSaving(true);
-    setSavedMsg("");
-    try {
-      const payload = {
-        childServiceId: selectedChildId,
-        year: genY,
-        month: genM,
-        therapist,
-        serviceType,
-        target,
-        mgmtNumber: mgmt,
-        pvOrg, pvTel, pvCharge, pvType,
-        costUnit, costSelf,
-        writeDate,
-        formId: outFormId || undefined, // 출력 양식 기억(일괄 출력에 사용)
-        sessions: days.map((d) => ({
-          day: d, time: sessions[d].time, makeup: sessions[d].makeup,
-        })),
-      };
-      const res = await fetch("/api/schedule/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) { alert("저장 실패"); return; }
-      const j = await res.json();
-      setLoadedScheduleId(j.scheduleId);
-      setSavedMsg(`✓ ${genY}년 ${genM}월 일정표가 저장되었어요.`);
-      await refreshSavedList(selectedChildId);
-    } finally {
-      setSaving(false);
-    }
   }
 
   async function deleteSaved(id: number) {
@@ -1112,13 +1075,6 @@ export default function ScheduleClient({
             <div className="divider" />
 
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-              {typeof selectedChildId === "number" ? (
-                <button className="btn" onClick={saveSchedule} disabled={saving}>
-                  {saving ? "저장 중..." : (loadedScheduleId ? "이 일정표 덮어쓰기 저장" : "이 일정표 저장")}
-                </button>
-              ) : (
-                <span className="sub-mute">저장하려면 위에서 "저장된 아동 불러오기"로 선택해주세요.</span>
-              )}
               <span style={{ flex: 1 }} />
               {savedForms.length > 0 ? (
                 <select

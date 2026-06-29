@@ -810,7 +810,7 @@ export default function SpeechRateClient() {
                 onClick={stopEarly}
                 style={{ width: "100%", padding: "12px 24px", fontSize: 14 }}
               >
-                조기 종료 + 분석
+                정지
               </button>
             </div>
           )}
@@ -842,7 +842,7 @@ export default function SpeechRateClient() {
                       style={{ padding: "2px 8px" }}
                       onClick={() => playingSel ? stopSelection() : playSelection(selStart, selEnd)}
                     >
-                      {playingSel ? "⏸ 정지" : "▶ 선택 구간 듣기"}
+                      {playingSel ? "⏸ 정지" : "▶ 재생"}
                     </button>
                     <button
                       className="btn btn-sm"
@@ -1022,7 +1022,7 @@ export default function SpeechRateClient() {
                   />
                 </label>
                 <button className="btn" onClick={reset}>
-                  전체 초기화
+                  초기화
                 </button>
               </div>
             </div>
@@ -1051,8 +1051,8 @@ export default function SpeechRateClient() {
               >
                 분석 결과
               </h3>
-              <button className="btn btn-sm" onClick={downloadSrReport}>
-                📄 리포트 다운로드
+              <button className="btn btn-primary btn-sm" onClick={downloadSrReport}>
+                리포트 다운로드
               </button>
             </div>
             <div

@@ -152,7 +152,7 @@ export default function DafClient() {
           <div style={{ display: "flex", gap: 12 }}>
             {!isActive ? (
               <button onClick={start} disabled={!acknowledged} className="btn btn-primary" style={{ flex: 1, padding: "14px", fontSize: 16, opacity: acknowledged ? 1 : 0.4, cursor: acknowledged ? "pointer" : "not-allowed" }}>
-                DAF 시작
+                시작
               </button>
             ) : (
               <button onClick={stop} className="btn" style={{ flex: 1, padding: "14px", fontSize: 16 }}>정지</button>

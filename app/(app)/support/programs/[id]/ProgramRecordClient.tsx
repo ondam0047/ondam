@@ -212,7 +212,7 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
     setErr(""); setMsg("");
     if (!studentName.trim()) { setErr("아동 이름을 입력하세요."); return; }
     if (!localHasForm) { setErr("기록지 양식이 등록되어 있지 않습니다."); return; }
-    if (mappingUnsaved) { setErr("매핑이 저장되지 않았어요. 위 매핑 영역에서 ‘매핑 갱신/저장’을 먼저 누른 뒤 출력하세요."); return; }
+    if (mappingUnsaved) { setErr("매핑이 저장되지 않았어요. 위 매핑 영역의 ‘이 매핑으로 저장’(또는 ‘매핑 갱신’) 버튼을 먼저 누른 뒤 출력하세요."); return; }
     setBusy(true);
     try {
       const res = await fetch(`/api/support/programs/${programId}/record`, {
@@ -259,7 +259,7 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
   async function showPreview() {
     setErr(""); setMsg("");
     if (!localHasForm) { setErr("기록지 양식이 등록되어 있지 않습니다."); return; }
-    if (mappingUnsaved) { setErr("매핑이 저장되지 않았어요. 위 매핑 영역에서 파란 ‘매핑 갱신/저장’ 버튼을 먼저 누른 뒤 미리보기하세요. (매핑 영역의 ‘② 예시 미리보기’는 저장 전 매핑이에요.)"); return; }
+    if (mappingUnsaved) { setErr("매핑이 저장되지 않았어요. 위 매핑 영역의 ‘이 매핑으로 저장’(또는 ‘매핑 갱신’) 버튼을 먼저 누른 뒤 미리보기하세요. (매핑 영역의 ‘예시 미리보기’는 저장 전 매핑이에요.)"); return; }
     setPreviewBusy(true);
     try {
       const realSessions = sessions.filter((s) => s.date || s.content);
@@ -558,11 +558,11 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
                   disabled={aiBusy}
                   style={{ width: "100%", justifyContent: "center", fontSize: 15, fontWeight: 700, padding: "11px" }}
                 >
-                  {aiBusy ? "✨ AI가 칸을 분석하고 있어요…" : "✨ AI로 칸 자동 매핑하기"}
+                  {aiBusy ? "✨ AI 매핑 중…" : "✨ AI로 칸 자동 매핑"}
                 </button>
                 <p style={{ margin: "8px 0 0", fontSize: 12.5, color: "var(--text-soft)", lineHeight: 1.5 }}>
-                  AI가 양식의 칸을 알아서 인식해 역할을 채워줘요. 아래 <b>예시 미리보기</b>로 확인·수정한 뒤 저장하세요.
-                  {" "}직접 맞추려면 아래 표에서 칸을 클릭해도 돼요.
+                  양식을 올리면 AI가 <b>자동으로 한 번</b> 칸을 인식해 채워줘요. 결과가 안 맞으면 위 버튼으로 다시 매핑하거나,
+                  아래 <b>예시 미리보기</b>로 확인·수정한 뒤 저장하세요. 직접 맞추려면 아래 표에서 칸을 클릭해도 돼요.
                 </p>
               </div>
             )}
@@ -579,7 +579,7 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
                       style={{ fontSize: 12, background: "var(--primary)", color: "#fff", border: "none" }}
                       title="규칙이 못 잡은 칸을 AI가 분석해 역할을 제안해요"
                     >
-                      {aiBusy ? "AI 분석 중…" : "✨ AI 자동매핑"}
+                      {aiBusy ? "✨ AI 매핑 중…" : "✨ AI로 칸 자동 매핑"}
                     </button>
                   )}
                 </div>
@@ -659,7 +659,6 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
             <h3 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "var(--text-soft)", letterSpacing: "0.05em", textTransform: "uppercase" }}>
               저장된 아동 ({saved.length})
             </h3>
-            <button className="btn btn-sm btn-ghost" onClick={newDoc}>+ 새로 작성</button>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {saved.map((r) => (
@@ -840,7 +839,7 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
             background: "var(--warn-soft, #FFF4E0)", color: "var(--warn-strong, #8A6422)",
             border: "1px solid #E8B96A",
           }}>
-            ⚠ 매핑이 저장되지 않았어요 — 위 매핑 영역에서 <b>파란 ‘매핑 갱신/저장’</b> 버튼을 먼저 눌러야 미리보기·출력에 반영돼요.
+            ⚠ 매핑이 저장되지 않았어요 — 위 매핑 영역의 <b>‘이 매핑으로 저장’</b>(또는 <b>‘매핑 갱신’</b>) 버튼을 먼저 눌러야 미리보기·출력에 반영돼요.
           </div>
         )}
 
@@ -852,7 +851,7 @@ export default function ProgramRecordClient({ programId, programName, hasForm, t
             {previewBusy ? "로딩…" : "미리보기"}
           </button>
           <span style={{ flex: 1 }} />
-          <button className="btn btn-ghost" onClick={newDoc} style={{ fontSize: 13, color: "var(--text-mute)" }}>초기화</button>
+          <button className="btn btn-ghost" onClick={newDoc} style={{ fontSize: 13, color: "var(--text-mute)" }} title="현재 입력을 비우고 새 기록지 작성">새로 작성</button>
         </div>
       </div>
 

@@ -273,15 +273,6 @@ export default function MptClient() {
     return { bg: "#E1ECF4", fg: "#1F4E79", t: "완료" };
   })();
 
-  const bigBtn: React.CSSProperties = {
-    width: "100%", borderRadius: 14, padding: "16px 24px", fontSize: 17, fontWeight: 700,
-    border: "none", background: PRIMARY, color: "#fff", cursor: "pointer",
-  };
-  const subBtn: React.CSSProperties = {
-    width: "100%", borderRadius: 14, padding: "12px 24px", fontSize: 14, fontWeight: 600,
-    border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-soft)", cursor: "pointer",
-  };
-
   return (
     <div style={{ display: "grid", gap: 16 }}>
       {errorMsg && (
@@ -327,8 +318,8 @@ export default function MptClient() {
 
           {phase === "idle" && (
             <div style={{ display: "grid", gap: 12 }}>
-              <button onClick={start} disabled={trials.length >= MAX_TRIALS} style={{ ...bigBtn, opacity: trials.length >= MAX_TRIALS ? 0.5 : 1 }}>
-                {trials.length === 0 ? "측정 시작" : trials.length >= MAX_TRIALS ? "3회 측정 완료" : `${trials.length + 1}회 측정 시작`}
+              <button onClick={start} disabled={trials.length >= MAX_TRIALS} className="btn btn-primary" style={{ justifyContent: "center" }}>
+                {trials.length === 0 ? "시작" : trials.length >= MAX_TRIALS ? "3회 측정 완료" : `${trials.length + 1}회 시작`}
               </button>
               {trials.length < MAX_TRIALS && (
                 <label style={{ display: "flex", cursor: "pointer", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 14, border: "2px dashed var(--border-strong)", background: "var(--surface-2)", padding: "12px 24px", fontSize: 14, fontWeight: 500, color: "var(--text-soft)" }}>
@@ -341,20 +332,20 @@ export default function MptClient() {
           {phase === "waiting" && (
             <div style={{ display: "grid", gap: 12 }}>
               <p style={{ textAlign: "center", fontSize: 14, fontWeight: 600, color: "#8A6422", margin: 0 }}>&quot;아—&quot; 발성을 시작하세요 (자동 감지)</p>
-              <button onClick={cancel} style={subBtn}>취소</button>
+              <button onClick={cancel} className="btn" style={{ justifyContent: "center" }}>정지</button>
             </div>
           )}
           {phase === "phonating" && (
             <div style={{ display: "grid", gap: 12 }}>
               <p style={{ textAlign: "center", fontSize: 14, fontWeight: 600, color: "var(--primary)", margin: 0 }}>● 측정 중 — 계속 발성하세요</p>
-              <button onClick={cancel} style={subBtn}>취소</button>
+              <button onClick={cancel} className="btn" style={{ justifyContent: "center" }}>정지</button>
             </div>
           )}
           {phase === "done" && (
             <div style={{ display: "grid", gap: 12 }}>
               <p style={{ textAlign: "center", fontSize: 14, fontWeight: 600, color: "#1F4E79", margin: 0 }}>✓ 이번 회기: {currentSec.toFixed(2)}초</p>
               {trials.length < MAX_TRIALS && (
-                <button onClick={start} style={bigBtn}>다음 측정 ({trials.length + 1}/{MAX_TRIALS})</button>
+                <button onClick={start} className="btn btn-primary" style={{ justifyContent: "center" }}>다음 측정 ({trials.length + 1}/{MAX_TRIALS})</button>
               )}
               {trials.length < MAX_TRIALS && (
                 <label style={{ display: "flex", cursor: "pointer", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 14, border: "1px solid var(--border)", background: "var(--surface)", padding: "12px 24px", fontSize: 14, fontWeight: 500, color: "var(--text-soft)" }}>
@@ -363,7 +354,7 @@ export default function MptClient() {
                 </label>
               )}
               {trials.length >= MAX_TRIALS && (
-                <button onClick={() => { phaseRef.current = "idle"; setPhase("idle"); }} style={subBtn}>결과 확인</button>
+                <button onClick={() => { phaseRef.current = "idle"; setPhase("idle"); }} className="btn" style={{ justifyContent: "center" }}>결과 확인</button>
               )}
             </div>
           )}
@@ -376,8 +367,8 @@ export default function MptClient() {
             <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>시도 기록</h2>
             {trials.length > 0 && (
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <button onClick={downloadMptReport} className="btn btn-primary btn-sm">📄 리포트 다운로드</button>
-                <button onClick={resetAll} style={{ background: "none", border: "none", fontSize: 12, color: "var(--text-mute)", cursor: "pointer" }}>전체 초기화</button>
+                <button onClick={downloadMptReport} className="btn btn-primary btn-sm">리포트 다운로드</button>
+                <button onClick={resetAll} style={{ background: "none", border: "none", fontSize: 12, color: "var(--text-mute)", cursor: "pointer" }}>초기화</button>
               </div>
             )}
           </div>
@@ -438,7 +429,7 @@ export default function MptClient() {
         <div style={{ padding: "0 18px 16px", fontSize: 14, color: "var(--text-soft)" }}>
           <ol style={{ paddingLeft: 20, margin: 0, lineHeight: 1.8 }}>
             <li>편안한 자세로 앉아 등을 곧게 세웁니다</li>
-            <li>&quot;측정 시작&quot; 버튼을 누릅니다</li>
+            <li>&quot;시작&quot; 버튼을 누릅니다</li>
             <li>깊게 숨을 들이마시고 &quot;아—&quot;를 최대한 길게 발성합니다</li>
             <li>발성이 멈추면 0.5초 후 자동 종료됩니다</li>
             <li>3회 반복합니다 (각 회기 사이 30초 이상 휴식 권장)</li>

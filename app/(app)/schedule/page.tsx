@@ -87,12 +87,13 @@ export default async function SchedulePage({
       {sp.bulk && <div className="flash ok" style={{ marginBottom: 14 }}>{sp.bulk}</div>}
       {sp.berr && <div className="flash warn" style={{ marginBottom: 14 }}>{sp.berr}</div>}
 
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-header">
-          <span className="step">★</span>
-          <h2>이번 달 일괄 생성</h2>
-          <span className="hint">담당 아동 전체의 일정표를 한 번에</span>
-        </div>
+      {/* 월초 전체 아동 일괄 생성 — 아래의 '한 명씩 작성'(step1/step2) 흐름과 구분되도록
+          step 마커 없이 접이식 유틸로 시각 격하. */}
+      <details className="card" style={{ marginBottom: 16 }}>
+        <summary style={{ cursor: "pointer", padding: "14px 16px", fontWeight: 700, fontSize: 15, listStyle: "revert" }}>
+          이번 달 전체 아동 일괄 생성
+          <span className="hint" style={{ fontWeight: 400, marginLeft: 8 }}>월초에 담당 아동 일정표를 한 번에 · 개별 작성은 아래 ↓</span>
+        </summary>
         <div className="card-body">
           <form action={bulkGenerateSchedules} style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "end" }}>
             <div className="field">
@@ -113,7 +114,7 @@ export default async function SchedulePage({
             생성 후 아래에서 개별 수정·한글파일 다운로드, 또는 <b>[이번 달]</b>에서 한 번에 받을 수 있어요.
           </div>
         </div>
-      </div>
+      </details>
 
       <ScheduleClient
         children={childOptions}

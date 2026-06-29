@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireRole, generateApprovalCode } from "@/lib/auth";
+import { requireRole } from "@/lib/auth";
 import { THERAPIST_TYPES, THERAPIST_TO_SERVICE, DEFAULT_SERVICE_TYPES } from "@/lib/constants";
 
 export async function updateCenter(formData: FormData) {
@@ -68,16 +68,4 @@ export async function updateCenter(formData: FormData) {
   revalidatePath("/record");
   revalidatePath("/children");
   redirect("/center?ok=" + encodeURIComponent("내 정보를 저장했어요"));
-}
-
-export async function regenerateCode() {
-  const me = await requireRole(["OWNER", "ADMIN"]);
-  if (!me.centerId) return;
-  const newCode = await generateApprovalCode();
-  await prisma.center.update({
-    where: { id: me.centerId },
-    data: { approvalCode: newCode },
-  });
-  revalidatePath("/center");
-  redirect("/center?ok=" + encodeURIComponent(`새 승인코드: ${newCode}`));
 }

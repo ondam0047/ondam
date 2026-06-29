@@ -544,7 +544,7 @@ export default function FluencyClient() {
                     style={{ width: "100%" }}
                     onClick={startRecording}
                   >
-                    ● 녹음 시작
+                    녹음 시작
                   </button>
                 ) : (
                   <button
@@ -557,7 +557,7 @@ export default function FluencyClient() {
                     }}
                     onClick={stopRecording}
                   >
-                    ■ 녹음 종료
+                    정지
                   </button>
                 )}
                 {recording && asr.supported && (
@@ -658,7 +658,7 @@ export default function FluencyClient() {
                   다시 듣고 패턴 표시
                 </h2>
                 <button className="btn btn-sm" onClick={reset}>
-                  새로 하기
+                  초기화
                 </button>
               </div>
 
@@ -693,7 +693,7 @@ export default function FluencyClient() {
                   }}
                 >
                   <button className="btn btn-sm" onClick={togglePlay}>
-                    {playing ? "⏸ 일시정지" : "▶ 재생"}
+                    {playing ? "⏸ 정지" : "▶ 재생"}
                   </button>
                   <span style={{ fontSize: 12, color: "var(--text-mute)" }}>
                     Space 재생/정지 · 재생 중 키 1–6 으로 현재 위치에 표시
@@ -1122,7 +1122,7 @@ export default function FluencyClient() {
                   </p>
                 </div>
                 <button className="btn btn-primary btn-sm" onClick={downloadFluencyReport}>
-                  📄 결과 보고서 다운로드
+                  리포트 다운로드
                 </button>
               </div>
 

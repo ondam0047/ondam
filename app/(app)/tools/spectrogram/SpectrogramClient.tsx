@@ -225,7 +225,7 @@ export default function SpectrogramClient() {
             ) : (
               <button className="btn" onClick={stop} style={{ borderColor: "#C0492F", color: "#C0492F" }}>정지</button>
             )}
-            <button className="btn" onClick={reset} disabled={isRecording || stats.samples === 0}>세션 초기화</button>
+            <button className="btn" onClick={reset} disabled={isRecording || stats.samples === 0}>초기화</button>
           </div>
         </div>
       </div>
@@ -302,7 +302,7 @@ export default function SpectrogramClient() {
 
           {stats.samples > 0 && (
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-              <button className="btn btn-primary" onClick={downloadSibReport}>📄 리포트 다운로드</button>
+              <button className="btn btn-primary btn-sm" onClick={downloadSibReport}>리포트 다운로드</button>
               <span style={{ fontSize: 12, color: "var(--text-mute)" }}>HTML 리포트로 저장 → 열어서 인쇄/PDF 가능</span>
             </div>
           )}
