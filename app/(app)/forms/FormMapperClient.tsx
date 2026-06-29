@@ -52,7 +52,7 @@ const SAMPLE: Record<string, string | string[]> = {
   회차: ["1", "2", "3", "4", "5"],
 };
 
-export default function FormMapperClient() {
+export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoConvert?: boolean }) {
   const betaUx = useBetaUx();
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<AnalyzeResult | null>(null);
@@ -75,6 +75,8 @@ export default function FormMapperClient() {
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [picker, setPicker] = useState<{ t: number; r: number; c: number; text: string; x: number; y: number } | null>(null);
   const [mapPreview, setMapPreview] = useState(true);
+  // 한글 .hwp 업로드 시 자동 변환(.hwp→.hwpx) 팝업 상태
+  const [hwpConvert, setHwpConvert] = useState<{ name: string; status: "converting" | "error"; error?: string } | null>(null);
 
   // AI 매핑 동안 1초마다 경과 초 증가(끝나면 0으로 리셋).
   useEffect(() => {
@@ -121,6 +123,29 @@ export default function FormMapperClient() {
       setError(e instanceof Error ? e.message : "분석 중 문제가 생겼어요.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  // 한글 .hwp 업로드 → 서버에서 .hwpx 로 자동 변환 후, 변환본을 그대로 분석 파이프라인에 투입.
+  // (선생님이 .hwp/.hwpx 차이를 몰라도 평소 양식을 바로 올릴 수 있게.)
+  async function convertHwp(f: File) {
+    setError(null); setResult(null); setWarning(null); setFile(null);
+    setHwpConvert({ name: f.name, status: "converting" });
+    try {
+      const fd = new FormData();
+      fd.append("file", f);
+      const r = await fetch("/api/forms/hwp-convert", { method: "POST", body: fd });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        throw new Error(d.error || "변환에 실패했어요.");
+      }
+      const blob = await r.blob();
+      const converted = new File([blob], f.name.replace(/\.hwp$/i, ".hwpx"), { type: "application/hwp+zip" });
+      setHwpConvert(null);
+      setFile(converted);
+      void analyze(converted);
+    } catch (e) {
+      setHwpConvert({ name: f.name, status: "error", error: e instanceof Error ? e.message : "변환 중 문제가 생겼어요." });
     }
   }
 
@@ -311,7 +336,9 @@ export default function FormMapperClient() {
           {/* 항상 보이는 파일 형식 안내 — 선생님이 잘못된 파일로 헛걸음하지 않도록 */}
           <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "9px 12px", borderRadius: 8, background: "var(--primary-soft)", border: "1px solid var(--primary)", fontSize: 12.5, color: "var(--primary)", lineHeight: 1.55 }}>
             <span style={{ fontSize: 15, lineHeight: 1.3 }}>📎</span>
-            <span><b>.hwpx 파일만</b> 인식해요 — 한글 <b>.hwp</b>·PDF·스캔·이미지·사진은 안 돼요. 한글에서 <b>“다른 이름으로 저장 → 한글 표준 형식(.hwpx)”</b>으로 저장한 <b>빈 양식</b>을 올려주세요.</span>
+            {hwpAutoConvert
+              ? <span>한글 <b>.hwp · .hwpx</b> 양식을 올려주세요 — <b>.hwp는 올리면 자동으로 .hwpx로 변환</b>해 드려요. (PDF·스캔·이미지·사진은 안 돼요) 가능하면 <b>빈 양식</b>으로 올려주세요.</span>
+              : <span><b>.hwpx 파일만</b> 인식해요 — 한글 <b>.hwp</b>·PDF·스캔·이미지·사진은 안 돼요. 한글에서 <b>“다른 이름으로 저장 → 한글 표준 문서(.hwpx)”</b>로 저장한 <b>빈 양식</b>을 올려주세요.</span>}
           </div>
           <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
             {/* 1단계: 파일 선택 → 즉시 자동 분석(별도 '분석' 버튼 없음) */}
@@ -321,12 +348,21 @@ export default function FormMapperClient() {
                 onChange={(e) => {
                   const f = e.target.files?.[0] ?? null;
                   e.target.value = ""; // 같은 파일 다시 고를 수 있게 초기화
-                  if (f && !/\.hwpx$/i.test(f.name)) {
-                    // .hwpx 아닌 파일은 서버로 보내기 전에 즉시 거절(헛걸음 방지). .hwp는 변환법을 단계별로 안내.
+                  if (f && /\.hwp$/i.test(f.name)) {
                     setFile(null); setResult(null); setWarning(null);
-                    setError(/\.hwp$/i.test(f.name)
-                      ? `‘${f.name}’은(는) 한글 옛 형식(.hwp)이에요. 한글에서 이 파일을 연 뒤 ① [파일] → ② [다른 이름으로 저장] → ③ 파일 형식을 ‘한글 표준 문서 (*.hwpx)’로 선택해 저장하고, 그 .hwpx 파일을 올려주세요.`
-                      : `‘${f.name}’은(는) .hwpx 파일이 아니에요(.hwp·PDF·이미지·스캔 미지원). 한글에서 “다른 이름으로 저장 → 한글 표준 문서(*.hwpx)”로 변환한 뒤 올려주세요.`);
+                    if (hwpAutoConvert) {
+                      // (베타) 한글 .hwp → 거절하지 않고 .hwpx 로 자동 변환(팝업)
+                      void convertHwp(f);
+                    } else {
+                      // 일반 계정 → 한글에서 .hwpx 로 저장하도록 단계별 안내
+                      setError(`‘${f.name}’은(는) 한글 옛 형식(.hwp)이에요. 한글에서 이 파일을 연 뒤 ① [파일] → ② [다른 이름으로 저장] → ③ 파일 형식을 ‘한글 표준 문서 (*.hwpx)’로 선택해 저장하고, 그 .hwpx 파일을 올려주세요.`);
+                    }
+                    return;
+                  }
+                  if (f && !/\.hwpx$/i.test(f.name)) {
+                    // .hwp 도 .hwpx 도 아닌 파일(PDF·이미지·스캔 등)은 즉시 거절
+                    setFile(null); setResult(null); setWarning(null);
+                    setError(`‘${f.name}’은(는) 한글 문서가 아니에요(.hwp·.hwpx만 됩니다). PDF·이미지·스캔본은 인식할 수 없어요.`);
                     return;
                   }
                   setFile(f); setResult(null); setError(null); setWarning(null);
@@ -569,6 +605,36 @@ export default function FormMapperClient() {
         </>
         );
       })()}
+
+      {/* 한글 .hwp 자동 변환 팝업 */}
+      {hwpConvert && (
+        <div
+          onClick={() => hwpConvert.status === "error" && setHwpConvert(null)}
+          style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 14, padding: "22px 24px", maxWidth: 420, width: "100%", boxShadow: "0 10px 30px rgba(0,0,0,0.2)", display: "grid", gap: 14 }}>
+            {hwpConvert.status === "converting" ? (
+              <>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 15, fontWeight: 800 }}>
+                  <span className="ai-spin" style={{ width: 16, height: 16, borderRadius: "50%", border: "2px solid var(--primary)", borderTopColor: "transparent", display: "inline-block" }} />
+                  한글 파일(.hwp) 변환 중…
+                </div>
+                <div style={{ fontSize: 13, color: "var(--text-soft)", lineHeight: 1.6 }}>
+                  <b>{hwpConvert.name}</b> 을(를) <b>.hwpx</b> 로 자동 변환하고 있어요. 잠시만요(보통 1~2초). 변환되면 바로 칸을 인식해 드려요.
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: 15, fontWeight: 800, color: "#8A2F1C" }}>변환하지 못했어요</div>
+                <div style={{ fontSize: 13, color: "var(--text-soft)", lineHeight: 1.6 }}>{hwpConvert.error}</div>
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                  <button className="btn btn-sm" onClick={() => setHwpConvert(null)}>닫기</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

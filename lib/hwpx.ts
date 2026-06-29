@@ -149,6 +149,64 @@ export function readEntryText(templateBuf: Buffer, name: string): string {
   return e.method === 8 ? inflateRawSync(e.compressedData).toString("utf8") : e.compressedData.toString("utf8");
 }
 
+// ── 중앙디렉토리(EOCD→CD) 기반 zip 리더 ───────────────────────────────
+// parseZipEntries 는 로컬헤더를 순차로 걸으며 LFH 의 압축크기로 다음 위치를 계산하는데,
+// 자바 ZipOutputStream(hwpxlib 등)이 만드는 zip 은 데이터 디스크립터(GP bit3)를 써서
+// LFH 의 크기가 0 이라 순차 파싱이 첫 엔트리에서 멈춘다. 중앙디렉토리는 항상 정확한
+// 크기·오프셋을 담으므로, 어떤 도구가 만든 .hwpx 든 안전하게 읽으려면 이 리더를 쓴다.
+export function parseZipEntriesFromCD(buf: Buffer): ZipEntry[] {
+  const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  let eocd = -1;
+  for (let i = buf.byteLength - 22; i >= 0; i--) {
+    if (view.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error("EOCD(중앙디렉토리 끝) 레코드를 찾을 수 없어요 — 올바른 zip 이 아닙니다");
+  const count = view.getUint16(eocd + 10, true);
+  let pos = view.getUint32(eocd + 16, true);
+  const entries: ZipEntry[] = [];
+  for (let n = 0; n < count; n++) {
+    if (pos + 46 > buf.byteLength || view.getUint32(pos, true) !== 0x02014b50) break;
+    const method = view.getUint16(pos + 10, true);
+    const crc = view.getUint32(pos + 16, true);
+    const compSize = view.getUint32(pos + 20, true);
+    const uncSize = view.getUint32(pos + 24, true);
+    const nameLen = view.getUint16(pos + 28, true);
+    const extraLen = view.getUint16(pos + 30, true);
+    const commentLen = view.getUint16(pos + 32, true);
+    const localOff = view.getUint32(pos + 42, true);
+    const name = buf.subarray(pos + 46, pos + 46 + nameLen).toString("utf8");
+    // 실제 데이터 시작 = 로컬헤더 오프셋 + 30 + (로컬헤더의) name·extra 길이
+    const lfhNameLen = view.getUint16(localOff + 26, true);
+    const lfhExtraLen = view.getUint16(localOff + 28, true);
+    const dataStart = localOff + 30 + lfhNameLen + lfhExtraLen;
+    entries.push({
+      name, method, crc,
+      compressedSize: compSize,
+      uncompressedSize: uncSize,
+      compressedData: Buffer.from(buf.subarray(dataStart, dataStart + compSize)),
+    });
+    pos += 46 + nameLen + extraLen + commentLen;
+  }
+  return entries;
+}
+
+// hwp2hwpx(hwpxlib) 출력은 데이터 디스크립터 zip 이라 바로일지의 순차 리더가 못 읽는다.
+// 중앙디렉토리로 읽어 mimetype 은 STORE 로 풀어 첫 엔트리에 두고(HWPX/ODF 관례), 나머지는 그대로
+// 두어 바로일지·한글이 읽는 표준 zip 으로 재포장한다.
+export function normalizeHwpxZip(buf: Buffer): Buffer {
+  const entries = parseZipEntriesFromCD(buf);
+  if (entries.length === 0) throw new Error("zip 엔트리를 읽지 못했어요 — 변환 결과가 올바르지 않습니다");
+  const norm = entries.map((e) => {
+    if (e.name === "mimetype" && e.method === 8) {
+      const raw = inflateRawSync(e.compressedData);
+      return { ...e, method: 0, compressedData: raw, compressedSize: raw.length, uncompressedSize: raw.length, crc: crc32(raw) };
+    }
+    return e;
+  });
+  norm.sort((a, b) => (a.name === "mimetype" ? -1 : b.name === "mimetype" ? 1 : 0));
+  return buildZip(norm);
+}
+
 // 여러 내부 파일(예: section0 + header)을 한 번에 교체해 .hwpx 출력.
 export function patchFiles(templateBuf: Buffer, files: Record<string, string>): Buffer {
   const entries = parseZipEntries(templateBuf);

@@ -1,8 +1,12 @@
 import FormMapperClient from "./FormMapperClient";
+import { getCurrentUser } from "@/lib/auth";
+import { isHwpConvert } from "@/lib/feature-flags";
 
 export const dynamic = "force-dynamic";
 
-export default function FormsPage() {
+export default async function FormsPage() {
+  const user = await getCurrentUser();
+  const hwpAutoConvert = isHwpConvert(user?.email);
   return (
     <>
       <div className="section-head">
@@ -11,7 +15,7 @@ export default function FormsPage() {
           <p>우리 센터 기록지·일정표(.hwpx)를 올리면 자동으로 칸을 인식해요. 샘플로 채워보고 맞는지 확인한 뒤 저장하면, 일정표·기록지 출력과 일괄 다운로드에 그 양식이 쓰입니다.</p>
         </div>
       </div>
-      <FormMapperClient />
+      <FormMapperClient hwpAutoConvert={hwpAutoConvert} />
     </>
   );
 }
