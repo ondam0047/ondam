@@ -219,7 +219,7 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${file.name.replace(/\.hwpx$/i, "")}_${trim ? "5칸정리샘플" : "샘플채움"}.hwpx`;
+      a.download = `${file.name.replace(/\.hwpx$/i, "")}_샘플채움.hwpx`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
@@ -439,18 +439,17 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
                 {aiLoading ? `AI 매핑 중… ${aiElapsed}초` : "✨ AI로 칸 자동 매핑"}
               </button>
             )}
-            {/* 3단계: 샘플로 확인 */}
+            {/* 3단계: 샘플로 확인 — 저장·출력과 동일하게 항상 5칸/5행으로 정리해 채워준다. */}
             {result && (
-              <button className="btn" onClick={() => downloadSample(false)} disabled={downloading}>
+              <button className="btn" onClick={() => downloadSample(true)} disabled={downloading}
+                title="회기 칸이 5개를 넘으면 5칸으로 정리해(저장·출력과 동일) 샘플을 채워줍니다.">
                 {downloading ? "생성 중…" : "샘플로 확인 (.hwpx)"}
               </button>
             )}
             {result && ((result.spec?.extraSessionCols?.length ?? 0) > 0 || (result.spec?.extraResultRows?.length ?? 0) > 0) && (
-              <button className="btn btn-ghost" onClick={() => downloadSample(true)} disabled={downloading}
-                style={{ fontSize: 12.5 }}
-                title="회기 칸·결과표 행이 5개를 넘는 양식에서 초과분을 제거해 5칸/5행으로 정리(실험)">
-                {downloading ? "생성 중…" : `5칸으로 정리해 받기${(result.spec?.extraSessionCols?.length ?? 0) > 0 ? ` (회기 ${result.spec?.extraSessionCols?.length}↓)` : ""}${(result.spec?.extraResultRows?.length ?? 0) > 0 ? ` (결과 ${result.spec?.extraResultRows?.length}↓)` : ""}`}
-              </button>
+              <span style={{ fontSize: 12, color: "var(--text-mute)" }}>
+                회기·결과 칸을 <b>5칸으로 정리</b>해서 채워요{(result.spec?.extraSessionCols?.length ?? 0) > 0 ? ` (회기 ${result.spec?.extraSessionCols?.length}칸↓)` : ""}{(result.spec?.extraResultRows?.length ?? 0) > 0 ? ` (결과 ${result.spec?.extraResultRows?.length}행↓)` : ""}
+              </span>
             )}
           </div>
           {aiLoading && (
