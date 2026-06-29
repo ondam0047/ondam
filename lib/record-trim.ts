@@ -21,7 +21,12 @@ function findNthTable(xml: string, n: number): [number, number] | null {
   return null;
 }
 
-export function removeTableColumns(xml: string, tableIndex: number, removeCols: number[]): string {
+export function removeTableColumns(
+  xml: string,
+  tableIndex: number,
+  removeCols: number[],
+  opts?: { redistributeTo?: number[] },
+): string {
   if (!removeCols || removeCols.length === 0) return xml;
   const R = new Set(removeCols);
   const t = findNthTable(xml, tableIndex);
@@ -43,6 +48,17 @@ export function removeTableColumns(xml: string, tableIndex: number, removeCols: 
   }
   const removedWidth = removeCols.reduce((s, c) => s + (colW[c] ?? 0), 0);
 
+  // 너비 재분배(keepWidth): 지운 폭을 표에서 빼지 않고 남은 회기열(redistributeTo)에 고르게 분배해
+  // 표 전체 너비를 유지 → 우측 가장자리가 다른 표와 정렬됨. 전체폭 병합셀(배너)은 폭 그대로 둔다.
+  const redist = (opts?.redistributeTo ?? []).filter((c) => !R.has(c));
+  const keepWidth = redist.length > 0 && removedWidth > 0;
+  const shareByCol: Record<number, number> = {};
+  if (keepWidth) {
+    const base = Math.floor(removedWidth / redist.length);
+    const rem = removedWidth - base * redist.length;
+    redist.forEach((c, i) => { shareByCol[c] = base + (i < rem ? 1 : 0); });
+  }
+
   // 2) 셀 변환/삭제
   const newTbl = tbl.replace(/<hp:tc\b[\s\S]*?<\/hp:tc>/g, (cell) => {
     const ad = cell.match(/<hp:cellAddr colAddr="(\d+)"/);
@@ -60,16 +76,22 @@ export function removeTableColumns(xml: string, tableIndex: number, removeCols: 
     if (shift > 0) out = out.replace(/(<hp:cellAddr colAddr=")\d+(")/, `$1${colAddr - shift}$2`);
     if (within.length > 0 && sp) {
       out = out.replace(/(<hp:cellSpan colSpan=")\d+(")/, `$1${colSpan - within.length}$2`);
-      const subW = within.reduce((s, c) => s + (colW[c] ?? 0), 0);
-      out = out.replace(/(<hp:cellSz width=")(\d+)(")/, (_m, p1, p2, p3) => `${p1}${+p2 - subW}${p3}`);
+      // keepWidth 면 병합셀(배너) 폭은 유지(표 너비 그대로) — 아니면 지운 열 폭만큼 축소.
+      if (!keepWidth) {
+        const subW = within.reduce((s, c) => s + (colW[c] ?? 0), 0);
+        out = out.replace(/(<hp:cellSz width=")(\d+)(")/, (_m, p1, p2, p3) => `${p1}${+p2 - subW}${p3}`);
+      }
+    } else if (keepWidth && colSpan === 1 && shareByCol[colAddr]) {
+      // 남은 회기열 단일 셀 — 분배 폭만큼 넓힘(원래 colAddr 기준).
+      out = out.replace(/(<hp:cellSz width=")(\d+)(")/, (_m, p1, p2, p3) => `${p1}${+p2 + shareByCol[colAddr]}${p3}`);
     }
     return out;
   });
 
   // 3) colCnt
   let outTbl = newTbl.replace(/(<hp:tbl\b[^>]*\bcolCnt=")(\d+)(")/, (_m, p1, p2, p3) => `${p1}${+p2 - R.size}${p3}`);
-  // 4) 표 전체 너비(table-level <hp:sz>, 첫 등장 — <hp:cellSz>와 구분됨)
-  outTbl = outTbl.replace(/(<hp:sz width=")(\d+)(")/, (_m, p1, p2, p3) => `${p1}${+p2 - removedWidth}${p3}`);
+  // 4) 표 전체 너비(table-level <hp:sz>, 첫 등장 — <hp:cellSz>와 구분됨). keepWidth 면 유지.
+  if (!keepWidth) outTbl = outTbl.replace(/(<hp:sz width=")(\d+)(")/, (_m, p1, p2, p3) => `${p1}${+p2 - removedWidth}${p3}`);
 
   return xml.slice(0, t[0]) + outTbl + xml.slice(t[1]);
 }

@@ -260,7 +260,8 @@ export function generateRecordFromForm(
   return chunks.map((sessionChunk) => {
     let xml = baseXml;
     if (spec.dateTable != null && spec.extraSessionCols?.length) {
-      xml = removeTableColumns(xml, spec.dateTable, spec.extraSessionCols);
+      // 남은 회기열(spec.date)에 지운 폭을 재분배 → 표 너비 유지로 우측이 다른 표와 정렬됨.
+      xml = removeTableColumns(xml, spec.dateTable, spec.extraSessionCols, { redistributeTo: spec.date.map((d) => d[2]) });
     }
     if (spec.resultTable != null && spec.extraResultRows?.length) {
       xml = removeTableRows(xml, spec.resultTable, spec.extraResultRows);

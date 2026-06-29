@@ -289,9 +289,20 @@ export function resolveForm(xml: string): ResolveOutput {
           const rrc = rowCells(tbls[ti], rr);
           return !(rrc.length === 1 && rrc[0].cs > 1);
         }).slice(0, 5);
+        // 적층 시간 칸 — 별도 '시간' 칸이 없고, 승인일자(또는 제공일자) 칸 안에 날짜(문단0) 아래
+        // 시간 줄(문단1=":"·"hh:mm")이 적층된 양식(예: 발달재활 복사본 표6). 이때 시간을 그 칸 문단1로.
+        let timeStackCol: number | null = null;
+        if (map.time == null) {
+          const dcol = map.apprDate ?? map.date;
+          if (dcol != null) {
+            const sample = dataRows.map((rr) => rowCells(tbls[ti], rr).find((c) => c.c === dcol)).find(Boolean);
+            if (sample && sample.paras.length >= 2 && /^\s*\d{0,2}\s*:\s*\d{0,2}\s*$/.test(sample.paras[1])) timeStackCol = dcol;
+          }
+        }
         spec.result = dataRows.map((rr) => {
           const o: Record<string, Coord> = {};
           for (const k of Object.keys(map)) { const cc = map[k]; if (cc != null) o[k] = [ti, rr, cc] as Coord; }
+          if (timeStackCol != null) o.time = [ti, rr, timeStackCol, 1] as Coord; // 적층 시간 = 같은 칸 문단1
           return o;
         });
         resultTi = ti;
@@ -421,17 +432,22 @@ export function applyOverrides(
 // 샘플(더미) 채움 — 미리보기 안전망. spec 의 각 좌표에 보기용 값을 넣는다.
 import type { CellEdit } from "@/lib/record-fill";
 import { buildCalendarEdits } from "@/lib/schedule-calendar";
-export function buildSampleEdits(spec: ResolvedSpec): CellEdit[] {
+export function buildSampleEdits(spec: ResolvedSpec, normCharPr?: number): CellEdit[] {
   const edits: CellEdit[] = [];
-  const put = (coord: Coord | undefined, value: string) => {
+  // 글자통일(normCharPr) 제외 칸 — 서비스종류/제공영역·달력은 칸 고유 글자크기 유지(실제 출력과 동일).
+  const keepNative = new Set<CellEdit>();
+  const SERVICE_ROLES = new Set(["서비스종류", "제공영역"]);
+  const put = (coord: Coord | undefined, value: string, native = false) => {
     if (!coord) return;
-    edits.push({ table: coord[0], row: coord[1], col: coord[2], p: coord[3], value });
+    const e: CellEdit = { table: coord[0], row: coord[1], col: coord[2], p: coord[3], value };
+    edits.push(e);
+    if (native) keepNative.add(e);
   };
   put(spec.org, "○○발달센터");
   put(spec.name, "홍길동");
   put(spec.birth, "2018-03-15");
-  put(spec.serviceArea, "언어재활");
-  put(spec.serviceName, "언어재활");
+  put(spec.serviceArea, "언어재활", true);
+  put(spec.serviceName, "언어재활", true);
   const days = ["3", "7", "12", "18", "24"];
   spec.date.forEach((co, i) => put(co, `6/${days[i] ?? i + 1}`));
   spec.start.forEach((co) => put(co, "10:00"));
@@ -462,12 +478,14 @@ export function buildSampleEdits(spec: ResolvedSpec): CellEdit[] {
     제공자명: "○○발달센터", 전화: "02-000-0000", 담당: "김치료", 서비스종류: "언어재활", 주기: "주 2회", 제공일: "화·목",
     단가: "60,000", 횟수: "월 8회", 총금액: "480,000", 본인부담금: "48,000",
   };
-  spec.schedule?.forEach((s) => put(s.coord, schedDummy[s.role] ?? "샘플"));
+  spec.schedule?.forEach((s) => put(s.coord, schedDummy[s.role] ?? "샘플", SERVICE_ROLES.has(s.role)));
 
   // 달력 샘플 — 2026년 6월에 더미 회기일(3·7·12·18·24) + 공휴일(현충일 6/6) 미리보기.
   if (spec.scheduleCalendar) {
     const sampleSessions = days.map((d) => ({ day: Number(d), time: "10:00~10:50" }));
-    edits.push(...buildCalendarEdits(spec.scheduleCalendar, 2026, 6, sampleSessions, { holidays: [{ day: 6, name: "현충일" }] }));
+    const calEdits = buildCalendarEdits(spec.scheduleCalendar, 2026, 6, sampleSessions, { holidays: [{ day: 6, name: "현충일" }] });
+    calEdits.forEach((e) => keepNative.add(e)); // 달력 칸은 고유 글자속성(6pt·빨강 등) 유지
+    edits.push(...calEdits);
   }
 
   // 셀프 보정 칸 — 역할별 더미값. 회기 행 역할은 날짜 열에 걸쳐 채움.
@@ -482,8 +500,11 @@ export function buildSampleEdits(spec: ResolvedSpec): CellEdit[] {
     if (ROW_ROLES.has(m.role) && dCols.length > 0) {
       dCols.forEach((col, i) => put([m.table, m.row, col] as Coord, m.role === "날짜" ? `6/${days[i] ?? i + 1}` : roleDummy[m.role] ?? "샘플"));
     } else {
-      put([m.table, m.row, m.col] as Coord, roleDummy[m.role] ?? "샘플");
+      put([m.table, m.row, m.col] as Coord, roleDummy[m.role] ?? "샘플", SERVICE_ROLES.has(m.role));
     }
   }
-  return edits;
+  // 값 칸 글자 통일 — 서비스종류/제공영역·달력(keepNative) 제외하고 normCharPr 강제(실제 출력과 동일).
+  return normCharPr != null
+    ? edits.map((e) => (keepNative.has(e) ? e : { ...e, charPr: normCharPr }))
+    : edits;
 }

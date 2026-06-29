@@ -18,6 +18,8 @@ const FIELD_LABEL: Record<string, string> = {
   amount: "금액", result: "결과표",
 };
 
+const KIND_LABEL: Record<string, string> = { record: "기록지", schedule: "일정표" };
+
 // 인라인 예시 미리보기용 — 회기 행 역할(순서대로 채움). 규칙 인식(영문 필드키)·수동 지정(한글 역할명) 둘 다 커버.
 const ROW_PREVIEW = new Set([
   "date", "start", "end", "voucher", "extra", "amount", "result",
@@ -102,10 +104,14 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
       const d = await r.json() as AnalyzeResult & { error?: string };
       if (!r.ok) throw new Error(d.error || "분석 실패");
       setResult(d);
-      setWarning(d.warning ?? null);
-      const hasRecord = d.coverage && (d.coverage.date || d.coverage.result);
-      const k = hasRecord ? "record" : (d.spec?.schedule?.length ? "schedule" : "record");
-      setKind(k);
+      // 슬롯에서 고른 kind 를 그대로 쓴다(자동 추정으로 덮어쓰지 않음). 양식이 다른 종류로 보이면 경고만.
+      const hasRecord = !!(d.coverage && (d.coverage.date || d.coverage.result));
+      const detected: "record" | "schedule" | null = hasRecord ? "record" : (d.spec?.schedule?.length ? "schedule" : null);
+      if (detected && detected !== kind) {
+        setWarning(`이 양식은 ‘${KIND_LABEL[detected]}’처럼 보여요. 지금 ‘${KIND_LABEL[kind]} 양식’ 슬롯에 올리고 있어요 — 슬롯이 맞는지 확인하세요.`);
+      } else {
+        setWarning(d.warning ?? null);
+      }
       if (!formName) setFormName(target.name.replace(/\.hwpx$/i, ""));
       // 학습 캐시 적중(같은 구조 양식을 전에 매핑) → 그 매핑 자동 적용. 아니면 베타계정은 AI 자동.
       const cached = d.cached?.overrides;
@@ -117,7 +123,7 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
         }
         setOverrides(norm);
       } else if (betaUx) {
-        await runAutoMap(d.grid, k);
+        await runAutoMap(d.grid, kind);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "분석 중 문제가 생겼어요.");
@@ -230,6 +236,14 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
     loadSaved();
   }
 
+  // 슬롯 전환(기록지 ↔ 일정표) — 진행 중이던 업로드/분석을 초기화해 두 종류가 섞이지 않게 한다.
+  function switchKind(k: "record" | "schedule") {
+    if (k === kind) return;
+    setKind(k);
+    setFile(null); setResult(null); setError(null); setWarning(null);
+    setOverrides({}); setLowConf(new Set()); setPicker(null); setFormName("");
+  }
+
   // 셀프 보정 — 지정 가능 역할(양식 종류별). 같은 역할을 여러 칸에 지정 가능.
   // 기록지엔 발달바우처 전용 수동 역할(바우처분·추가구매·금액)을 더한다(AI 사전엔 없고 규칙엔진 담당).
   const SCALAR_ROLES = rolesForForm(kind).filter((r) => r.kind === "scalar").map((r) => r.role);
@@ -256,7 +270,6 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
     return { table: t, row: r, col: c, p: cellP.get(k) ?? 0, role };
   });
 
-  const KIND_LABEL: Record<string, string> = { record: "기록지", schedule: "일정표" };
   const recordForms = saved.filter((f) => f.kind === "record");
   const scheduleForms = saved.filter((f) => f.kind === "schedule");
   const missing = result ? Object.entries(result.coverage).filter(([, v]) => !v).map(([k]) => FIELD_LABEL[k] ?? k) : [];
@@ -333,6 +346,26 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
 
       <div className="card">
         <div className="card-body" style={{ display: "grid", gap: 14 }}>
+          {/* 슬롯 선택 — 기록지 양식과 일정표 양식을 각각 따로 올린다(치료사가 헷갈리지 않게 먼저 고름) */}
+          <div style={{ display: "grid", gap: 8 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 800 }}>어떤 양식을 넣을까요?</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              {(["record", "schedule"] as const).map((k) => (
+                <button key={k} type="button" onClick={() => switchKind(k)}
+                  style={{
+                    flex: 1, padding: "12px 10px", fontSize: 14.5, fontWeight: 800, borderRadius: 10, cursor: "pointer",
+                    border: kind === k ? "2px solid var(--primary)" : "1px solid var(--border)",
+                    background: kind === k ? "var(--primary-soft)" : "var(--surface)",
+                    color: kind === k ? "var(--primary)" : "var(--text-soft)",
+                  }}>
+                  {k === "record" ? "📝 기록지 양식" : "📅 일정표 양식"}
+                </button>
+              ))}
+            </div>
+            <p style={{ margin: 0, fontSize: 12.5, color: "var(--text-mute)", lineHeight: 1.55 }}>
+              기록지와 일정표는 <b>각각 따로</b> 올려서 저장해요. 지금은 <b>{KIND_LABEL[kind]} 양식</b>을 넣는 중이에요.
+            </p>
+          </div>
           {/* 항상 보이는 파일 형식 안내 — 선생님이 잘못된 파일로 헛걸음하지 않도록 */}
           <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "9px 12px", borderRadius: 8, background: "var(--primary-soft)", border: "1px solid var(--primary)", fontSize: 12.5, color: "var(--primary)", lineHeight: 1.55 }}>
             <span style={{ fontSize: 15, lineHeight: 1.3 }}>📎</span>
@@ -343,7 +376,7 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
           <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
             {/* 1단계: 파일 선택 → 즉시 자동 분석(별도 '분석' 버튼 없음) */}
             <label className="btn btn-primary" style={{ cursor: "pointer" }}>
-              {loading ? "분석 중…" : file ? "다른 양식 선택" : hwpAutoConvert ? "한글 양식 선택 (.hwp·.hwpx)" : ".hwpx 양식 선택"}
+              {loading ? "분석 중…" : file ? "다른 양식 선택" : `${KIND_LABEL[kind]} 양식 선택 (${hwpAutoConvert ? ".hwp·.hwpx" : ".hwpx"})`}
               <input type="file" accept={hwpAutoConvert ? ".hwp,.hwpx" : ".hwpx"} style={{ display: "none" }}
                 onChange={(e) => {
                   const f = e.target.files?.[0] ?? null;
@@ -443,12 +476,10 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
           <div className="card">
             <div className="card-body" style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
               <span style={{ fontSize: 14, fontWeight: 700 }}>이 양식 저장:</span>
-              <select value={kind} onChange={(e) => setKind(e.target.value as "record" | "schedule")}
-                style={{ padding: "8px 10px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface)", fontSize: 14, color: "var(--text)" }}>
-                <option value="record">기록지</option>
-                <option value="schedule">일정표</option>
-              </select>
-              <input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="양식 이름 (예: A센터 기록지)"
+              <span className="badge" style={{ fontSize: 13, fontWeight: 800, padding: "6px 12px", borderColor: "transparent", background: "var(--primary-soft)", color: "var(--primary)" }}>
+                {kind === "record" ? "📝 기록지" : "📅 일정표"} 양식
+              </span>
+              <input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder={`양식 이름 (예: A센터 ${KIND_LABEL[kind]})`}
                 style={{ flex: 1, minWidth: 180, padding: "8px 12px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface)", fontSize: 14, color: "var(--text)" }} />
               <button className="btn btn-primary" onClick={saveForm} disabled={savingForm || !formName.trim()}>
                 {savingForm ? "저장 중…" : "저장"}
