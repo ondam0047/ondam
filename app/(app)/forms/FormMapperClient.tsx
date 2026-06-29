@@ -623,17 +623,23 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
       {picker && (() => {
         const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
         const vh = typeof window !== "undefined" ? window.innerHeight : 800;
-        const below = picker.y < vh * 0.55; // 위쪽 클릭이면 아래로, 아래쪽 클릭이면 위로 펼침
-        const left = Math.max(8, Math.min(picker.x + 6, vw - 248));
+        const M = 8, GAP = 6; // 화면 가장자리 여백 / 클릭 지점과의 간격
+        // 클릭 지점 위·아래 가용 공간을 재서 더 넓은 쪽으로 펼치고, 그 공간만큼만 높이를 잡는다
+        // (넘치면 내부 스크롤). 이러면 박스가 화면 밖으로 내려가 '역할 비우기'가 잘리지 않는다.
+        const spaceBelow = vh - picker.y - GAP - M;
+        const spaceAbove = picker.y - GAP - M;
+        const below = spaceBelow >= spaceAbove;
+        const maxH = Math.min(below ? spaceBelow : spaceAbove, Math.round(vh * 0.85));
+        const left = Math.max(M, Math.min(picker.x + GAP, vw - 240 - M));
         const vpos: React.CSSProperties = below
-          ? { top: Math.min(picker.y + 6, vh - 60) }
-          : { bottom: Math.max(8, vh - picker.y + 6) };
+          ? { top: picker.y + GAP }
+          : { bottom: vh - picker.y + GAP };
         return (
         <>
           <div onClick={() => setPicker(null)} style={{ position: "fixed", inset: 0, zIndex: 50 }} />
           <div style={{
             position: "fixed", zIndex: 51, left, ...vpos,
-            width: 240, maxHeight: "75vh", overflowY: "auto",
+            width: 240, maxHeight: maxH, overflowY: "auto",
             background: "var(--surface)", border: "1px solid var(--primary)",
             borderRadius: 10, boxShadow: "0 6px 20px rgba(0,0,0,0.18)", padding: 10, display: "grid", gap: 8,
           }}>
@@ -656,7 +662,7 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
                 </div>
               </>
             )}
-            <div style={{ display: "flex", gap: 6, borderTop: "1px solid var(--border)", paddingTop: 8 }}>
+            <div style={{ position: "sticky", bottom: -10, marginBottom: -10, background: "var(--surface)", display: "flex", gap: 6, borderTop: "1px solid var(--border)", padding: "8px 0 10px" }}>
               <button className="btn btn-sm" onClick={() => assignRole("")} style={{ color: "#8A2F1C" }}>역할 비우기</button>
               <button className="btn btn-sm" onClick={() => setPicker(null)}>취소</button>
             </div>
