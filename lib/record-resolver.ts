@@ -468,8 +468,8 @@ export function applyOverrides(
 
 // 샘플(더미) 채움 — 미리보기 안전망. spec 의 각 좌표에 보기용 값을 넣는다.
 import type { CellEdit } from "@/lib/record-fill";
-import { buildCalendarEdits } from "@/lib/schedule-calendar";
-export function buildSampleEdits(spec: ResolvedSpec, normCharPr?: number): CellEdit[] {
+import { buildCalendarEdits, type CalOpts } from "@/lib/schedule-calendar";
+export function buildSampleEdits(spec: ResolvedSpec, normCharPr?: number, calOpts?: CalOpts): CellEdit[] {
   const edits: CellEdit[] = [];
   // 글자통일(normCharPr) 제외 칸 — 서비스종류/제공영역·달력은 칸 고유 글자크기 유지(실제 출력과 동일).
   const keepNative = new Set<CellEdit>();
@@ -520,8 +520,9 @@ export function buildSampleEdits(spec: ResolvedSpec, normCharPr?: number): CellE
   // 달력 샘플 — 2026년 6월에 더미 회기일(3·7·12·18·24) + 공휴일(현충일 6/6) 미리보기.
   if (spec.scheduleCalendar) {
     const sampleSessions = days.map((d) => ({ day: Number(d), time: "10:00~10:50" }));
-    const calEdits = buildCalendarEdits(spec.scheduleCalendar, 2026, 6, sampleSessions, { holidays: [{ day: 6, name: "현충일" }] });
-    calEdits.forEach((e) => keepNative.add(e)); // 달력 칸은 고유 글자속성(6pt·빨강 등) 유지
+    const calEdits = buildCalendarEdits(spec.scheduleCalendar, 2026, 6, sampleSessions, { ...(calOpts ?? {}), holidays: [{ day: 6, name: "현충일" }] });
+    // 라벨 통일(normCharPr)이 달력 charPr 를 덮지 않게 keepNative — 달력은 calOpts 의 통일 charPr(또는 native) 유지.
+    calEdits.forEach((e) => keepNative.add(e));
     edits.push(...calEdits);
   }
 

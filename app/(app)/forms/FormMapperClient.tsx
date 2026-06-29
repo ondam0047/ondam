@@ -330,10 +330,13 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
       cells.forEach((cell) => {
         const role = visRole(ti, cell);
         if (!role) return;
-        if (ROW_PREVIEW.has(role)) {
-          (rowCells[role] ??= []).push({ ti, r: cell.r, c: cell.c });
+        // 일정표 라벨은 '일정·관리번호'처럼 접두사로 인식됨 → 접두사 떼고 SAMPLE 조회(예시 미리보기 공백 방지).
+        // '달력·*'(달력 칸)은 라벨 매핑이 아니라 자동 채움이므로 예시값에서 제외(접두사 유지 → 미매칭).
+        const sr = role.replace(/^일정·/, "");
+        if (ROW_PREVIEW.has(sr)) {
+          (rowCells[sr] ??= []).push({ ti, r: cell.r, c: cell.c });
         } else {
-          const ex = SAMPLE[role];
+          const ex = SAMPLE[sr];
           if (typeof ex === "string") m.set(trcKey(ti, cell.r, cell.c), ex);
         }
       }),
