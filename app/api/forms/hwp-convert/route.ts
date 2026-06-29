@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { isHwpConvert } from "@/lib/feature-flags";
 import { normalizeHwpxZip } from "@/lib/hwpx";
+import { acquireConvertSlot, releaseConvertSlot, GateBusyError } from "@/lib/convert-gate";
 import { spawn } from "node:child_process";
 import { writeFile, readFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -19,7 +20,7 @@ const TIMEOUT_MS = 30_000;
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
-  // .hwp 자동 변환은 아직 베타 계정 전용 — 화이트리스트 밖이면 차단.
+  // .hwp 자동 변환은 전체 공개(GA). 게이트는 보존(향후 재제한 대비) — 현재 isHwpConvert 는 항상 true.
   if (!isHwpConvert(user.email)) {
     return Response.json({ error: "이 기능은 아직 베타 계정에서만 사용할 수 있어요." }, { status: 403 });
   }
@@ -37,6 +38,14 @@ export async function POST(req: NextRequest) {
       { error: "편집 가능한 한글 .hwp 파일이 아니에요. (.hwpx·이미지 한글·스캔본은 변환 대상이 아니에요)" },
       { status: 422 },
     );
+  }
+
+  // 동시 변환 수 제한 — JVM 1개/요청이라, 단일 서버(2 vCPU·스왑 없음) OOM/과부하 방지.
+  try {
+    await acquireConvertSlot();
+  } catch (e) {
+    if (e instanceof GateBusyError) return Response.json({ error: e.message }, { status: 429 });
+    throw e;
   }
 
   const dir = await mkdtemp(join(tmpdir(), "hwpconv-"));
@@ -58,6 +67,7 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: msg }, { status: 500 });
   } finally {
     rm(dir, { recursive: true, force: true }).catch(() => {});
+    releaseConvertSlot(); // 슬롯 반납(성공·실패·타임아웃 무관) — 대기자 있으면 넘김
   }
 }
 
