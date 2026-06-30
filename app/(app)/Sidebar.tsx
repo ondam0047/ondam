@@ -82,13 +82,13 @@ const NAV_GROUPS: NavGroup[] = [
     { href: "/tools",          label: "바로툴",        icon: WAVE_ICON,  tour: "tools" },
   ] },
   { label: "운영", items: [
-    { href: "/support",        label: "기타지원사업",   icon: SUPPORT_ICON },
-    { href: "/children?closed=1", label: "종결함",      icon: ARCHIVE_ICON },
+    { href: "/support",        label: "기타지원사업",   icon: SUPPORT_ICON, tour: "support" },
+    { href: "/children?closed=1", label: "종결함",      icon: ARCHIVE_ICON, tour: "closed" },
   ] },
   { items: [
-    { href: "/center", label: "내 설정",        icon: COG_ICON,  tour: "set" },
-    { href: "/forms",  label: "우리 센터 양식", icon: IC.doc },
-    { href: "/guide",  label: "도움말",         icon: HELP_ICON, tour: "help" },
+    { href: "/center", label: "내 설정",        icon: COG_ICON,  tour: "set"   },
+    { href: "/forms",  label: "우리 센터 양식", icon: IC.doc,    tour: "forms" },
+    { href: "/guide",  label: "도움말",         icon: HELP_ICON, tour: "help"  },
   ] },
 ];
 

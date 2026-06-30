@@ -71,7 +71,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <main className="content">{children}</main>
         </div>
         <WelcomeTooltip role={user.role} userId={user.id} />
-        <Tour userId={user.id} role={user.role} />
+        <Tour userId={user.id} />
         <UpdateModal userId={user.id} />
       </div>
     </BetaUxProvider>
