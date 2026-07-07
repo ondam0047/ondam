@@ -135,18 +135,21 @@ function parseCells(tbl: string): CellInfo[] {
     if (!ad || !sz) continue;
     const { vMargin, hMargin } = cellMargins(cell, tblIn);
     const cellWidth = Number(sz[1]);
-    const text = (cell.match(/<hp:t>([\s\S]*?)<\/hp:t>/g) ?? [])
-      .map((m) => m.replace(/<\/?hp:t>/g, ""))
-      .join("");
     // 단락 단위로 글자 있는 단락(narrative)·빈 단락 수 파악.
+    // 글자 있는 단락 텍스트는 \n 으로 이어 붙여(엔터=단락) 줄 수 추정이 맞도록 한다
+    // — 결과칸 사유가 별도 단락(줄)으로 들어오면 그만큼 줄 수로 세어 글자 크기를 맞춘다.
     let narrCharPr: number | undefined;
     let narrParaPr: number | undefined;
     let emptyParaCount = 0;
     let totalParas = 0;
+    const paraTexts: string[] = [];
     for (const pm of cell.matchAll(/<hp:p\b[\s\S]*?<\/hp:p>/g)) {
       totalParas++;
       const p = pm[0];
       if (paraHasText(p)) {
+        paraTexts.push(
+          (p.match(/<hp:t>([\s\S]*?)<\/hp:t>/g) ?? []).map((m) => m.replace(/<\/?hp:t>/g, "")).join("")
+        );
         if (narrCharPr === undefined) {
           const r = p.match(/<hp:run\s+charPrIDRef="(\d+)"/);
           if (r) narrCharPr = Number(r[1]);
@@ -157,6 +160,7 @@ function parseCells(tbl: string): CellInfo[] {
         emptyParaCount++;
       }
     }
+    const text = paraTexts.join("\n");
     // 빈 단락은 최소 1개 단락 유지를 전제로 삭제 가능 — 글자 단락이 있으면 빈 단락 전부.
     const deletableEmpty = narrCharPr !== undefined ? emptyParaCount : Math.max(0, totalParas - 1);
     cells.push({

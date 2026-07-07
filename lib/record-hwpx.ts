@@ -279,20 +279,23 @@ const STANDARD_SPEC: CoordSpec = {
 };
 
 // 표준형 결과칸은 한 칸이므로 보강/불일치 사유(resultExtra)와 소급결제 사유(retroReason)를
-// 결과 본문 뒤에 붙여 보존. (셀 안 줄바꿈은 안정적이지 않아 한 줄로 이어 붙이고, 마커로 구분)
+// 결과 본문 아래에 보존한다. 베타 요청: 사유는 결과 다음 줄에서 '별표(*)'로 시작하도록
+// 줄바꿈(\n)으로 구분 — record-fill.ts 가 \n 을 셀 안 별도 단락(엔터)으로 렌더한다.
 function foldStandardExtra(p: RecordPayload): RecordPayload {
   return {
     ...p,
     sessions: p.sessions.map((s) => {
-      const parts: string[] = [];
       const base = (s.result ?? "").trim();
-      if (base) parts.push(base);
+      const extras: string[] = [];
       const mismatch = (s.resultExtra ?? "").trim();
-      if (mismatch) parts.push(mismatch.startsWith("- ") ? mismatch : `- ${mismatch}`);
+      // 사유는 별표(*)로 시작. 이미 *로 시작하면 그대로, 아니면 "* " 를 붙인다.
+      if (mismatch) extras.push(mismatch.startsWith("*") ? mismatch : `* ${mismatch}`);
       const retro = (s.retroReason ?? "").trim();
-      if (retro) parts.push(retro.startsWith("*") ? retro : `* 소급 사유: ${retro}`);
-      if (parts.length === 0) return s;
-      return { ...s, result: parts.join(" ") };
+      if (retro) extras.push(retro.startsWith("*") ? retro : `* 소급 사유: ${retro}`);
+      if (!base && extras.length === 0) return s;
+      // 결과 본문 다음 줄부터 사유를 한 줄씩(엔터로 칸을 바꿔) 기재.
+      const result = [base, ...extras].filter(Boolean).join("\n");
+      return { ...s, result };
     }),
   };
 }

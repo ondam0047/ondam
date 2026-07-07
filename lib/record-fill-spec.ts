@@ -48,9 +48,16 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
   const putArr = (arr: Coord[] | undefined, val: (i: number) => string) => {
     (arr ?? []).forEach((co, i) => put(co, val(i)));
   };
-  // 결과 칸 본문 — 결과 + 불일치 사유 + 소급 사유("* 소급 사유: …")를 한 칸에 보존.
-  const composeResult = (s: RecordSessionDetail): string =>
-    [s.result, s.resultExtra, s.retroReason ? `* 소급 사유: ${s.retroReason}` : ""].filter(Boolean).join(" / ");
+  // 결과 칸 본문 — 결과 다음 줄부터 사유를 '별표(*)'로 한 줄씩(엔터로 칸 바꿈) 기재.
+  // (\n 은 record-fill.ts 가 셀 안 별도 단락으로 렌더)
+  const composeResult = (s: RecordSessionDetail): string => {
+    const base = (s.result ?? "").trim();
+    const extras: string[] = [];
+    const mismatch = (s.resultExtra ?? "").trim();
+    if (mismatch) extras.push(mismatch.startsWith("*") ? mismatch : `* ${mismatch}`);
+    if (s.retroReason) extras.push(`* 소급 사유: ${s.retroReason}`);
+    return [base, ...extras].filter(Boolean).join("\n");
+  };
 
   // 헤더
   put(spec.org, d.org);
@@ -95,11 +102,14 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
   }
 
   // 결과표
+  // 제공일자 = 서비스이용일자(승인내역 원본, s.date), 승인일자 = 결제일(payDay).
+  // (예전엔 s.useDay = 일정표 매칭 날짜를 썼는데, 회기가 옮겨지면(예: 15일→26일)
+  //  승인내역엔 없는 옛 일정 날짜가 찍혀 표준형과도 어긋났음 — 표준형과 동일하게 원본 날짜 사용.)
   spec.result.forEach((row, i) => {
     const s = S[i];
     if (!s) return;
-    put(row.date, s.useDay || s.date || "");
-    put(row.apprDate, monthDayOnly(s.useDay || ""));
+    put(row.date, s.date || "");
+    put(row.apprDate, monthDayOnly(s.payDay || s.date || ""));
     put(row.apprNum, s.apprNumber || "");
     put(row.time, s.startTime || "");
     put(row.status, s.status || "");
@@ -109,8 +119,8 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
   spec.detail?.forEach((row, i) => {
     const s = S[i];
     if (!s) return;
-    put(row.date, s.useDay || s.date || "");
-    put(row.apprDate, monthDayOnly(s.useDay || ""));
+    put(row.date, s.date || "");
+    put(row.apprDate, monthDayOnly(s.payDay || s.date || ""));
     put(row.apprNum, s.apprNumber || "");
     put(row.result, composeResult(s));
   });

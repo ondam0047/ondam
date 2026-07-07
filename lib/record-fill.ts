@@ -88,6 +88,14 @@ function setParagraphText(pXml: string, value: string, charPr?: number): string 
   return p.slice(0, gt + 1) + `<hp:t>${esc}</hp:t>` + p.slice(gt + 1);
 }
 
+// 복제 단락의 <hp:p id="…"> 를 유일값으로 바꿔 원본 단락과 id 충돌을 피한다.
+let clonedParaSeq = 0;
+function reassignParaId(pXml: string): string {
+  clonedParaSeq += 1;
+  const uid = 900000000 + clonedParaSeq;
+  return pXml.replace(/(<hp:p\b[^>]*\bid=")\d+(")/, `$1${uid}$2`);
+}
+
 function applyEdit(xml: string, e: CellEdit): string {
   const t = findNthTable(xml, e.table);
   if (!t) return xml;
@@ -97,7 +105,16 @@ function applyEdit(xml: string, e: CellEdit): string {
   let cell = tbl.slice(c[0], c[1]);
   const pr = findParagraph(cell, e.p ?? 0);
   if (!pr) return xml;
-  const newPara = setParagraphText(cell.slice(pr[0], pr[1]), e.value, e.charPr);
+  // 값에 줄바꿈(\n)이 있으면 줄마다 별도 <hp:p> 단락으로 만든다(셀 안 엔터).
+  // 한 줄이면 예전과 동일하게 단락 하나만 채운다.
+  const paraTemplate = cell.slice(pr[0], pr[1]);
+  const lines = String(e.value).split("\n");
+  const newPara = lines
+    .map((line, i) => {
+      const p = setParagraphText(paraTemplate, line, e.charPr);
+      return i === 0 ? p : reassignParaId(p);
+    })
+    .join("");
   cell = cell.slice(0, pr[0]) + newPara + cell.slice(pr[1]);
   tbl = tbl.slice(0, c[0]) + cell + tbl.slice(c[1]);
   return xml.slice(0, t[0]) + tbl + xml.slice(t[1]);

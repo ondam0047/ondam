@@ -344,6 +344,9 @@ export default function RecordClient({
           const nm = String(row[ci.name]).trim();
           if (!nm) continue;
           const payKind = ci.kind >= 0 ? String(row[ci.kind] || "").trim() : "";
+          // 과오반납·과오환수·취소 등 정정 항목은 실제 수업 회기가 아니므로 제외.
+          // (이걸 회기로 세면 수업 횟수가 5회를 넘겨 기록지가 2장으로 늘어남)
+          if (/과오|반납|환수|취소/.test(payKind)) continue;
           if (payKind.includes("소급")) {
             retroCount += 1;
             retroChildSet.add(nm);
@@ -377,13 +380,21 @@ export default function RecordClient({
 
         const names = Object.keys(g);
         const total = Object.values(g).reduce((a, b) => a + b.length, 0);
+        const hadBefore = Object.keys(grouped).length; // 병합 전 화면에 있던 아동 수
         setTherapist(ther);
-        setUploadInfo(`✓ 불러오기 완료 · 치료사 ${ther || "-"} · 아동 ${names.length}명 · 총 ${total}건`);
+        // 새 엑셀을 기존 작업본에 '합쳐서' 붙인다(같은 이름 아동은 새 데이터로 갱신, 나머지는 유지).
+        // 예전엔 setGrouped(g) 로 통째 교체 → 어제 올린 엑셀·수정본이 오늘 새 엑셀 업로드로 사라졌음.
+        setGrouped((prev) => ({ ...prev, ...g }));
+        setUploadInfo(
+          hadBefore > 0
+            ? `✓ ${names.length}명 불러와 기존 목록에 합쳤어요 · 치료사 ${ther || "-"} · 이번 파일 ${total}건 (이전에 불러온 아동은 그대로 유지됩니다)`
+            : `✓ 불러오기 완료 · 치료사 ${ther || "-"} · 아동 ${names.length}명 · 총 ${total}건`
+        );
+        // 소급결제 경고 배너는 방금 올린 파일 기준으로 표시(어제 건은 이미 처리됨).
         setRetroChildren([...retroChildSet]);
         setRetroByChild(retroByChild);
         setRetroCount(retroCount);
-        setGrouped(g);
-        setCurChild(names[0] ?? null);
+        setCurChild(names[0] ?? null); // 방금 올린 파일의 첫 아동으로 이동
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         setError("파일을 읽는 중 오류가 발생했어요: " + msg);
@@ -903,10 +914,11 @@ function RecordSheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [childServiceId, year, monthNumForLoad, rows, times, vouchers, extras, amounts, results, statuses, mismatchReasons, retroReasons, opinion, useDays, outFormId, loadedRecordId]);
 
+  // 제공일자(월·일) = 실제 서비스이용일자(승인내역 원본). 예전엔 일정표 매칭일(useDays)을
+  // 썼는데, 회기가 옮겨지거나 결제일과 어긋나면 승인내역·일정표 어디에도 없는 날짜가 찍혔음.
   const topCols = rows.map((s, i) => {
-    const ud = useDays[i];
-    const monthForCol = typeof month === "number" ? month : (parseYMD(s.use)?.mo ?? "");
-    const md = ud != null && monthForCol !== "" ? `${monthForCol}/${ud}` : (parseYMD(s.use) ? `${parseYMD(s.use)!.mo}/${parseYMD(s.use)!.d}` : s.use);
+    const pu = parseYMD(s.use);
+    const md = pu ? `${pu.mo}/${pu.d}` : s.use;
     return { i, md };
   });
 
@@ -1016,7 +1028,8 @@ function RecordSheet({
         </h3>
         {rows.map((s, i) => {
           const pp = parseYMD(s.pay);
-          const useD = useDays[i];
+          // 제공일자 = 실제 서비스이용일자(승인내역). 화면·출력·엑셀 모두 이 값으로 통일.
+          const useD = parseYMD(s.use)?.d ?? useDays[i] ?? null;
           const payD = pp ? pp.d : null;
           const hasBoth = useD !== null && payD !== null;
           const match = hasBoth && useD === payD;

@@ -120,6 +120,25 @@ export function buildZip(entries: ZipEntry[], opts?: { utf8Names?: boolean }): B
   return Buffer.concat(chunks);
 }
 
+// 생성 문서의 미리보기(썸네일)는 원본 템플릿에서 그대로 복사돼 온다. 템플릿의 썸네일은
+// 처음 양식을 만들 때(다른 아동/샘플)의 내용이라, 파일 관리자·한글 미리보기에는 '남의 내용'이
+// 보이고 실제로 열면 본문은 옳은 현상이 생긴다(본문 section0.xml 만 교체하기 때문).
+// → 출력 시 미리보기 이미지는 제거하고 텍스트 미리보기는 비워서 잘못된 미리보기를 없앤다.
+// (미리보기는 선택 스트림이라 없어도 한글이 정상적으로 열고, 저장 시 다시 생성한다.)
+function neutralizePreview(entries: ZipEntry[]): ZipEntry[] {
+  const out: ZipEntry[] = [];
+  for (const e of entries) {
+    if (/^Preview\/PrvImage\./i.test(e.name)) continue; // 썸네일 이미지 제거
+    if (e.name === "Preview/PrvText.txt") {
+      const empty = Buffer.alloc(0); // 텍스트 미리보기 비움(컨테이너 참조는 유지)
+      out.push({ ...e, method: 0, compressedData: empty, compressedSize: 0, uncompressedSize: 0, crc: 0 });
+      continue;
+    }
+    out.push(e);
+  }
+  return out;
+}
+
 // section0.xml 만 새 내용으로 교체하고 나머지는 원본 그대로 보존해서 .hwpx 출력.
 export function patchSection0(templateBuf: Buffer, newSectionXml: string): Buffer {
   const entries = parseZipEntries(templateBuf);
@@ -131,7 +150,7 @@ export function patchSection0(templateBuf: Buffer, newSectionXml: string): Buffe
   sec.uncompressedSize = buf.length;
   sec.crc = crc32(buf);
   sec.method = 8;
-  return buildZip(entries);
+  return buildZip(neutralizePreview(entries));
 }
 
 export function readSection0(templateBuf: Buffer): string {
@@ -220,7 +239,7 @@ export function patchFiles(templateBuf: Buffer, files: Record<string, string>): 
     e.crc = crc32(buf);
     e.method = 8;
   }
-  return buildZip(entries);
+  return buildZip(neutralizePreview(entries));
 }
 
 export function xmlEscape(s: string): string {
