@@ -59,7 +59,7 @@ function OverlayCanvas(props: {
       <Lights />
       <ClockDriver clockRef={props.clockRef} playRef={props.playRef} onEnd={props.onEnd} />
       <Suspense fallback={null}>
-        <Bounds fit clip margin={1.15}>
+        <Bounds fit clip margin={0.75}>
           <group>
             {/* 실제 산출 — 솔리드, 벗어난 조음기관 로즈 강조 */}
             <StaticArticulator

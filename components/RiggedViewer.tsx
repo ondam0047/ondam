@@ -527,6 +527,7 @@ function RiggedModel({
   live,
   showArt,
   headOpacity,
+  lipOpacity,
   onIntrospect,
 }: {
   pose: React.RefObject<Pose>;
@@ -538,6 +539,7 @@ function RiggedModel({
   live: React.RefObject<Pose>;
   showArt: React.RefObject<boolean>;
   headOpacity: React.RefObject<number>;
+  lipOpacity: React.RefObject<number>;
   onIntrospect: (found: Found[]) => void;
 }) {
   const { scene } = useGLTF(MODEL_URL);
@@ -756,7 +758,10 @@ function RiggedModel({
           b.mesh.quaternion.copy(b.quat);
         }
       } else if (isLipMesh(b.name)) {
-        for (const mt of b.lipMats) (mt as THREE.Material).opacity = lp.cur;
+        // 음소별 자동 투명도(lp.cur)에 수동 배율(lipOpacity, 기본 1.0)을 곱해
+        // 전체 입술 투명도를 사용자가 조절 — 혀·구강을 더 잘 보이게 낮출 수 있다.
+        for (const mt of b.lipMats)
+          (mt as THREE.Material).opacity = lp.cur * lipOpacity.current;
         // placement: forward/up offset + scale about the lip centroid
         const C = b.centroid;
         b.mesh.scale.setScalar(f.scale);
@@ -876,6 +881,7 @@ export default function RiggedViewer({ dev = false }: { dev?: boolean } = {}) {
   // (the rigger's drawn tongue/lips were removed from the head texture).
   const showArt = useRef(true);
   const headOpacity = useRef(1); // 사지탈 플랜(head) 투명도
+  const lipOpacity = useRef(1); // 입술 투명도 배율(음소별 자동값에 곱함)
   // 기류(airflow) 표시 상태 + 현재 재생 음소의 조음방법/ id (경로·거동 결정).
   const air = useRef<AirState>({
     on: true,
@@ -1174,7 +1180,7 @@ export default function RiggedViewer({ dev = false }: { dev?: boolean } = {}) {
           <Suspense fallback={null}>
             {/* fit ONCE on load; NO `observe` — else every phoneme morph changes the
                 bbox and re-fits, wiping the user's zoom/pan/rotate. */}
-            <Bounds fit clip margin={1.15}>
+            <Bounds fit clip margin={0.75}>
               <RiggedModel
                 pose={pose}
                 jaw={jaw}
@@ -1185,6 +1191,7 @@ export default function RiggedViewer({ dev = false }: { dev?: boolean } = {}) {
                 live={live}
                 showArt={showArt}
                 headOpacity={headOpacity}
+                lipOpacity={lipOpacity}
                 onIntrospect={setFound}
               />
             </Bounds>
@@ -1340,6 +1347,21 @@ export default function RiggedViewer({ dev = false }: { dev?: boolean } = {}) {
             className="flex-1"
             onChange={(e) => {
               headOpacity.current = parseFloat(e.target.value);
+            }}
+          />
+        </label>
+
+        <label className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+          <span className="whitespace-nowrap">입술 투명도</span>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            defaultValue={1}
+            className="flex-1"
+            onChange={(e) => {
+              lipOpacity.current = parseFloat(e.target.value);
             }}
           />
         </label>

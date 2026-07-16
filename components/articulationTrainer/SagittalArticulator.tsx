@@ -9,7 +9,7 @@
 
 import { Suspense, useEffect, useMemo, useRef } from "react";
 import { Canvas } from "@react-three/fiber";
-import { Bounds } from "@react-three/drei";
+import { Bounds, OrbitControls } from "@react-three/drei";
 import { fullPose, type Pose } from "@/components/articulator/phonemeMap";
 import {
   ClockDriver,
@@ -23,9 +23,8 @@ import {
   type Seg,
 } from "@/components/articulator/renderCore";
 
-// 사지탈 정면 고정 카메라: +Z에서 XY 시상면을 정면으로 봄(입술=+X 오른쪽). 회전 잠금.
-// (RiggedViewer/CompareViewer의 [2.4,0,0.5]는 초기값일 뿐 사용자가 +Z로 돌려서 봄 —
-//  여기선 처음부터 사지탈 면을 보도록 +Z로 고정.)
+// 사지탈 초기 카메라: +Z에서 XY 시상면을 정면으로 봄(입술=+X 오른쪽).
+// 측면(사지탈)을 처음부터 보여주되, OrbitControls로 3D 회전도 가능하게 한다.
 const SAG_CAM = { position: [0, 0, 3] as [number, number, number], fov: 35, near: 0.01, far: 100 };
 
 export type SagittalMode = "transition" | "target" | "error";
@@ -94,7 +93,7 @@ export default function SagittalArticulator({
         <Lights />
         <ClockDriver clockRef={clockRef} playRef={playRef} onEnd={() => undefined} />
         <Suspense fallback={null}>
-          <Bounds fit clip margin={1.15}>
+          <Bounds fit clip margin={0.75}>
             <StaticArticulator
               pose={staticPose}
               lipOpacity={lipOpacity}
@@ -107,6 +106,8 @@ export default function SagittalArticulator({
             />
           </Bounds>
         </Suspense>
+        {/* 측면(사지탈)을 기본으로 보되 3D 회전·줌 가능. */}
+        <OrbitControls enablePan enableZoom enableRotate minDistance={0.5} maxDistance={20} makeDefault />
       </Canvas>
     </div>
   );
