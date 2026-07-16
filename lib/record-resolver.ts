@@ -33,7 +33,7 @@ export function scopeSpecToKind(spec: ResolvedSpec, kind: "record" | "schedule")
     date: [], start: [], end: [], voucher: [], extra: [], amount: [],
     voucherAmount: undefined, copayAmount: undefined, therapist: undefined,
     serviceArea: undefined, serviceName: undefined, serviceBlocks: undefined,
-    result: [], detail: undefined,
+    result: [], detail: undefined, opinion: undefined,
     dateTable: undefined, resultTable: undefined, extraSessionCols: undefined, extraResultRows: undefined,
     manual: spec.manual?.filter((m) => !RECORD_ONLY_ROLES.has(m.role)),
   };
@@ -119,6 +119,36 @@ export function detectCalendarFromXml(xml: string): ScheduleCalendar | null {
   return detectScheduleCalendar(tbls, cands);
 }
 
+// 종합의견 칸 탐지 — 라벨 셀(종합의견·부모상담 의견·총평·의견란)을 찾고, 같은 표에서
+// 라벨 아래(없으면 옆)의 '빈' 칸 중 가장 넓은 칸을 쓰기 대상으로 반환.
+function detectOpinionCell(tbls: Grid, recordStart: number): Coord | undefined {
+  const OP_LABEL = /종합.?의견|상담.*의견|의견란|^총평/;
+  for (let ti = recordStart; ti < tbls.length; ti++) {
+    const t = tbls[ti];
+    const label = t.find((c) => OP_LABEL.test(c.norm) && c.norm.length <= 20);
+    if (!label) continue;
+    const below = t
+      .filter((c) => c.r > label.r && !c.norm)
+      .sort((a, b) => b.cs - a.cs || a.r - b.r || a.c - b.c)[0];
+    const right = t
+      .filter((c) => c.r === label.r && c.c > label.c && !c.norm)
+      .sort((a, b) => b.cs - a.cs || a.c - b.c)[0];
+    const target = below ?? right;
+    if (target) return [ti, target.r, target.c] as Coord;
+  }
+  return undefined;
+}
+
+// 저장 spec 에 opinion 이 없는 구버전 양식용 — 템플릿 XML 에서 종합의견 칸을 즉석 탐지(다운로드 폴백).
+export function detectOpinionFromXml(xml: string): Coord | undefined {
+  const tbls = parseTables(xml);
+  let recordStartIdx = -1;
+  for (let ti = 0; ti < tbls.length; ti++) {
+    if (tbls[ti].some((c) => /제공기관명/.test(c.norm))) { recordStartIdx = ti; break; }
+  }
+  return detectOpinionCell(tbls, recordStartIdx >= 0 ? recordStartIdx : 0);
+}
+
 export type ResolvedSpec = {
   org?: Coord; name?: Coord; birth?: Coord; serviceArea?: Coord;
   date: Coord[]; start: Coord[]; end: Coord[];
@@ -134,6 +164,8 @@ export type ResolvedSpec = {
   result: Array<{ date?: Coord; time?: Coord; apprDate?: Coord; apprNum?: Coord; status?: Coord; result?: Coord }>;
   // 별지(2페이지) 상세 결과표 — 회기별 세로 블록(서비스제공일자·승인일자·승인번호·결과 narrative).
   detail?: Array<{ date?: Coord; apprDate?: Coord; apprNum?: Coord; result?: Coord }>;
+  // 종합의견(부모상담 종합 의견란 등) 서술 칸 — 라벨 아래(또는 옆)의 빈 큰 칸에 종합의견 채움.
+  opinion?: Coord;
   // 일정표(서식9) 라벨 칸 — 통합양식의 일정표 영역. 1단계는 라벨 필드만(격자 본문 제외).
   schedule?: Array<{ role: string; coord: Coord }>;
   // 일정표 월 달력 격자(2단계) — 날짜 숫자 + 회기 시간 본문 채움용 기하 정보.
@@ -379,6 +411,10 @@ export function resolveForm(xml: string): ResolveOutput {
     });
   }
 
+  // 종합의견(부모상담 종합 의견란·총평) 칸 — 라벨 아래(없으면 옆)의 빈 큰 칸.
+  // (커스텀 양식은 이 칸이 매핑 안 돼 종합의견이 비어 나왔음.)
+  spec.opinion = detectOpinionCell(tbls, recordStart);
+
   // 커버리지
   const coverage: Record<string, boolean> = {};
   for (const k of ["org", "name", "birth", "date", "start", "end", "voucher", "extra", "amount", "result"]) {
@@ -510,6 +546,7 @@ export function buildSampleEdits(spec: ResolvedSpec, normCharPr?: number, calOpt
     put(row.apprNum, "5008000000");
     put(row.result, "회기 목표 수행, 적극 참여함");
   });
+  put(spec.opinion, "회기 목표를 꾸준히 수행하며 적극적으로 참여함. 가정 연계 지도 권장.");
   const schedDummy: Record<string, string> = {
     관리번호: "바-2026-001", 작성일자: "2026-06-01", 대상자명: "홍길동", 제공자: "○○발달센터",
     제공자명: "○○발달센터", 전화: "02-000-0000", 담당: "김치료", 서비스종류: "언어재활", 주기: "주 2회", 제공일: "화·목",

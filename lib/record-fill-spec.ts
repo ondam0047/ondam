@@ -4,7 +4,7 @@
 import { readSection0, readHeader, patchSection0, patchFiles } from "@/lib/hwpx";
 import { fillCells, type CellEdit, type Coord } from "@/lib/record-fill";
 import { removeTableColumns, removeTableRows } from "@/lib/record-trim";
-import { detectCalendarFromXml, type ResolvedSpec } from "@/lib/record-resolver";
+import { detectCalendarFromXml, detectOpinionFromXml, type ResolvedSpec } from "@/lib/record-resolver";
 import { buildCalendarEdits, type CalSession } from "@/lib/schedule-calendar";
 import { getCellRunCharPr, addClonedCharPr } from "@/lib/hwpx-charpr";
 import { autoFitRecordFont } from "@/lib/record-autofit";
@@ -66,6 +66,8 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
   put(spec.serviceArea, d.serviceType, true);
   put(spec.serviceName, d.serviceType, true);
   (spec.therapist ?? []).forEach((co) => put(co, d.therapistName));
+  // 종합의견(부모상담 종합 의견란 등) — resolver 가 잡은 의견 칸에 채움.
+  if (spec.opinion) put(spec.opinion, d.opinion ?? "");
 
   const S = d.sessions;
   // 회기 — 날짜축
@@ -201,6 +203,8 @@ export function generateRecordFromForm(
 ): Buffer[] {
   const spec = JSON.parse(specJson) as ResolvedSpec;
   const baseXml = readSection0(template);
+  // 구버전 저장 spec 은 opinion 이 없어 종합의견이 비어 나왔다 — 템플릿에서 즉석 탐지해 보강.
+  if (!spec.opinion) { const op = detectOpinionFromXml(baseXml); if (op) spec.opinion = op; }
   const all = payload.sessions ?? [];
   const chunks: RecordSessionDetail[][] = [];
   for (let i = 0; i < Math.max(1, all.length); i += 5) chunks.push(all.slice(i, i + 5));
