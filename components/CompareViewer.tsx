@@ -19,7 +19,6 @@ import {
   type WordTarget,
 } from "@/components/articulator/korean";
 import {
-  CAM,
   ClockDriver,
   Lights,
   PHONES,
@@ -37,6 +36,10 @@ import {
   type Seg,
 } from "@/components/articulator/renderCore";
 
+// 비교 탭 기본 카메라 = 측면(사지탈, +Z). 훈련(SAG_CAM)·음소산출(dev=false)과 동일하게
+// 조음 위치가 가장 잘 보이는 측면을 우선 노출한다. (renderCore의 CAM 은 전방[2.4,0,0.5]이라 미사용)
+const SIDE_CAM = { position: [0, 0, 3] as [number, number, number], fov: 35, near: 0.01, far: 100 };
+
 // 겹쳐보기: 실제(솔리드+강조) 위에 목표(초록 고스트, 머리 숨김)를 겹침.
 // 재생 시 목표/실제가 각자의 타임라인을 공유 클럭으로 동시에 애니메이션.
 function OverlayCanvas(props: {
@@ -52,7 +55,7 @@ function OverlayCanvas(props: {
   onEnd: () => void;
 }) {
   return (
-    <Canvas camera={CAM} dpr={[1, 2]} gl={{ alpha: true, antialias: true }}>
+    <Canvas camera={SIDE_CAM} dpr={[1, 2]} gl={{ alpha: true, antialias: true }}>
       <Lights />
       <ClockDriver clockRef={props.clockRef} playRef={props.playRef} onEnd={props.onEnd} />
       <Suspense fallback={null}>
