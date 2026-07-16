@@ -37,7 +37,7 @@ export const TOOL_MODULES: ToolModule[] = [
     label: "유창성 자가 모니터링", desc: "말의 흐름을 스스로 점검하고 기록으로 누적해요." },
   { key: "pacing",      no: 7, tier: "pro", status: "ready", href: "/tools/pacing",
     label: "말속도 조절 연습", desc: "메트로놈·페이싱 안내에 맞춰 말하기 속도를 조절하는 연습이에요." },
-  { key: "articulation",no: 8, tier: "pro", status: "soon", href: "/tools/articulation",
+  { key: "articulation",no: 8, tier: "pro", status: "ready", href: "/tools/articulation",
     label: "조음 학습 자료 (바로조음)", desc: "조음 위치를 3D로 보며 익히는 학습 자료예요." },
   { key: "pragmatics",  no: 9, tier: "pro", status: "soon", href: "/tools/pragmatics",
     label: "화용 학습 게임 (바로화용)", desc: "상황 속 의사소통(화용)을 게임으로 연습해요." },
