@@ -93,6 +93,12 @@ export function removeTableColumns(
   // 4) 표 전체 너비(table-level <hp:sz>, 첫 등장 — <hp:cellSz>와 구분됨). keepWidth 면 유지.
   if (!keepWidth) outTbl = outTbl.replace(/(<hp:sz width=")(\d+)(")/, (_m, p1, p2, p3) => `${p1}${+p2 - removedWidth}${p3}`);
 
+  // 안전망(불변식) — 삭제열에 '완전히 포함된 병합셀'은 colSpan="0"(OWPML 위반)으로 남아
+  // 한글이 표를 못 열거나 열 정렬이 붕괴한다. 손상된 표를 내보내느니 정리 전 원본을 그대로
+  // 반환한다(여분 회기열이 남을 뿐, 렌더는 정상). 센터마다 표 구조가 달라 병합셀이 회기열에
+  // 걸치는 신규 양식에서 원천 차단. (원본에 이미 colSpan="0"이 있던 게 아닐 때만 폴백.)
+  if (/colSpan="0"/.test(outTbl) && !/colSpan="0"/.test(tbl)) return xml;
+
   return xml.slice(0, t[0]) + outTbl + xml.slice(t[1]);
 }
 
@@ -153,5 +159,8 @@ export function removeTableRows(xml: string, tableIndex: number, removeRows: num
 
   let outTbl = newTbl.replace(/(<hp:tbl\b[^>]*\browCnt=")(\d+)(")/, (_m, p1, p2, p3) => `${p1}${+p2 - R.size}${p3}`);
   outTbl = outTbl.replace(/(<hp:sz width="\d+" height=")(\d+)(")/, (_m, p1, p2, p3) => `${p1}${+p2 - removedHeight}${p3}`);
+  // 안전망(불변식) — 삭제행에 완전히 포함된 세로 병합셀이 rowSpan="0"(OWPML 위반)으로 남으면
+  // 손상 표 대신 정리 전 원본 반환(여분 결과행이 남을 뿐 렌더 정상).
+  if (/rowSpan="0"/.test(outTbl) && !/rowSpan="0"/.test(tbl)) return xml;
   return xml.slice(0, t[0]) + outTbl + xml.slice(t[1]);
 }
