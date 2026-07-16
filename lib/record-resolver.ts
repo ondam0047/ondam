@@ -122,7 +122,9 @@ export function detectCalendarFromXml(xml: string): ScheduleCalendar | null {
 // 종합의견 칸 탐지 — 라벨 셀(종합의견·부모상담 의견·총평·의견란)을 찾고, 같은 표에서
 // 라벨 아래(없으면 옆)의 '빈' 칸 중 가장 넓은 칸을 쓰기 대상으로 반환.
 function detectOpinionCell(tbls: Grid, recordStart: number): Coord | undefined {
-  const OP_LABEL = /종합.?의견|상담.*의견|의견란|^총평/;
+  // 종합의견/부모상담 의견/치료사 소견/총평/종합평가 등 폼별 라벨 변형을 폭넓게 인식.
+  // (회기별 '비고'·'상태'·'결과' 칸과는 겹치지 않게 '의견/소견/총평/평가' 계열만.)
+  const OP_LABEL = /종합.?의견|상담.*의견|의견\s*란|치료사?.?의견|재활사.?의견|치료사?.?소견|종합.?소견|^소견$|종합.?평가|^총평/;
   for (let ti = recordStart; ti < tbls.length; ti++) {
     const t = tbls[ti];
     const label = t.find((c) => OP_LABEL.test(c.norm) && c.norm.length <= 20);
