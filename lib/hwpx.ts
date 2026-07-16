@@ -209,9 +209,22 @@ export function parseZipEntriesFromCD(buf: Buffer): ZipEntry[] {
   return entries;
 }
 
+// hwp2hwpx(hwpxlib) 버그: 문단 '고정(FIXED)' 줄간격을 HWPUNIT 값 그대로 type="PERCENT" 로 내보낸다.
+// 예) FIXED value="1600"(=16pt 고정) → PERCENT value="1600"(=1600% = 글자높이의 16배) → 셀이 폭발해
+// 한글로 열면 1페이지 양식이 3~9페이지로 늘어난다. 실무상 퍼센트 줄간격은 200% 이하이므로
+// value>=400 인 PERCENT 는 오변환된 FIXED 로 보고 FIXED 로 되돌린다. (header.xml 의 paraPr 에만 존재.)
+// (2026-07-16 로컬 한글 렌더로 원인 규명·검증: 되돌리면 실제 다운로드·샘플 모두 1페이지로 복원됨.)
+export function fixHwpxLineSpacing(headerXml: string): string {
+  return headerXml.replace(/<(?:\w+:)?lineSpacing\b[^>]*\/>/g, (tag) => {
+    if (!/type="PERCENT"/.test(tag)) return tag;
+    const m = tag.match(/value="(\d+)"/);
+    return m && Number(m[1]) >= 400 ? tag.replace('type="PERCENT"', 'type="FIXED"') : tag;
+  });
+}
+
 // hwp2hwpx(hwpxlib) 출력은 데이터 디스크립터 zip 이라 바로일지의 순차 리더가 못 읽는다.
 // 중앙디렉토리로 읽어 mimetype 은 STORE 로 풀어 첫 엔트리에 두고(HWPX/ODF 관례), 나머지는 그대로
-// 두어 바로일지·한글이 읽는 표준 zip 으로 재포장한다.
+// 두어 바로일지·한글이 읽는 표준 zip 으로 재포장한다. 겸사겸사 위 줄간격 오변환도 교정한다.
 export function normalizeHwpxZip(buf: Buffer): Buffer {
   const entries = parseZipEntriesFromCD(buf);
   if (entries.length === 0) throw new Error("zip 엔트리를 읽지 못했어요 — 변환 결과가 올바르지 않습니다");
@@ -219,6 +232,13 @@ export function normalizeHwpxZip(buf: Buffer): Buffer {
     if (e.name === "mimetype" && e.method === 8) {
       const raw = inflateRawSync(e.compressedData);
       return { ...e, method: 0, compressedData: raw, compressedSize: raw.length, uncompressedSize: raw.length, crc: crc32(raw) };
+    }
+    if (e.name === "Contents/header.xml") {
+      const raw = e.method === 8 ? inflateRawSync(e.compressedData) : e.compressedData;
+      const fixed = fixHwpxLineSpacing(raw.toString("utf8"));
+      const out = Buffer.from(fixed, "utf8");
+      const comp = deflateRawSync(out, { level: 9 });
+      return { ...e, method: 8, compressedData: comp, compressedSize: comp.length, uncompressedSize: out.length, crc: crc32(out) };
     }
     return e;
   });
