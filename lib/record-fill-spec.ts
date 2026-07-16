@@ -1,7 +1,7 @@
 // 저장된 양식(RecordForm)의 ResolvedSpec + 실제 기록지 데이터 → 채워진 .hwpx 생성.
 // 자동매핑/보정 결과(spec)를 따라 실데이터를 셀에 써넣는다. 5칸/5행 물리 정리 적용.
 
-import { readSection0, readHeader, patchSection0, patchFiles } from "@/lib/hwpx";
+import { readSection0, readHeader, patchFiles, fixHwpxLineSpacing } from "@/lib/hwpx";
 import { fillCells, type CellEdit, type Coord } from "@/lib/record-fill";
 import { removeTableColumns, removeTableRows } from "@/lib/record-trim";
 import { detectCalendarFromXml, detectOpinionFromXml, type ResolvedSpec } from "@/lib/record-resolver";
@@ -285,6 +285,8 @@ export function generateRecordFromForm(
   spec.result?.forEach((row) => addNarr(row.result));
   spec.detail?.forEach((row) => addNarr(row.result));
   for (const m of spec.manual ?? []) if (m.role === "결과") addNarr([m.table, m.row, m.col, m.p ?? 0] as Coord);
+  // 종합의견(부모상담 의견란)도 자동축소 대상 — 긴 의견이 칸을 넘쳐 2페이지로 밀리는 것 방지.
+  addNarr(spec.opinion);
 
   return chunks.map((sessionChunk) => {
     let xml = baseXml;
@@ -312,8 +314,10 @@ export function generateRecordFromForm(
       }
       outHeader = h;
     }
-    return outHeader
-      ? patchFiles(template, { "Contents/section0.xml": xml, "Contents/header.xml": outHeader })
-      : patchSection0(template, xml);
+    // 줄간격 오변환 교정을 출력 헤더에도 적용 — 이 수정 배포 전에 저장된 양식은 템플릿 header 에
+    // FIXED→PERCENT 오변환이 남아 3~9페이지로 늘어난다. 생성 시점에 되돌려 기존 양식도 한 페이지로.
+    // (신규 업로드는 normalizeHwpxZip 에서 이미 교정됨 — 멱등.)
+    const finalHeader = fixHwpxLineSpacing(outHeader ?? readHeader(template));
+    return patchFiles(template, { "Contents/section0.xml": xml, "Contents/header.xml": finalHeader });
   });
 }
