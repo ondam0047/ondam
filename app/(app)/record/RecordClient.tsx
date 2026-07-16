@@ -9,6 +9,7 @@ import { useBetaUx } from "../BetaUxContext";
 
 type RecordSessionData = {
   ordinal: number;
+  date?: string | null;
   startTime?: string | null;
   endTime?: string | null;
   voucher?: string | null;
@@ -660,6 +661,11 @@ function RecordSheet({
     return { start, end };
   });
   const [times, setTimes] = useState(initial);
+  // 제공일자(월·일) — 편집 가능. 승인내역(서비스이용일자) 기준으로 시드하되, 하루 두 번 결제 등으로
+  // 실제 수업일과 다르면 치료사가 기록지에서만 직접 고칠 수 있다(일정표는 건드리지 않음).
+  const [dates, setDates] = useState(
+    rows.map((s) => { const pu = parseYMD(s.use); return pu ? `${pu.mo}/${pu.d}` : String(s.use ?? ""); })
+  );
   const [vouchers, setVouchers] = useState(rows.map(() => "40"));
   const [extras, setExtras] = useState(rows.map(() => "10"));
   const [amounts, setAmounts] = useState(
@@ -741,6 +747,8 @@ function RecordSheet({
           const s = sm.get(i + 1);
           return s ? { start: s.startTime ?? t.start, end: s.endTime ?? t.end } : t;
         }));
+        // 저장된 편집 날짜(제공일자) 복원 — 없으면 시드값(승인내역 기준) 유지.
+        setDates((prev) => prev.map((v, i) => sm.get(i + 1)?.date ?? v));
         setVouchers((prev) => prev.map((v, i) => sm.get(i + 1)?.voucher ?? v));
         setExtras((prev) => prev.map((v, i) => sm.get(i + 1)?.extra ?? v));
         // 총이용금액도 저장값으로 복원 — 회차별로 다른 금액을 저장하면 그대로 유지된다.
@@ -801,11 +809,11 @@ function RecordSheet({
     try {
       const monthNum = typeof month === "number" ? month : parseInt(String(month)) || 0;
       const sessionsPayload = rows.map((s, i) => {
-        const pu = parseYMD(s.use);
         const pp = parseYMD(s.pay);
-        const useDayNum = useDays[i];
+        // 편집된 제공일자(dates[i]) 우선 — 없으면 일정표 매칭일(useDays)로 폴백.
+        const useDayNum = editedDay(i) ?? useDays[i];
         return {
-          date: pu ? `${pu.mo}/${pu.d}` : "",
+          date: dates[i] || "",
           startTime: times[i].start,
           endTime: times[i].end,
           voucher: vouchers[i],
@@ -871,6 +879,14 @@ function RecordSheet({
       return next;
     });
   }
+  function setDate(i: number, v: string) {
+    setDates((prev) => { const n = [...prev]; n[i] = v; return n; });
+  }
+  // 편집된 "M/D" 문자열에서 '일'만 뽑기 — 제공일자 표시·승인일자 대조·출력 useDay 에 사용.
+  function editedDay(i: number): number | null {
+    const m = String(dates[i] ?? "").match(/(\d{1,2})\s*$/);
+    return m ? +m[1] : null;
+  }
 
   // 제공일자(useDay) 매칭 — 같은 일자 우선, 남는 회기는 순서대로 할당.
   // 1,3,8,13,15 일정에 3,5,8,13,15 엑셀이 오면 3·8·13·15 는 자동 일치, 5 는 1 로 매핑.
@@ -890,9 +906,9 @@ function RecordSheet({
       const payload = {
         childServiceId, year, month: monthNumForLoad, org, childName: child, childBirth: birth, opinion,
         sessions: rows.map((s, i) => {
-          const pu = parseYMD(s.use); const pp = parseYMD(s.pay); const useDayNum = useDays[i];
+          const pp = parseYMD(s.pay); const useDayNum = editedDay(i) ?? useDays[i];
           return {
-            ordinal: i + 1, date: pu ? `${pu.mo}/${pu.d}` : "", startTime: times[i].start, endTime: times[i].end,
+            ordinal: i + 1, date: dates[i] || "", startTime: times[i].start, endTime: times[i].end,
             voucher: vouchers[i], extra: extras[i], amount: amounts[i],
             useDay: useDayNum !== null ? String(useDayNum) : "", payDay: pp ? String(pp.d) : "",
             apprNumber: s.appr, result: results[i], resultExtra: mismatchReasons[i] || undefined, retroReason: retroReasons[i] || undefined, status: statuses[i] || undefined,
@@ -912,7 +928,7 @@ function RecordSheet({
     const t = window.setTimeout(() => { void autoSaveRecord(); }, 1800);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [childServiceId, year, monthNumForLoad, rows, times, vouchers, extras, amounts, results, statuses, mismatchReasons, retroReasons, opinion, useDays, outFormId, loadedRecordId]);
+  }, [childServiceId, year, monthNumForLoad, rows, times, dates, vouchers, extras, amounts, results, statuses, mismatchReasons, retroReasons, opinion, useDays, outFormId, loadedRecordId]);
 
   // 제공일자(월·일) = 실제 서비스이용일자(승인내역 원본). 예전엔 일정표 매칭일(useDays)을
   // 썼는데, 회기가 옮겨지거나 결제일과 어긋나면 승인내역·일정표 어디에도 없는 날짜가 찍혔음.
@@ -955,7 +971,8 @@ function RecordSheet({
           lineHeight: 1.6,
         }}
       >
-        ✏️ <b style={{ background: "#FFF3D4", padding: "0 4px", borderRadius: 3 }}>노란색 칸</b>은 직접 수정할 수 있어요 — 시작·종료시간, 바우처(분)·추가구매(분), 총이용금액.
+        ✏️ <b style={{ background: "#FFF3D4", padding: "0 4px", borderRadius: 3 }}>노란색 칸</b>은 직접 수정할 수 있어요 — 제공일자(월·일), 시작·종료시간, 바우처(분)·추가구매(분), 총이용금액.
+        하루에 두 번 결제해 날짜가 겹칠 땐 제공일자(월·일) 칸에서 직접 고치면 돼요(일정표는 그대로 유지됩니다).
         바우처 지원금이 소진되는 마지막 회차는 보통 바우처 20분 / 추가구매 30분으로 바꿉니다. 저장하면 이 달 기록에 그대로 남습니다.
       </div>
       <div className="scroll">
@@ -963,7 +980,16 @@ function RecordSheet({
           <tbody>
             <tr>
               <th rowSpan={2} style={{ width: 90 }}>내용 / 월·일</th>
-              {topCols.map((c) => <th key={c.i}>{c.md}</th>)}
+              {topCols.map((c) => (
+                <th key={c.i} style={{ padding: 4 }}>
+                  <input
+                    value={dates[c.i] ?? ""}
+                    onChange={(e) => setDate(c.i, e.target.value)}
+                    style={{ width: 64, textAlign: "center", fontWeight: 700 }}
+                    title="제공일자(월·일) — 직접 수정할 수 있어요. 하루 두 번 결제 등으로 실제 수업일과 다르면 여기서 고치세요(일정표는 안 바뀝니다)."
+                  />
+                </th>
+              ))}
             </tr>
             <tr><td style={{ background: "#fff", border: "none" }}></td></tr>
             <tr>
@@ -1028,8 +1054,8 @@ function RecordSheet({
         </h3>
         {rows.map((s, i) => {
           const pp = parseYMD(s.pay);
-          // 제공일자 = 실제 서비스이용일자(승인내역). 화면·출력·엑셀 모두 이 값으로 통일.
-          const useD = parseYMD(s.use)?.d ?? useDays[i] ?? null;
+          // 제공일자 = 편집값(dates) 우선 → 승인내역(서비스이용일자) → 일정표 매칭일. 화면·출력·대조 모두 이 값으로 통일.
+          const useD = editedDay(i) ?? parseYMD(s.use)?.d ?? useDays[i] ?? null;
           const payD = pp ? pp.d : null;
           const hasBoth = useD !== null && payD !== null;
           const match = hasBoth && useD === payD;

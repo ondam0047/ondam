@@ -5,12 +5,38 @@ import { getCellRunCharPr, addClonedCharPr } from "@/lib/hwpx-charpr";
 import { fillCells, type Coord } from "@/lib/record-fill";
 import { resolveForm, buildSampleEdits, applyOverrides, scopeSpecToKind } from "@/lib/record-resolver";
 import { removeTableColumns, removeTableRows } from "@/lib/record-trim";
+import { generateRecordFromForm } from "@/lib/record-fill-spec";
+import type { RecordPayload } from "@/lib/record-hwpx";
 import type { CalOpts } from "@/lib/schedule-calendar";
 
 function parseOverrides(v: FormDataEntryValue | null) {
   if (typeof v !== "string" || v.length < 2) return [];
   try { return JSON.parse(v) as Array<{ table: number; row: number; col: number; role: string }>; } catch { return []; }
 }
+
+// 기록지 샘플 더미 데이터 — 실제 출력 생성기(generateRecordFromForm)에 넣어 미리보기를 만든다.
+// buildSampleEdits(예시값)와 같은 값이되, 실제 출력과 동일한 한 페이지 맞춤(행/열 정리·글자통일·자동축소)을 그대로 받는다.
+const SAMPLE_RECORD_PAYLOAD: RecordPayload = {
+  childName: "홍길동",
+  childBirth: "2018-03-15",
+  org: "○○발달센터",
+  month: 6,
+  serviceType: "언어재활",
+  opinion: "회기 목표를 꾸준히 수행하며 적극적으로 참여함. 가정 연계 지도 권장.",
+  sessions: ["3", "7", "12", "18", "24"].map((d) => ({
+    date: `6/${d}`,
+    startTime: "10:00",
+    endTime: "10:50",
+    voucher: "50",
+    extra: "0",
+    amount: "55,000",
+    useDay: d,
+    payDay: d,
+    apprNumber: "5008000000",
+    result: "회기 목표 수행, 적극 참여함",
+    status: "양호",
+  })),
+};
 
 // 업로드한 양식에 더미 샘플 데이터를 채워 .hwpx 로 돌려줌 — 미리보기 안전망.
 export async function POST(req: NextRequest) {
@@ -35,6 +61,26 @@ export async function POST(req: NextRequest) {
   // 슬롯(kind)이 지정되면 그 영역만 채워 미리보기 — 통합 양식을 두 슬롯에 같은 파일로 올릴 때 영역 분리.
   const kindParam = new URL(req.url).searchParams.get("kind");
   if (kindParam === "record" || kindParam === "schedule") spec = scopeSpecToKind(spec, kindParam);
+
+  // 기록지 슬롯: 실제 출력과 '완전히 같은' 생성기로 샘플을 만든다.
+  // 예전 buildSampleEdits 경로는 표 사이 간격이 벌어져 샘플 미리보기만 2페이지로 밀렸다
+  // (실제 다운로드 기록지는 1페이지). generateRecordFromForm 은 행/열 정리·글자통일·자동축소를
+  // 그대로 적용하므로 샘플 = 실제 출력이 되어 한 페이지로 맞는다. 일정표 슬롯은 기존 경로 유지.
+  if (kindParam !== "schedule") {
+    try {
+      const sheets = generateRecordFromForm(srcBuf, JSON.stringify(spec), SAMPLE_RECORD_PAYLOAD, "김치료", undefined, 2026);
+      if (sheets[0]) {
+        return new Response(new Uint8Array(sheets[0]), {
+          headers: {
+            "Content-Type": "application/octet-stream",
+            "Content-Disposition": `attachment; filename="sample-filled.hwpx"`,
+          },
+        });
+      }
+    } catch {
+      // 실패 시 아래 기존 buildSampleEdits 경로로 폴백(미리보기 안전망).
+    }
+  }
 
   // 값 글자 통일 — 미리보기를 실제 출력기와 동일 기준으로 맞춘다(기록지=generateRecordFromForm, 일정표=generateScheduleFromForm).
   // ※ trim 전(원본 좌표 유효) 상태에서 기준 칸 글자속성을 읽는다. header 1회 패치.
