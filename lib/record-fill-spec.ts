@@ -48,6 +48,17 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
   const putArr = (arr: Coord[] | undefined, val: (i: number) => string) => {
     (arr ?? []).forEach((co, i) => put(co, val(i)));
   };
+  // 결과 서술은 한 칸에 '한 번만' 쓴다 — 저장 spec 이 같은 결과칸을 자동(spec.result p0)+
+  // 수동(manual '결과' p1) 으로 이중 매핑하면 첫 문단이 복제됐다(p0 채운 뒤 p1 이 둘째 문단을
+  // 덮으며 [P1,P1,P2]). 물리 칸(table,row,col) 기준으로 이미 결과를 쓴 칸은 건너뛴다.
+  const narrSeen = new Set<string>();
+  const putNarr = (coord: Coord | undefined, value: string) => {
+    if (!coord) return;
+    const key = `${coord[0]},${coord[1]},${coord[2]}`;
+    if (narrSeen.has(key)) return;
+    narrSeen.add(key);
+    put(coord, value);
+  };
   // 결과 칸 본문 — 결과 다음 줄부터 사유를 '별표(*)'로 한 줄씩(엔터로 칸 바꿈) 기재.
   // (\n 은 record-fill.ts 가 셀 안 별도 단락으로 렌더)
   const composeResult = (s: RecordSessionDetail): string => {
@@ -115,7 +126,7 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
     put(row.apprNum, s.apprNumber || "");
     put(row.time, s.startTime || "");
     put(row.status, s.status || "");
-    put(row.result, composeResult(s));
+    putNarr(row.result, composeResult(s));
   });
   // 별지(상세 결과)
   spec.detail?.forEach((row, i) => {
@@ -124,7 +135,7 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
     put(row.date, s.date || "");
     put(row.apprDate, monthDayOnly(s.payDay || s.date || ""));
     put(row.apprNum, s.apprNumber || "");
-    put(row.result, composeResult(s));
+    putNarr(row.result, composeResult(s));
   });
 
   // 일정표 라벨 칸(통합 양식)
@@ -180,6 +191,9 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
     if (cells.length === 1 && DATE_AXIS.has(role) && dCols.length) {
       const [t, r] = cells[0];
       dCols.forEach((col, i) => put([t, r, col] as Coord, rowVal(role, i)));
+    } else if (role === "결과") {
+      // 결과 서술은 이미 채운 칸이면 건너뜀(자동 spec.result 와 이중 매핑 시 문단 복제 방지).
+      cells.forEach((co, i) => putNarr(co, rowVal(role, i)));
     } else {
       cells.forEach((co, i) => put(co, rowVal(role, i)));
     }
