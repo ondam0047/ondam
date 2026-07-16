@@ -256,8 +256,21 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
     }
   }
 
-  async function deleteForm(id: number) {
-    await fetch(`/api/forms/saved?id=${id}`, { method: "DELETE" }).catch(() => {});
+  async function deleteForm(id: number, name?: string) {
+    // 삭제는 되돌릴 수 없고, 분석→자동매핑→역할보정으로 만든 설정이 통째로 사라진다 — 반드시 확인.
+    const label = name ? `'${name}' 양식` : "이 양식";
+    if (!window.confirm(`${label}을(를) 삭제할까요?\n\n분석·자동매핑·역할보정으로 맞춰둔 설정이 함께 사라지고, 되돌릴 수 없어요.`)) return;
+    try {
+      const res = await fetch(`/api/forms/saved?id=${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        alert("삭제하지 못했어요" + (e?.error ? `: ${e.error}` : ". 잠시 후 다시 시도해 주세요."));
+        return;
+      }
+    } catch {
+      alert("삭제 중 문제가 생겼어요. 인터넷 연결을 확인하고 다시 시도해 주세요.");
+      return;
+    }
     loadSaved();
   }
 
@@ -381,7 +394,7 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
                     {list.map((f) => (
                       <div key={f.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface-2)", padding: "8px 12px" }}>
                         <span style={{ fontSize: 14, fontWeight: 600 }}>{f.name}</span>
-                        <button onClick={() => deleteForm(f.id)} style={{ background: "none", border: "none", fontSize: 12, color: "var(--text-mute)", cursor: "pointer" }}>삭제</button>
+                        <button onClick={() => deleteForm(f.id, f.name)} style={{ background: "none", border: "none", fontSize: 12, color: "var(--danger, #8A2F1C)", cursor: "pointer" }}>삭제</button>
                       </div>
                     ))}
                   </div>
