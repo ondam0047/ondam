@@ -50,6 +50,7 @@ export default function TrainerAirflow({
   livePoseRef,
   airActiveRef,
   distortAmtRef,
+  lateralAmtRef,
   lateral = false,
 }: {
   segsRef: React.RefObject<Seg[] | null>;
@@ -59,9 +60,11 @@ export default function TrainerAirflow({
   livePoseRef?: React.RefObject<Pose | null>;
   // 실시간 구동 시 마찰 산출 중일 때만 기류 표시(무음=휴지면 숨김). 미지정(데모)이면 항상 표시.
   airActiveRef?: React.RefObject<boolean>;
-  // 실시간 왜곡량(0=정조음/초록, 1=왜곡/빨강). 색·설측 fork 강도. 미지정이면 자세에서 유도.
+  // 실시간 왜곡량(0=정조음/초록, 1=왜곡/빨강). 기류 색. 미지정이면 자세에서 유도.
   distortAmtRef?: React.RefObject<number>;
-  lateral?: boolean; // 설측음화: 협착점에서 기류를 좌우(±Z)로 갈라 표시.
+  // 설측 좌우 fork 강도(0=중앙, 1=완전 좌우). 통합 모드에서 설측 감지 시만 1.
+  lateralAmtRef?: React.RefObject<number>;
+  lateral?: boolean; // 설측음화(데모용 정적 플래그): lateralAmtRef 없을 때 자세로 fork 유도.
 }) {
   const N = 110;
   const ptsRef = useRef<THREE.Points>(null);
@@ -127,12 +130,14 @@ export default function TrainerAirflow({
         x += (Math.random() - 0.5) * amp;
         y += (Math.random() - 0.5) * amp;
       }
-      // 설측음화: 협착점(치조)에서 공기가 혀 양옆(±Z)으로 갈라져 샘. 왜곡량(amt)에 비례.
+      // 설측음화: 협착점(치조)에서 공기가 혀 양옆(±Z)으로 갈라져 샘. fork 강도=lateralAmtRef(음향)
+      // 우선, 없으면 정적 lateral 플래그일 때 왜곡량(amt)에서 유도.
       // ±Z=진짜 좌우(정면/비스듬에서 보임), ±Y=시상면 가시성용 상하 스프레드(좌우 대칭).
-      if (lateral && amt > 0.02) {
+      const latAmt = lateralAmtRef ? Math.min(1, Math.max(0, lateralAmtRef.current)) : lateral ? amt : 0;
+      if (latAmt > 0.02) {
         const zSide = i % 2 === 0 ? 1 : -1;
         const ySide = Math.floor(i / 2) % 2 === 0 ? 1 : -1;
-        const fork = Math.max(0, 1 - Math.abs(p - tc) / 0.22) * amt;
+        const fork = Math.max(0, 1 - Math.abs(p - tc) / 0.22) * latAmt;
         z += zSide * 0.16 * fork;
         y += ySide * 0.05 * fork;
       }

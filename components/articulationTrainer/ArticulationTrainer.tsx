@@ -41,6 +41,21 @@ import { lerpPose, fullPose, IDLE_POSE, type Pose } from "@/components/articulat
 // 무음(정조음·오조음 어느 쪽도 아닐 때)에 보여줄 휴지 자세.
 const IDLE_FULL = fullPose(IDLE_POSE);
 
+// 통합 /ㅅ/ 분류기 앵커 자세(오류 유형별 목표 3D 자세).
+const POSE_PALATAL = fullPose({
+  tongue_front_up: 0.85, tongue_tip_up: 0, tongue_back_up: 0.6,
+  tongue_retract: 0.9, tongue_groove: 0.35, lips_closed: 0.5,
+}); // 구개음화(혀 뒤·경구개)
+const POSE_LATERAL = fullPose({
+  tongue_tip_up: 1, tongue_front_up: 0.3, tongue_groove: 0, lips_closed: 0.5,
+}); // 설측음화(혀끝 붙고 중앙 홈 닫힘)
+const POSE_STOP = fullPose(phoneById("c_t").pose); // 파열음화(대치=ㄷ, 완전 폐쇄)
+
+// 분류 임계(성인 근사, 대상자별 조정): hfRatio=고주파 집중도.
+const S_R_CORRECT = 0.75; // centroid 높음 + hfRatio 이 이상 = 정조음
+const S_R_LATERAL = 0.68; // hfRatio 이 미만 = 설측(둔탁·다습)
+const STOP_ENERGY = 0.02; // 마찰 아닌데 이 이상 에너지 = 파열음화(대치), 미만 = 휴지
+
 const GAUGE_MIN = 2000;
 const GAUGE_MAX = 9500;
 const EMA_ALPHA = 0.55;
@@ -433,10 +448,16 @@ function PracticeScreen({
   const liveDisplayRef = useRef<Pose | null>(null); // 프레임 간 부드러운 전이용(휴지↔산출)
   const airActiveRef = useRef(false); // 기류 표시(마찰 산출 중일 때만)
   const distortAmtRef = useRef(0); // 실시간 왜곡량(0=정조음/초록, 1=왜곡/빨강) — 기류 색·설측 fork용
+  const lateralAmtRef = useRef(0); // 설측 좌우 fork 강도(0=없음, 1=완전 설측)
   const distortRef = useRef(!!process.distortion);
   distortRef.current = !!process.distortion;
   const lateralRef = useRef(!!process.lateral);
   lateralRef.current = !!process.lateral;
+  const sTrainerRef = useRef(!!process.sTrainer);
+  sTrainerRef.current = !!process.sTrainer;
+  // 통합 모드에서 실시간 감지된 오류 유형 라벨(변할 때만 setState).
+  const [detected, setDetected] = useState<string | null>(null);
+  const detectedRef = useRef<string | null>(null);
   const targetPoseRef = useRef(targetPose);
   targetPoseRef.current = targetPose;
   const errorPoseRef = useRef(errorPose);
@@ -455,6 +476,12 @@ function PracticeScreen({
         liveDisplayRef.current = next;
         livePoseRef.current = next;
       };
+      const bump = (c: string) => {
+        if (detectedRef.current !== c) {
+          detectedRef.current = c;
+          setDetected(c);
+        }
+      };
       if (r.isFricative) {
         const sm =
           smoothRef.current === null
@@ -465,23 +492,56 @@ function PracticeScreen({
         setIsFric(true);
         setSampleCount((n) => n + 1);
         if (zone && sm >= zone.min && sm <= zone.max) setInZoneCount((n) => n + 1);
-        // 왜곡 변동: 음향→왜곡량 d(0=정조음, 1=왜곡). 구개음화=센트로이드만,
-        // 설측음화=센트로이드 부족분과 고주파 집중도(hfRatio) 부족분의 평균(둘 다 낮아야 설측).
-        if (distortRef.current) {
+        if (sTrainerRef.current) {
+          // 통합 /ㅅ/ 분류(마찰 있음): centroid+hfRatio로 정조음/구개음화/설측음화 판별.
+          if (sm >= S_CORRECT_HZ && r.hfRatio >= S_R_CORRECT) {
+            applyLive(targetPoseRef.current); // 정조음(치조 앞·중앙)
+            distortAmtRef.current = 0;
+            lateralAmtRef.current = 0;
+            bump("정조음");
+          } else if (r.hfRatio < S_R_LATERAL) {
+            applyLive(POSE_LATERAL); // 설측음화(둔탁·다습 → 양옆)
+            distortAmtRef.current = 1;
+            lateralAmtRef.current = 1;
+            bump("설측음화");
+          } else {
+            applyLive(POSE_PALATAL); // 구개음화(저주파·후방)
+            distortAmtRef.current = 1;
+            lateralAmtRef.current = 0;
+            bump("구개음화");
+          }
+          airActiveRef.current = true;
+        } else if (distortRef.current) {
+          // (단일 왜곡 카드용) 음향→왜곡량 d. 구개음화=센트로이드만, 설측=centroid+hfRatio 평균.
           const dC = Math.min(1, Math.max(0, (S_CORRECT_HZ - sm) / (S_CORRECT_HZ - S_PALATAL_HZ)));
           let d = dC;
           if (lateralRef.current) {
             const dR = Math.min(1, Math.max(0, (HF_CORRECT - r.hfRatio) / (HF_CORRECT - HF_LATERAL)));
             d = Math.min(1, Math.max(0, (dC + dR) / 2));
+            lateralAmtRef.current = d;
           }
           distortAmtRef.current = d;
           applyLive(lerpPose(targetPoseRef.current, errorPoseRef.current, d));
-          airActiveRef.current = true; // 마찰 산출 중 → 기류 표시
+          airActiveRef.current = true;
         }
       } else {
         setIsFric(false);
-        // 정조음·오조음 어느 쪽도 아님(무음) → 휴지 자세로, 기류 숨김.
-        if (distortRef.current) {
+        // 마찰 없음. 통합 모드면 에너지로 파열음화(대치=ㄷ) vs 휴지 구분.
+        if (sTrainerRef.current) {
+          const speaking = r.hfEnergy + r.lfEnergy > STOP_ENERGY;
+          if (speaking) {
+            applyLive(POSE_STOP); // 마찰 대신 폐쇄 → 파열음화(대치)
+            distortAmtRef.current = 1;
+            lateralAmtRef.current = 0;
+            airActiveRef.current = false; // 폐쇄라 기류 없음
+            bump("파열음화(대치)");
+          } else {
+            applyLive(IDLE_FULL);
+            airActiveRef.current = false;
+            bump("휴지");
+          }
+        } else if (distortRef.current) {
+          // 단일 왜곡 카드: 무음 → 휴지.
           applyLive(IDLE_FULL);
           airActiveRef.current = false;
         }
@@ -498,6 +558,9 @@ function PracticeScreen({
     liveDisplayRef.current = null;
     airActiveRef.current = false;
     distortAmtRef.current = 0;
+    lateralAmtRef.current = 0;
+    detectedRef.current = null;
+    setDetected(null);
     setCentroid(null);
     setIsFric(false);
     setInZoneCount(0);
@@ -510,6 +573,9 @@ function PracticeScreen({
     liveDisplayRef.current = null;
     airActiveRef.current = false;
     distortAmtRef.current = 0;
+    lateralAmtRef.current = 0;
+    detectedRef.current = null;
+    setDetected(null);
   };
 
   const inZone = !!(zone && centroid !== null && isFric && centroid >= zone.min && centroid <= zone.max);
@@ -592,6 +658,7 @@ function PracticeScreen({
               livePoseRef={isDistortion ? livePoseRef : undefined}
               airActiveRef={isDistortion ? airActiveRef : undefined}
               distortAmtRef={isDistortion ? distortAmtRef : undefined}
+              lateralAmtRef={isDistortion ? lateralAmtRef : undefined}
               lateral={process.lateral}
               frontView={process.lateral}
             />
@@ -682,19 +749,44 @@ function PracticeScreen({
           {isDistortion && (
             <div className="rounded-2xl bg-white p-4 shadow-sm">
               <h3 className="mb-2 text-sm font-semibold text-slate-800">
-                {process.targetGrapheme} 실시간 연습
+                {process.sTrainer ? "마찰음 /ㅅ/ 실시간 훈련" : `${process.targetGrapheme} 실시간 연습`}
               </h3>
-              {process.lateral ? (
+              {process.sTrainer ? (
+                <>
+                  <p className="text-xs leading-relaxed text-slate-600">
+                    <strong>마이크 시작</strong> 후 <strong>「ㅅ」을 길게</strong> 내보세요. 소리를 듣고 지금 조음이
+                    <strong> 정조음 / 구개음화(뒤) / 설측음화(옆) / 파열음화(막힘=ㄷ)</strong> 중 무엇인지 실시간으로 3D·기류로 보여줘요.
+                    옆으로 새는 설측은 <strong>정면·비스듬</strong>에서 잘 보여요(드래그 회전).
+                  </p>
+                  <div className="mt-3 flex items-center gap-2">
+                    <span className="text-[11px] text-slate-400">지금 감지</span>
+                    <span
+                      className={
+                        "rounded-full px-3 py-1 text-sm font-bold " +
+                        (detected === null
+                          ? "bg-slate-100 text-slate-400"
+                          : detected === "정조음"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : detected === "휴지"
+                              ? "bg-slate-100 text-slate-500"
+                              : "bg-rose-100 text-rose-800")
+                      }
+                    >
+                      {detected ?? "— (마이크 시작)"}
+                    </span>
+                  </div>
+                </>
+              ) : process.lateral ? (
                 <p className="text-xs leading-relaxed text-slate-600">
                   아래 <strong>마이크 시작</strong>을 누르고 <strong>「{process.targetGrapheme}」 소리를 길게</strong> 내보세요.
                   정확하면 바람이 혀 <strong>가운데로 곧게</strong>(기류 초록), 설측음화되면 공기가
-                  <strong> 양옆으로 갈라져</strong>(기류 빨강) 실시간으로 보여요. 옆으로 새는 건 <strong>정면·비스듬</strong>에서 잘 보여요(드래그로 회전).
+                  <strong> 양옆으로 갈라져</strong>(기류 빨강) 실시간으로 보여요.
                 </p>
               ) : (
                 <p className="text-xs leading-relaxed text-slate-600">
                   아래 <strong>마이크 시작</strong>을 누르고 <strong>「{process.targetGrapheme}」 소리를 길게</strong> 내보세요.
                   정확한 <strong>치조</strong> 위치면 3D 혀가 <strong>앞</strong>에(기류 초록), 왜곡(구개음화)되면 혀가
-                  <strong> 뒤(경구개)</strong>로(기류 빨강) 실시간으로 움직여요. 소리가 낮아 혀가 뒤로 가면 앞으로 당기도록 도와주세요.
+                  <strong> 뒤(경구개)</strong>로(기류 빨강) 실시간으로 움직여요.
                 </p>
               )}
             </div>

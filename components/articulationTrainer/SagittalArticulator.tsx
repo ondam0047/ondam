@@ -46,6 +46,7 @@ export default function SagittalArticulator({
   livePoseRef,
   airActiveRef,
   distortAmtRef,
+  lateralAmtRef,
   lateral = false,
   frontView = false,
 }: {
@@ -62,9 +63,11 @@ export default function SagittalArticulator({
   livePoseRef?: React.RefObject<Pose | null>;
   // 기류 표시 여부(마찰 산출 중일 때만 true). 실시간 구동 시 무음이면 기류 숨김.
   airActiveRef?: React.RefObject<boolean>;
-  // 실시간 왜곡량(0=정조음/초록, 1=왜곡/빨강) — 기류 색·설측 좌우 fork 강도.
+  // 실시간 왜곡량(0=정조음/초록, 1=왜곡/빨강) — 기류 색.
   distortAmtRef?: React.RefObject<number>;
-  lateral?: boolean; // 설측음화: 기류를 좌우로 갈라 표시.
+  // 설측 좌우 fork 강도(0=중앙, 1=완전 좌우). 통합 모드에서 설측 감지 시만 1.
+  lateralAmtRef?: React.RefObject<number>;
+  lateral?: boolean; // 설측음화: 기류를 좌우로 갈라 표시(데모용 정적 플래그).
   frontView?: boolean; // 초기 시점을 정면·비스듬으로(설측 좌우 기류가 보이게).
 }) {
   const clockRef = useRef<Clock>({ t: 0 });
@@ -137,6 +140,7 @@ export default function SagittalArticulator({
             livePoseRef={livePoseRef}
             airActiveRef={airActiveRef}
             distortAmtRef={distortAmtRef}
+            lateralAmtRef={lateralAmtRef}
             lateral={lateral}
           />
         )}

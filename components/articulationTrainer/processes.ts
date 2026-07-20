@@ -15,7 +15,7 @@ export type ProcessId =
   | "stopping_affricate" // ㅈ→ㄷ (파찰음의 파열음화)
   | "tap_vs_lateral" // ㄹ 탄설 ↔ 설측
   | "gliding_liquid" // ㄹ→활음 (유음의 활음화)
-  | "distortion_s"; // ㅅ 왜곡 (구개음화 — 혀가 뒤로/경구개)
+  | "fricative_s"; // 마찰음 /ㅅ/ 통합 훈련(정조음·구개음화·설측음화·대치 실시간 분류)
 
 export type MinimalPair = { target: string; error: string; note?: string };
 
@@ -38,6 +38,9 @@ export type PhonologicalProcess = {
   // 설측음화(lateral): 공기가 혀 중앙(홈)이 아니라 양옆으로 샘. true면 기류를 좌우로 갈라 보이고,
   // 좌우는 측면(사지탈)에서 안 보이므로 기본 시점을 정면/비스듬으로. 검출은 centroid+hfRatio.
   lateral?: boolean;
+  // 통합 /ㅅ/ 훈련: 한 화면에서 마이크 음향으로 정조음/구개음화/설측음화/파열음화(대치)/휴지를
+  // 실시간 분류해 3D·기류·라벨로 보여줌(개별 카드로 나누지 않음).
+  sTrainer?: boolean;
   metaphorAxis: string; // "막음 ↔ 흐름"
   directionText: string; // 오류→목표 전환 캡션(무엇이 어떻게 바뀌나)
   acoustic: AcousticFeature;
@@ -104,81 +107,35 @@ export const PROCESSES: PhonologicalProcess[] = [
     ready: true,
   },
   {
-    id: "distortion_s",
-    label: "ㅅ 왜곡 (구개음화)",
-    // 마찰음 /ㅅ/의 협착점이 치조(앞)에서 경구개(뒤)로 밀려 혀가 뒤로 솟는 왜곡.
-    // 대치(다른 음소)가 아니라 같은 ㅅ의 조음 위치가 뒤로 간 것 → errorPoseOverride 사용.
-    // 청지각적으로 [ɕ]에 가까운 "쉬"스러운 소리(맑은 ㅅ 대비 후방·저주파).
-    short: "치조 ㅅ ↔ 경구개 ㅅ",
+    id: "fricative_s",
+    label: "마찰음 /ㅅ/ 훈련",
+    // 통합 화면: 마이크로 /ㅅ/를 산출하면 실시간으로 정조음/구개음화/설측음화/파열음화(대치=ㄷ)/
+    // 휴지를 음향(centroid·hfRatio·마찰유무·에너지)으로 분류해 3D 혀·기류·라벨로 보여줌.
+    // 개별 카드로 나누지 않고 하나로. errorPhone=대치 기준(ㄷ). 왜곡별 자세는 코드 앵커(POSE_*).
+    short: "정조음 · 구개음화 · 설측음화 · 대치",
     targetPhone: "c_s",
-    errorPhone: "c_s", // 왜곡이라 대치음 없음 — 자세는 errorPoseOverride로.
-    // 정상 ㅅ 자세에서 혀를 뒤·위(경구개)로 크게 보낸 왜곡: retract·back_up↑↑, tip_up 0, front_up↑.
-    // 정확(치조 앞)↔왜곡(경구개 뒤) 사이 혀 이동 폭을 넓혀 실시간 대비가 잘 보이게.
-    errorPoseOverride: {
-      tongue_front_up: 0.85,
-      tongue_tip_up: 0,
-      tongue_back_up: 0.6,
-      tongue_retract: 0.9,
-      tongue_groove: 0.35,
-      lips_closed: 0.5,
-    },
+    errorPhone: "c_t", // 대치(파열음화) 기준 자세
     targetGrapheme: "ㅅ",
-    errorGrapheme: "ㅅ(구개음화)",
+    errorGrapheme: "오류",
     airflow: true,
-    distortion: true, // 대립쌍(뜻 바뀜) 아님 — /ㅅ/ 연습 + 마이크 실시간 혀 위치 피드백.
-    metaphorAxis: "앞(치조) ↔ 뒤(경구개)",
+    distortion: true, // 대립쌍(뜻 바뀜) 패널 숨김
+    lateral: true, // 설측 가능 → 기류 좌우 fork + 정면·비스듬 기본 시점
+    sTrainer: true, // 통합 실시간 분류 모드
+    metaphorAxis: "가운데로 곧게 ↔ 막힘/뒤/옆",
     directionText:
-      "혀를 뒤로 올리지 말고, 혀끝을 앞으로 가져와 윗니 뒤(치조)에서 좁은 틈을 만들어요 (경구개 뒤 → 치조 앞)",
+      "혀 가운데로 좁은 길을 만들어 바람을 곧게 앞으로 — 막지도(ㄷ), 뒤로 가지도(구개음화), 옆으로 새지도(설측음화) 않게",
     acoustic: "centroid",
     centroidZone: S_ZONE,
     cue: {
-      external: "ㅅ은 앞니 사이로 바람이 새는 맑은 소리예요 — 스~ (거친 '쉬' 소리가 아니라)",
-      internal: "혀를 뒤로 당기지 말고 혀끝을 윗니 뒤에 가깝게 두고 가운데로 좁은 길을 만들어요",
+      external: "ㅅ은 앞으로 가운데로 곧게 새는 맑은 소리예요 — 스~",
+      internal: "혀끝을 윗니 뒤에 가깝게 두고 혀 가운데로 좁은 길을 만들어 바람을 곧게 보내요",
     },
-    // 왜곡은 낱말 자체가 바뀌지 않음 — target=정상 ㅅ 낱말, error=구개음화된 청지각 근사(한글).
-    // 반드시 SLP가 아동의 실제 왜곡을 듣고 편집.
+    // 통합 화면은 대립쌍 대조를 안 쓰므로 error는 미사용(연습 낱말 target만 의미).
     minimalPairs: [
-      { target: "사자", error: "샤자", note: "구개음화 ㅅ≈[ɕ] — SLP 검토 필요" },
-      { target: "소", error: "쇼", note: "예시 — SLP 검토 필요" },
-      { target: "수박", error: "슈박", note: "예시 — SLP 검토 필요" },
-      { target: "가위", error: "가위(왜곡)", note: "어중 ㅅ 왜곡 — SLP 검토 필요" },
-    ],
-    ready: true,
-  },
-  {
-    id: "distortion_s_lateral",
-    label: "ㅅ 왜곡 (설측음화)",
-    // 설측음화(lateral lisp): 혀끝이 치조에 붙어 중앙 홈이 막히고 공기가 혀 양옆으로 샘([ɬ]).
-    // 청지각적으로 둔탁·다습한 "슬러시" 소리(맑은 중앙 마찰 대비 저주파·저집중).
-    short: "중앙 마찰 ↔ 양옆 샘",
-    targetPhone: "c_s",
-    errorPhone: "c_s",
-    // 정상 ㅅ에서 혀끝을 올려 붙이고(tip_up↑) 중앙 홈을 닫은(groove 0) 설측 자세.
-    // (tongue_lateral_channel 모프는 리거 납품본 버그로 제외 — 좌우 표현은 기류로.)
-    errorPoseOverride: {
-      tongue_tip_up: 1,
-      tongue_front_up: 0.3,
-      tongue_groove: 0,
-      lips_closed: 0.5,
-    },
-    targetGrapheme: "ㅅ",
-    errorGrapheme: "ㅅ(설측음화)",
-    airflow: true,
-    distortion: true,
-    lateral: true,
-    metaphorAxis: "가운데로 곧게 ↔ 옆으로 샘",
-    directionText:
-      "혀끝을 완전히 붙이지 말고, 혀 가운데로 좁은 길을 만들어 바람을 곧게 앞으로 보내요 (옆으로 새지 않게)",
-    acoustic: "centroid",
-    centroidZone: S_ZONE,
-    cue: {
-      external: "ㅅ은 가운데로 곧게 새는 맑은 소리예요 — 스~ (옆으로 새는 축축한 소리가 아니라)",
-      internal: "혀끝을 살짝 떼고 혀 가운데에 좁은 홈을 만들어 바람이 앞으로 곧게 나가게 해요",
-    },
-    minimalPairs: [
-      { target: "사자", error: "사자(설측)", note: "설측음화 ㅅ≈[ɬ] — SLP 검토 필요" },
-      { target: "소", error: "소(설측)", note: "예시 — SLP 검토 필요" },
-      { target: "수박", error: "수박(설측)", note: "예시 — SLP 검토 필요" },
+      { target: "사자", error: "", note: "SLP 검토 필요" },
+      { target: "소", error: "", note: "SLP 검토 필요" },
+      { target: "수박", error: "", note: "SLP 검토 필요" },
+      { target: "가위", error: "", note: "어중 ㅅ — SLP 검토 필요" },
     ],
     ready: true,
   },
