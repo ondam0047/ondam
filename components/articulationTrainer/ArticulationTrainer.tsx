@@ -617,7 +617,7 @@ function PracticeScreen({
               errorPose={errorPose}
               targetPose={targetPose}
               targetPhoneId={process.targetPhone}
-              mode={sagMode}
+              mode={process.sTrainer ? "target" : sagMode}
               highlight={highlight}
               showArt={kpVisible}
               speed={speed}
@@ -637,76 +637,82 @@ function PracticeScreen({
             {process.directionText}
           </div>
 
-          {/* 3D 컨트롤 */}
+          {/* 3D 컨트롤 (실시간 /ㅅ/ 훈련에선 모드·속도 숨김 — 조음 그림 토글만) */}
           <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white px-3 py-2 shadow-sm">
-            <div className="inline-flex rounded-lg bg-slate-100 p-0.5 text-xs">
-              {[
-                { v: "transition", label: "오류→목표 전환" },
-                { v: "target", label: "목표만 (내 차례)" },
-                { v: "error", label: "오류만" },
-              ].map((o) => (
-                <button
-                  key={o.v}
-                  onClick={() => setSagMode(o.v as SagittalMode)}
-                  className={
-                    "rounded-md px-2 py-1 font-medium transition " +
-                    (sagMode === o.v ? "bg-white text-slate-900 shadow-sm" : "text-slate-500")
-                  }
-                >
-                  {o.label}
-                </button>
-              ))}
-            </div>
-            <span className="ml-1 text-xs text-slate-500">속도</span>
-            <div className="inline-flex rounded-lg bg-slate-100 p-0.5 text-xs">
-              {[
-                { v: 0.5, label: "느림" },
-                { v: 0.8, label: "보통" },
-                { v: 1.2, label: "빠름" },
-              ].map((o) => (
-                <button
-                  key={o.v}
-                  onClick={() => setSpeed(o.v)}
-                  className={
-                    "rounded-md px-2 py-1 font-medium transition " +
-                    (Math.abs(speed - o.v) < 0.01 ? "bg-white text-slate-900 shadow-sm" : "text-slate-500")
-                  }
-                >
-                  {o.label}
-                </button>
-              ))}
-            </div>
+            {!process.sTrainer && (
+              <>
+                <div className="inline-flex rounded-lg bg-slate-100 p-0.5 text-xs">
+                  {[
+                    { v: "transition", label: "오류→목표 전환" },
+                    { v: "target", label: "목표만 (내 차례)" },
+                    { v: "error", label: "오류만" },
+                  ].map((o) => (
+                    <button
+                      key={o.v}
+                      onClick={() => setSagMode(o.v as SagittalMode)}
+                      className={
+                        "rounded-md px-2 py-1 font-medium transition " +
+                        (sagMode === o.v ? "bg-white text-slate-900 shadow-sm" : "text-slate-500")
+                      }
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+                <span className="ml-1 text-xs text-slate-500">속도</span>
+                <div className="inline-flex rounded-lg bg-slate-100 p-0.5 text-xs">
+                  {[
+                    { v: 0.5, label: "느림" },
+                    { v: 0.8, label: "보통" },
+                    { v: 1.2, label: "빠름" },
+                  ].map((o) => (
+                    <button
+                      key={o.v}
+                      onClick={() => setSpeed(o.v)}
+                      className={
+                        "rounded-md px-2 py-1 font-medium transition " +
+                        (Math.abs(speed - o.v) < 0.01 ? "bg-white text-slate-900 shadow-sm" : "text-slate-500")
+                      }
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
             <label className="ml-auto flex items-center gap-1.5 text-xs text-slate-600">
               <input type="checkbox" checked={kpVisible} onChange={(e) => setKpVisible(e.target.checked)} />
               조음 그림 (끄면 소리로만)
             </label>
           </div>
 
-          {/* 초점 전환(외부/내부) 단서 */}
-          <div className="rounded-xl bg-white px-3 py-2 shadow-sm">
-            <div className="mb-1.5 flex items-center gap-2">
-              <div className="inline-flex rounded-lg bg-slate-100 p-0.5 text-xs">
-                {[
-                  { v: "external", label: "소리에 집중" },
-                  { v: "internal", label: "혀에 집중" },
-                ].map((o) => (
-                  <button
-                    key={o.v}
-                    onClick={() => setFocus(o.v as "external" | "internal")}
-                    className={
-                      "rounded-md px-2 py-1 font-medium transition " +
-                      (focus === o.v ? "bg-white text-slate-900 shadow-sm" : "text-slate-500")
-                    }
-                  >
-                    {o.label}
-                  </button>
-                ))}
+          {/* 초점 전환(외부/내부) 단서 — 실시간 /ㅅ/ 훈련에선 숨김 */}
+          {!process.sTrainer && (
+            <div className="rounded-xl bg-white px-3 py-2 shadow-sm">
+              <div className="mb-1.5 flex items-center gap-2">
+                <div className="inline-flex rounded-lg bg-slate-100 p-0.5 text-xs">
+                  {[
+                    { v: "external", label: "소리에 집중" },
+                    { v: "internal", label: "혀에 집중" },
+                  ].map((o) => (
+                    <button
+                      key={o.v}
+                      onClick={() => setFocus(o.v as "external" | "internal")}
+                      className={
+                        "rounded-md px-2 py-1 font-medium transition " +
+                        (focus === o.v ? "bg-white text-slate-900 shadow-sm" : "text-slate-500")
+                      }
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
               </div>
+              <p className="text-sm text-slate-700">
+                {focus === "external" ? process.cue.external : process.cue.internal}
+              </p>
             </div>
-            <p className="text-sm text-slate-700">
-              {focus === "external" ? process.cue.external : process.cue.internal}
-            </p>
-          </div>
+          )}
         </div>
 
         {/* 우: (대립쌍 대조 | 왜곡 안내) + (실시간) 음향 게이지 + 저장 */}
