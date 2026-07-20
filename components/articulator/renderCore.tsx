@@ -216,6 +216,7 @@ export function StaticArticulator({
   segsRef,
   clockRef,
   playRef,
+  livePoseRef,
 }: {
   pose: Pose;
   lipOpacity: number;
@@ -227,6 +228,9 @@ export function StaticArticulator({
   segsRef?: React.RefObject<Seg[] | null>;
   clockRef?: React.RefObject<Clock>;
   playRef?: React.RefObject<PlayState>;
+  // 실시간 외부 구동 포즈(예: 마이크 음향→혀 위치 바이오피드백). 설정 시 매 프레임 이 포즈를
+  // 우선 렌더(재생/정적 모드 무시). null이면 기존 재생/정적 로직.
+  livePoseRef?: React.RefObject<Pose | null>;
 }) {
   const { scene } = useGLTF(MODEL_URL);
   // 인스턴스마다 씬을 복제(지오메트리는 공유, 재질은 아래서 복제해 독립).
@@ -350,13 +354,14 @@ export function StaticArticulator({
   };
 
   useFrame(() => {
-    // 재생 중이면 타임라인 샘플, 아니면 정적 포즈.
+    // 실시간 구동 포즈 우선 → 재생 중이면 타임라인 샘플 → 정적 포즈.
     const playing = playRef?.current.playing;
     const segs = segsRef?.current;
     const activePose =
-      playing && segs && segs.length && clockRef
+      livePoseRef?.current ??
+      (playing && segs && segs.length && clockRef
         ? sampleSegs(segs, clockRef.current.t)
-        : poseRef.current;
+        : poseRef.current);
     const eff = fullPose(activePose);
     const jawW = eff["jaw_open"] ?? 0;
     const lipsJaw = jawW * JAW.lips; // 아랫입술 하강(턱 개구 연동)

@@ -48,11 +48,13 @@ export default function TrainerAirflow({
   clockRef,
   playRef,
   staticPose,
+  livePoseRef,
 }: {
   segsRef: React.RefObject<Seg[] | null>;
   clockRef: React.RefObject<Clock>;
   playRef: React.RefObject<PlayState>;
   staticPose: Pose;
+  livePoseRef?: React.RefObject<Pose | null>;
 }) {
   const N = 64;
   const ptsRef = useRef<THREE.Points>(null);
@@ -69,13 +71,14 @@ export default function TrainerAirflow({
     const geo = geomRef.current;
     if (!grp || !geo) return;
 
-    // 현재 유효 자세: 재생 중이면 타임라인 샘플, 아니면 정적 포즈(StaticArticulator와 동일 규칙).
+    // 현재 유효 자세: 실시간 구동 우선 → 재생 중 타임라인 샘플 → 정적(StaticArticulator와 동일 규칙).
     const playing = playRef.current?.playing;
     const segs = segsRef.current;
     const pose =
-      playing && segs && segs.length && clockRef.current
+      livePoseRef?.current ??
+      (playing && segs && segs.length && clockRef.current
         ? sampleSegs(segs, clockRef.current.t)
-        : staticRef.current;
+        : staticRef.current);
     const eff = fullPose(pose);
     const tc = constrictionFromPose(eff); // 협착점(좁은 틈)
 

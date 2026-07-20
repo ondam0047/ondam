@@ -32,6 +32,9 @@ export type PhonologicalProcess = {
   errorPoseOverride?: Pose;
   // 3D 시상면에 기류(공기 흐름)를 함께 보일지 — 마찰음 계열(협착 틈 마찰)에서만 의미 있음.
   airflow?: boolean;
+  // 왜곡(distortion): 오류가 "다른 낱말로 대치(뜻 바뀜)"가 아니라 "같은 낱말이 왜곡되게 산출"됨.
+  // true면 우측 패널을 대립쌍(의사소통 실패) 대신 "정상 ↔ 왜곡" 대조로 표시(뜻은 유지).
+  distortion?: boolean;
   metaphorAxis: string; // "막음 ↔ 흐름"
   directionText: string; // 오류→목표 전환 캡션(무엇이 어떻게 바뀌나)
   acoustic: AcousticFeature;
@@ -118,6 +121,7 @@ export const PROCESSES: PhonologicalProcess[] = [
     targetGrapheme: "ㅅ",
     errorGrapheme: "ㅅ(구개음화)",
     airflow: true,
+    distortion: true, // 대립쌍(뜻 바뀜) 아님 — /ㅅ/ 연습 + 마이크 실시간 혀 위치 피드백.
     metaphorAxis: "앞(치조) ↔ 뒤(경구개)",
     directionText:
       "혀를 뒤로 올리지 말고, 혀끝을 앞으로 가져와 윗니 뒤(치조)에서 좁은 틈을 만들어요 (경구개 뒤 → 치조 앞)",

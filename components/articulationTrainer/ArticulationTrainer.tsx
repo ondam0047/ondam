@@ -36,10 +36,14 @@ import {
 import { useAudioAnalyser } from "@/components/audio/useAudioAnalyser";
 import { analyzeSibilantSpectrum } from "@/components/vocalTract/spectralMoments";
 import SaveToHistory from "@/components/SaveToHistory";
+import { lerpPose, type Pose } from "@/components/articulator/phonemeMap";
 
 const GAUGE_MIN = 2000;
 const GAUGE_MAX = 9500;
 const EMA_ALPHA = 0.55;
+// 왜곡(구개음화) 실시간 매핑의 하한 센트로이드(Hz): 목표대역 min보다 낮을수록 혀가 뒤(경구개)로,
+// 이 값에서 완전 왜곡(error 자세). 성인 /ɕ/ 근사 — 연령별 보정은 후속.
+const PALATAL_FLOOR = 3000;
 
 function freqToX(f: number, w: number, padL: number, padR: number) {
   const inner = w - padL - padR;
@@ -369,6 +373,8 @@ function PracticeScreen({
   const targetPose = phoneById(process.targetPhone).pose;
   // 왜곡(같은 음소의 조음 변형)이면 대치음 자세 대신 지정된 오류 포즈 사용.
   const errorPose = process.errorPoseOverride ?? phoneById(process.errorPhone).pose;
+  // 왜곡 변동 = 대립쌍(뜻 바뀜) 대신 /ㅅ/ 연습 + 마이크 실시간 혀 위치 피드백.
+  const isDistortion = !!process.distortion;
 
   // 움직이는 조음기관(오류→목표 차이)으로 강조 부위 유도.
   const highlight: Highlight = useMemo(() => {
@@ -412,6 +418,16 @@ function PracticeScreen({
   const [sampleCount, setSampleCount] = useState(0);
   const smoothRef = useRef<number | null>(null);
 
+  // 실시간 음향→3D 혀 위치 바이오피드백(왜곡 변동). 매 오디오 프레임 stale 클로저를 피하려고
+  // 최신 값을 ref로 읽는다. livePoseRef 가 set 되면 SagittalArticulator가 그 자세를 실시간 렌더.
+  const livePoseRef = useRef<Pose | null>(null);
+  const distortRef = useRef(!!process.distortion);
+  distortRef.current = !!process.distortion;
+  const targetPoseRef = useRef(targetPose);
+  targetPoseRef.current = targetPose;
+  const errorPoseRef = useRef(errorPose);
+  errorPoseRef.current = errorPose;
+
   const zone = process.centroidZone;
   const onFrame = useCallback(
     (analyser: AnalyserNode, ctx: AudioContext) => {
@@ -428,6 +444,12 @@ function PracticeScreen({
         setIsFric(true);
         setSampleCount((n) => n + 1);
         if (zone && sm >= zone.min && sm <= zone.max) setInZoneCount((n) => n + 1);
+        // 왜곡 변동: 센트로이드→혀 위치. 목표대역(정확 ㅅ)=치조 앞(target),
+        // 목표대역보다 낮을수록(구개음화) 경구개 뒤(error)로 실시간 보간.
+        if (distortRef.current && zone) {
+          const d = Math.min(1, Math.max(0, (zone.min - sm) / (zone.min - PALATAL_FLOOR)));
+          livePoseRef.current = lerpPose(targetPoseRef.current, errorPoseRef.current, d);
+        }
       } else {
         setIsFric(false);
       }
@@ -439,6 +461,7 @@ function PracticeScreen({
 
   const resetLive = () => {
     smoothRef.current = null;
+    livePoseRef.current = null;
     setCentroid(null);
     setIsFric(false);
     setInZoneCount(0);
@@ -446,6 +469,7 @@ function PracticeScreen({
   };
   const stopLive = () => {
     audio.stop();
+    livePoseRef.current = null; // 정지 시 실시간 구동 해제 → 기본(목표/전환) 자세로 복귀.
   };
 
   const inZone = !!(zone && centroid !== null && isFric && centroid >= zone.min && centroid <= zone.max);
@@ -525,6 +549,7 @@ function PracticeScreen({
               showArt={kpVisible}
               speed={speed}
               airflow={process.airflow}
+              livePoseRef={isDistortion ? livePoseRef : undefined}
             />
           </div>
 
@@ -606,9 +631,46 @@ function PracticeScreen({
           </div>
         </div>
 
-        {/* 우: 대립쌍 대조 + (실시간) 음향 게이지 + 저장 */}
+        {/* 우: (대립쌍 대조 | 왜곡 안내) + (실시간) 음향 게이지 + 저장 */}
         <div className="flex w-full flex-col gap-4 lg:w-[24rem]">
-          {/* 대립쌍 대조 게임 (의사소통 실패) */}
+          {/* 왜곡(구개음화)은 대립쌍(뜻 바뀜)이 아니라 같은 낱말의 조음 왜곡 → 대립쌍 대조 대신
+              마이크 실시간 피드백 안내를 보여준다. */}
+          {isDistortion && (
+            <div className="rounded-2xl bg-white p-4 shadow-sm">
+              <h3 className="mb-2 text-sm font-semibold text-slate-800">
+                {process.targetGrapheme} 실시간 연습
+              </h3>
+              <p className="text-xs leading-relaxed text-slate-600">
+                아래 <strong>마이크 시작</strong>을 누르고 <strong>「{process.targetGrapheme}」 소리를 길게</strong> 내보세요.
+                정확한 <strong>치조</strong> 위치면 3D 혀가 <strong>앞</strong>에, 왜곡(구개음화)되면 혀가
+                <strong> 뒤(경구개)</strong>로 실시간으로 움직여요. 소리가 낮아 혀가 뒤로 가면 앞으로 당기도록 도와주세요.
+              </p>
+              {safePairs.length > 1 && (
+                <div className="mt-3">
+                  <div className="mb-1 text-[11px] font-semibold text-slate-500">연습 낱말</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {safePairs.map((p, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setPairIndex(i)}
+                        className={
+                          "rounded-lg px-2.5 py-1 text-sm font-medium transition " +
+                          (i === pairIndex % safePairs.length
+                            ? "bg-slate-900 text-white"
+                            : "bg-slate-100 text-slate-700 hover:bg-slate-200")
+                        }
+                      >
+                        {p.target}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 대립쌍 대조 게임 (의사소통 실패) — 대치 오류(뜻 바뀜)에서만. */}
+          {!isDistortion && (
           <div className="rounded-2xl bg-white p-4 shadow-sm">
             <div className="mb-2 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-slate-800">
@@ -690,6 +752,7 @@ function PracticeScreen({
               </p>
             )}
           </div>
+          )}
 
           {/* 실시간 음향 게이지 (지속음·centroid) */}
           {liveEnabled ? (
