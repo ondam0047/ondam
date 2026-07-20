@@ -585,11 +585,15 @@ function PracticeScreen({
         const now = performance.now();
         const dt = lastTimeRef.current ? Math.min(0.1, (now - lastTimeRef.current) / 1000) : 0;
         lastTimeRef.current = now;
-        const correct = detectedRef.current === "정조음";
-        if (correct) progressRef.current = Math.min(1, progressRef.current + dt / 5); // 5초 유지=도착
-        else if (r.isFricative) progressRef.current = Math.max(0, progressRef.current - dt / 3);
+        // 데드존: 확실히 정조음(왜곡량<0.4)일 때만 전진, 확실히 오조음(>0.65)일 때만 후퇴,
+        // 애매/무음이면 유지 → 경계 깜빡임으로 진행이 상쇄되지 않게(전진>후퇴 속도).
+        const amt = distortAmtRef.current;
+        const good = r.isFricative && amt < 0.4;
+        const bad = r.isFricative && amt > 0.65;
+        if (good) progressRef.current = Math.min(1, progressRef.current + dt / 5); // 5초 유지=도착
+        else if (bad) progressRef.current = Math.max(0, progressRef.current - dt / 6);
         if (!feedbackRef.current) feedbackRef.current = createFeedbackAudio();
-        feedbackRef.current.update(correct, progressRef.current);
+        feedbackRef.current.update(good, progressRef.current);
         setProgress(progressRef.current);
         if (progressRef.current >= 1 && !reachedRef.current) {
           reachedRef.current = true;
@@ -741,6 +745,41 @@ function PracticeScreen({
             />
           </div>
 
+          {/* 강화 게임(사지탈 아래): 정조음을 5초 유지하면 자동차가 결승선까지 달려 도착, 보상. */}
+          {process.sTrainer && (
+            <div className="rounded-2xl bg-white p-4 shadow-sm">
+              <div className="mb-2 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-slate-800">결승선까지 달리기</h3>
+                <span className="text-[11px] text-slate-400">맑은 「스~」를 5초 유지하면 도착!</span>
+              </div>
+              <div className="relative h-16 overflow-hidden rounded-xl bg-slate-700 ring-1 ring-slate-300">
+                <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 border-t-2 border-dashed border-amber-300/70" />
+                <div
+                  className="absolute right-0 top-0 bottom-0 w-3"
+                  style={{ backgroundImage: "repeating-linear-gradient(0deg,#fff 0 6px,#111 6px 12px)" }}
+                />
+                <div className="absolute right-1 top-0.5 text-base">🏁</div>
+                <div
+                  className="absolute top-1/2 -translate-y-1/2 text-2xl"
+                  style={{ left: `calc(${progress * 84}% + 6px)`, transition: "left 90ms linear" }}
+                >
+                  🏎️
+                </div>
+                {reached && (
+                  <div className="absolute inset-0 grid place-items-center bg-emerald-500/30 text-lg font-extrabold text-white">
+                    🎉 결승선 도착!
+                  </div>
+                )}
+              </div>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className="h-full rounded-full bg-emerald-500"
+                  style={{ width: `${progress * 100}%`, transition: "width 90ms linear" }}
+                />
+              </div>
+            </div>
+          )}
+
           {/* 방향 단서 캡션 */}
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-900">
             <span className="mr-1 font-semibold">교정 방향:</span>
@@ -872,44 +911,6 @@ function PracticeScreen({
                   <strong> 뒤(경구개)</strong>로(기류 빨강) 실시간으로 움직여요.
                 </p>
               )}
-            </div>
-          )}
-
-          {/* 강화 게임: 정조음(맑은 ㅅ)을 5초 유지하면 자동차가 결승선까지 달려 도착, 보상. */}
-          {process.sTrainer && (
-            <div className="rounded-2xl bg-white p-4 shadow-sm">
-              <div className="mb-2 flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-slate-800">결승선까지 달리기</h3>
-                <span className="text-[11px] text-slate-400">맑은 「스~」를 5초 유지하면 도착!</span>
-              </div>
-              <div className="relative h-16 overflow-hidden rounded-xl bg-slate-700 ring-1 ring-slate-300">
-                {/* 도로 중앙 점선 */}
-                <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 border-t-2 border-dashed border-amber-300/70" />
-                {/* 결승선(체커) */}
-                <div
-                  className="absolute right-0 top-0 bottom-0 w-3"
-                  style={{ backgroundImage: "repeating-linear-gradient(0deg,#fff 0 6px,#111 6px 12px)" }}
-                />
-                <div className="absolute right-1 top-0.5 text-base">🏁</div>
-                {/* 자동차 — 진행에 따라 결승선으로 주행 */}
-                <div
-                  className="absolute top-1/2 -translate-y-1/2 text-2xl"
-                  style={{ left: `calc(${progress * 84}% + 6px)`, transition: "left 90ms linear" }}
-                >
-                  🏎️
-                </div>
-                {reached && (
-                  <div className="absolute inset-0 grid place-items-center bg-emerald-500/30 text-lg font-extrabold text-white">
-                    🎉 결승선 도착!
-                  </div>
-                )}
-              </div>
-              <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
-                <div
-                  className="h-full rounded-full bg-emerald-500"
-                  style={{ width: `${progress * 100}%`, transition: "width 90ms linear" }}
-                />
-              </div>
             </div>
           )}
 
