@@ -506,14 +506,22 @@ function PracticeScreen({
   // 통합 모드에서 실시간 감지된 오류 유형 라벨(변할 때만 setState).
   const [detected, setDetected] = useState<string | null>(null);
   const detectedRef = useRef<string | null>(null);
-  // 강화(게임): 정조음 유지 시 캐릭터가 목표로 전진(progress 0~1), 도달 시 보상.
-  const [progress, setProgress] = useState(0);
+  // 강화(게임): 정조음(목표대역) 유지 시 자동차가 결승선으로 전진. ⚠️진행은 React state가 아니라
+  // ref+DOM 직접 갱신(매 rAF 프레임) — state면 렌더가 밀려 "끝나고 한 번에 점프"함.
   const progressRef = useRef(0);
+  const carRef = useRef<HTMLDivElement>(null);
+  const fillRef = useRef<HTMLDivElement>(null);
   const lastTimeRef = useRef(0); // 프레임 간 실제 경과(ms) — 5초 유지를 프레임률과 무관하게.
   const [reached, setReached] = useState(false);
   const reachedRef = useRef(false);
   const feedbackRef = useRef<ReturnType<typeof createFeedbackAudio> | null>(null);
   const rewardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 진행값 → 자동차 위치·게이지 폭을 DOM에 직접(리렌더 없이 실시간).
+  const paintCar = useCallback(() => {
+    const p = progressRef.current;
+    if (carRef.current) carRef.current.style.left = `calc(${p * 84}% + 6px)`;
+    if (fillRef.current) fillRef.current.style.width = `${p * 100}%`;
+  }, []);
   const targetPoseRef = useRef(targetPose);
   targetPoseRef.current = targetPose;
   const errorPoseRef = useRef(errorPose);
@@ -585,17 +593,15 @@ function PracticeScreen({
         const now = performance.now();
         const dt = lastTimeRef.current ? Math.min(0.1, (now - lastTimeRef.current) / 1000) : 0;
         lastTimeRef.current = now;
-        // 비례 전진(임계 데드존 없이): 마찰 산출 중 잘할수록(왜곡량↓) 빠르게 전진, 왜곡일수록 후퇴,
-        // 무음이면 유지. good01=1(완전 정조음) 유지 시 ~5초에 도착. 대상자 목소리가 목표대역에
-        // 정확히 안 맞아도 "괜찮은 /ㅅ/"면 실시간으로 움직임(경계 깜빡임에도 순증).
-        const good01 = r.isFricative ? Math.max(0, 1 - distortAmtRef.current) : 0; // 0(왜곡)~1(정조음)
-        if (r.isFricative) {
-          // good01 0.7(꽤 정조음)에서 ~5초, 완전 정조음이면 더 빠르게. 0.25 이하=정지/후퇴.
-          progressRef.current = Math.min(1, Math.max(0, progressRef.current + (good01 - 0.25) * (dt / 2.5)));
-        }
+        // 목표대역(정조음) 체류 중에만 전진 = 5초 유지 도착. 마찰이지만 목표대역 밖(구개음화 등)이면
+        // 후퇴, 무음이면 유지. (매 프레임 DOM 직접 갱신이라 유지하는 동안 실시간으로 움직임.)
+        const c = smoothRef.current;
+        const inZoneNow = !!(r.isFricative && zone && c !== null && c >= zone.min && c <= zone.max);
+        if (inZoneNow) progressRef.current = Math.min(1, progressRef.current + dt / 5);
+        else if (r.isFricative) progressRef.current = Math.max(0, progressRef.current - dt / 4);
+        paintCar();
         if (!feedbackRef.current) feedbackRef.current = createFeedbackAudio();
-        feedbackRef.current.update(good01 > 0.55, progressRef.current);
-        setProgress(progressRef.current);
+        feedbackRef.current.update(inZoneNow, progressRef.current);
         if (progressRef.current >= 1 && !reachedRef.current) {
           reachedRef.current = true;
           setReached(true);
@@ -605,12 +611,12 @@ function PracticeScreen({
             progressRef.current = 0;
             reachedRef.current = false;
             setReached(false);
-            setProgress(0);
+            paintCar();
           }, 2200);
         }
       }
     },
-    [zone],
+    [zone, paintCar],
   );
 
   const audio = useAudioAnalyser({ fftSize: 4096, smoothingTimeConstant: 0.3, onFrame });
@@ -622,8 +628,8 @@ function PracticeScreen({
     progressRef.current = 0;
     lastTimeRef.current = 0;
     reachedRef.current = false;
-    setProgress(0);
     setReached(false);
+    paintCar();
   };
   const resetLive = () => {
     smoothRef.current = null;
@@ -652,13 +658,14 @@ function PracticeScreen({
     setDetected(null);
     resetGame();
   };
-  // 언마운트 시 지속음·타이머 정리.
+  // 마운트 시 자동차 초기 위치, 언마운트 시 지속음·타이머 정리.
   useEffect(() => {
+    paintCar();
     return () => {
       feedbackRef.current?.quiet();
       if (rewardTimerRef.current) clearTimeout(rewardTimerRef.current);
     };
-  }, []);
+  }, [paintCar]);
 
   const inZone = !!(zone && centroid !== null && isFric && centroid >= zone.min && centroid <= zone.max);
   const pctInZone = sampleCount > 0 ? (inZoneCount / sampleCount) * 100 : 0;
@@ -761,8 +768,9 @@ function PracticeScreen({
                 />
                 <div className="absolute right-1 top-0.5 text-base">🏁</div>
                 <div
+                  ref={carRef}
                   className="absolute top-1/2 -translate-y-1/2 text-2xl"
-                  style={{ left: `calc(${progress * 84}% + 6px)`, transition: "left 90ms linear" }}
+                  style={{ transition: "left 70ms linear" }}
                 >
                   🏎️
                 </div>
@@ -773,10 +781,7 @@ function PracticeScreen({
                 )}
               </div>
               <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
-                <div
-                  className="h-full rounded-full bg-emerald-500"
-                  style={{ width: `${progress * 100}%`, transition: "width 90ms linear" }}
-                />
+                <div ref={fillRef} className="h-full rounded-full bg-emerald-500" style={{ transition: "width 70ms linear" }} />
               </div>
             </div>
           )}
