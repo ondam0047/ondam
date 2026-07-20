@@ -585,15 +585,16 @@ function PracticeScreen({
         const now = performance.now();
         const dt = lastTimeRef.current ? Math.min(0.1, (now - lastTimeRef.current) / 1000) : 0;
         lastTimeRef.current = now;
-        // 데드존: 확실히 정조음(왜곡량<0.4)일 때만 전진, 확실히 오조음(>0.65)일 때만 후퇴,
-        // 애매/무음이면 유지 → 경계 깜빡임으로 진행이 상쇄되지 않게(전진>후퇴 속도).
-        const amt = distortAmtRef.current;
-        const good = r.isFricative && amt < 0.4;
-        const bad = r.isFricative && amt > 0.65;
-        if (good) progressRef.current = Math.min(1, progressRef.current + dt / 5); // 5초 유지=도착
-        else if (bad) progressRef.current = Math.max(0, progressRef.current - dt / 6);
+        // 비례 전진(임계 데드존 없이): 마찰 산출 중 잘할수록(왜곡량↓) 빠르게 전진, 왜곡일수록 후퇴,
+        // 무음이면 유지. good01=1(완전 정조음) 유지 시 ~5초에 도착. 대상자 목소리가 목표대역에
+        // 정확히 안 맞아도 "괜찮은 /ㅅ/"면 실시간으로 움직임(경계 깜빡임에도 순증).
+        const good01 = r.isFricative ? Math.max(0, 1 - distortAmtRef.current) : 0; // 0(왜곡)~1(정조음)
+        if (r.isFricative) {
+          // good01 0.7(꽤 정조음)에서 ~5초, 완전 정조음이면 더 빠르게. 0.25 이하=정지/후퇴.
+          progressRef.current = Math.min(1, Math.max(0, progressRef.current + (good01 - 0.25) * (dt / 2.5)));
+        }
         if (!feedbackRef.current) feedbackRef.current = createFeedbackAudio();
-        feedbackRef.current.update(good, progressRef.current);
+        feedbackRef.current.update(good01 > 0.55, progressRef.current);
         setProgress(progressRef.current);
         if (progressRef.current >= 1 && !reachedRef.current) {
           reachedRef.current = true;
