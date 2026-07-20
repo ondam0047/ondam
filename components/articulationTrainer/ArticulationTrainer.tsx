@@ -510,17 +510,15 @@ function PracticeScreen({
   // ref+DOM 직접 갱신(매 rAF 프레임) — state면 렌더가 밀려 "끝나고 한 번에 점프"함.
   const progressRef = useRef(0);
   const carRef = useRef<HTMLDivElement>(null);
-  const fillRef = useRef<HTMLDivElement>(null);
   const lastTimeRef = useRef(0); // 프레임 간 실제 경과(ms) — 5초 유지를 프레임률과 무관하게.
   const [reached, setReached] = useState(false);
   const reachedRef = useRef(false);
   const feedbackRef = useRef<ReturnType<typeof createFeedbackAudio> | null>(null);
   const rewardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // 진행값 → 자동차 위치·게이지 폭을 DOM에 직접(리렌더 없이 실시간).
+  // 진행값 → 자동차 위치를 DOM에 직접(리렌더 없이 실시간). ⚠️순수 % 사용 — calc(%+px) 혼합은
+  // 초기 px값과 트랜지션이 안 맞아 안 움직였음.
   const paintCar = useCallback(() => {
-    const p = progressRef.current;
-    if (carRef.current) carRef.current.style.left = `calc(${p * 84}% + 6px)`;
-    if (fillRef.current) fillRef.current.style.width = `${p * 100}%`;
+    if (carRef.current) carRef.current.style.left = `${progressRef.current * 88}%`;
   }, []);
   const targetPoseRef = useRef(targetPose);
   targetPoseRef.current = targetPose;
@@ -779,9 +777,6 @@ function PracticeScreen({
                     🎉 결승선 도착!
                   </div>
                 )}
-              </div>
-              <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
-                <div ref={fillRef} className="h-full rounded-full bg-emerald-500" style={{ transition: "width 70ms linear" }} />
               </div>
             </div>
           )}
