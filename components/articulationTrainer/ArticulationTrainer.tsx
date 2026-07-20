@@ -515,10 +515,14 @@ function PracticeScreen({
   const reachedRef = useRef(false);
   const feedbackRef = useRef<ReturnType<typeof createFeedbackAudio> | null>(null);
   const rewardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // 진행값 → 자동차 위치를 DOM에 직접(리렌더 없이 실시간). ⚠️순수 % 사용 — calc(%+px) 혼합은
-  // 초기 px값과 트랜지션이 안 맞아 안 움직였음.
+  // 진행값 → 자동차 위치를 DOM에 직접(리렌더 없이 실시간). left(0→100%)+translateX(-0→-100%)로
+  // p=0 왼쪽 끝, p=1 차의 오른쪽 끝이 결승선(오른쪽 끝)에 닿게(차 폭 보정). 순수 % 트랜지션.
   const paintCar = useCallback(() => {
-    if (carRef.current) carRef.current.style.left = `${progressRef.current * 88}%`;
+    const p = progressRef.current;
+    if (carRef.current) {
+      carRef.current.style.left = `${p * 100}%`;
+      carRef.current.style.transform = `translate(-${p * 100}%, -50%)`;
+    }
   }, []);
   const targetPoseRef = useRef(targetPose);
   targetPoseRef.current = targetPose;
@@ -767,8 +771,8 @@ function PracticeScreen({
                 <div className="absolute right-1 top-0.5 text-base">🏁</div>
                 <div
                   ref={carRef}
-                  className="absolute top-1/2 -translate-y-1/2 text-2xl"
-                  style={{ transition: "left 70ms linear" }}
+                  className="absolute top-1/2 text-2xl"
+                  style={{ transition: "left 70ms linear, transform 70ms linear" }}
                 >
                   🏎️
                 </div>
