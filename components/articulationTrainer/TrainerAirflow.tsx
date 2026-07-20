@@ -32,8 +32,8 @@ const S_CURVE = new THREE.CatmullRomCurve3(
   "catmullrom",
   0.5,
 );
-const AIR_GREEN = new THREE.Color(0x34d399); // 정확(치조 앞) — 초록
-const AIR_RED = new THREE.Color(0xf43f5e); // 왜곡(경구개 뒤) — 빨강
+const AIR_GREEN = new THREE.Color(0x3bff77); // 정확(치조 앞) — 선명한 초록
+const AIR_RED = new THREE.Color(0xff2a3d); // 왜곡(경구개 뒤) — 선명한 빨강
 
 // 현재 혀 자세 → 후방화 정도(0=치조 앞/정확, 1=경구개 뒤/왜곡). 협착점·기류색 공통 신호.
 function posteriorOf(eff: Pose): number {
@@ -55,7 +55,7 @@ export default function TrainerAirflow({
   staticPose: Pose;
   livePoseRef?: React.RefObject<Pose | null>;
 }) {
-  const N = 64;
+  const N = 110;
   const ptsRef = useRef<THREE.Points>(null);
   const geomRef = useRef<THREE.BufferGeometry>(null);
   const phases = useRef(Float32Array.from({ length: N }, (_, i) => i / N)).current;
@@ -84,8 +84,9 @@ export default function TrainerAirflow({
     const tc = 0.8 - 0.3 * posterior; // 협착점: 정확=치조(u≈0.8), 후방화될수록 경구개(u↓)
 
     // 기류 색: 정확(앞, posterior≈0)=초록 → 왜곡(뒤)=빨강. 목표대역 근처는 초록 유지.
+    // 가법 블렌딩에서 또렷하게 보이도록 살짝 오버드라이브(>1).
     const colorT = Math.min(1, Math.max(0, (posterior - 0.05) / 0.45));
-    curColor.copy(AIR_GREEN).lerp(AIR_RED, colorT);
+    curColor.copy(AIR_GREEN).lerp(AIR_RED, colorT).multiplyScalar(1.4);
     (grp.material as THREE.PointsMaterial).color.copy(curColor);
 
     const dtl = Math.min(dt, 0.05);
@@ -118,10 +119,10 @@ export default function TrainerAirflow({
         <bufferAttribute attach="attributes-position" args={[positions, 3]} count={N} itemSize={3} />
       </bufferGeometry>
       <pointsMaterial
-        size={0.032}
+        size={0.055}
         sizeAttenuation
         transparent
-        opacity={0.9}
+        opacity={1}
         depthTest={false}
         depthWrite={false}
         blending={THREE.AdditiveBlending}

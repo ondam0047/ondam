@@ -642,30 +642,9 @@ function PracticeScreen({
               </h3>
               <p className="text-xs leading-relaxed text-slate-600">
                 아래 <strong>마이크 시작</strong>을 누르고 <strong>「{process.targetGrapheme}」 소리를 길게</strong> 내보세요.
-                정확한 <strong>치조</strong> 위치면 3D 혀가 <strong>앞</strong>에, 왜곡(구개음화)되면 혀가
-                <strong> 뒤(경구개)</strong>로 실시간으로 움직여요. 소리가 낮아 혀가 뒤로 가면 앞으로 당기도록 도와주세요.
+                정확한 <strong>치조</strong> 위치면 3D 혀가 <strong>앞</strong>에(기류 초록), 왜곡(구개음화)되면 혀가
+                <strong> 뒤(경구개)</strong>로(기류 빨강) 실시간으로 움직여요. 소리가 낮아 혀가 뒤로 가면 앞으로 당기도록 도와주세요.
               </p>
-              {safePairs.length > 1 && (
-                <div className="mt-3">
-                  <div className="mb-1 text-[11px] font-semibold text-slate-500">연습 낱말</div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {safePairs.map((p, i) => (
-                      <button
-                        key={i}
-                        onClick={() => setPairIndex(i)}
-                        className={
-                          "rounded-lg px-2.5 py-1 text-sm font-medium transition " +
-                          (i === pairIndex % safePairs.length
-                            ? "bg-slate-900 text-white"
-                            : "bg-slate-100 text-slate-700 hover:bg-slate-200")
-                        }
-                      >
-                        {p.target}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           )}
 
