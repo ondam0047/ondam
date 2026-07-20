@@ -109,28 +109,26 @@ export const PROCESSES: PhonologicalProcess[] = [
   {
     id: "fricative_s",
     label: "마찰음 /ㅅ/ 훈련",
-    // 통합 화면: 마이크로 /ㅅ/를 산출하면 실시간으로 정조음/구개음화/설측음화/파열음화(대치=ㄷ)/
-    // 휴지를 음향(centroid·hfRatio·마찰유무·에너지)으로 분류해 3D 혀·기류·라벨로 보여줌.
-    // 개별 카드로 나누지 않고 하나로. errorPhone=대치 기준(ㄷ). 왜곡별 자세는 코드 앵커(POSE_*).
-    short: "정조음 · 구개음화 · 설측음화 · 대치",
+    // 마이크로 /ㅅ/를 산출하면 실시간으로 정조음↔구개음화를 음향(centroid)으로 판별해
+    // 3D 혀·기류·라벨로 보여줌(연속 보간). 구개음화 자세는 코드 앵커(POSE_PALATAL).
+    short: "정조음 ↔ 구개음화",
     targetPhone: "c_s",
-    errorPhone: "c_t", // 대치(파열음화) 기준 자세
+    errorPhone: "c_s",
     targetGrapheme: "ㅅ",
-    errorGrapheme: "오류",
+    errorGrapheme: "구개음화",
     airflow: true,
     distortion: true, // 대립쌍(뜻 바뀜) 패널 숨김
-    lateral: true, // 설측 가능 → 기류 좌우 fork + 정면·비스듬 기본 시점
-    sTrainer: true, // 통합 실시간 분류 모드
-    metaphorAxis: "가운데로 곧게 ↔ 막힘/뒤/옆",
+    sTrainer: true, // 실시간 판별(정조음/구개음화/휴지) + 라벨 배지
+    metaphorAxis: "앞(치조) ↔ 뒤(경구개)",
     directionText:
-      "혀 가운데로 좁은 길을 만들어 바람을 곧게 앞으로 — 막지도(ㄷ), 뒤로 가지도(구개음화), 옆으로 새지도(설측음화) 않게",
+      "혀를 뒤로 올리지 말고, 혀끝을 앞으로 가져와 윗니 뒤(치조)에서 좁은 틈을 만들어요 (경구개 뒤 → 치조 앞)",
     acoustic: "centroid",
     centroidZone: S_ZONE,
     cue: {
-      external: "ㅅ은 앞으로 가운데로 곧게 새는 맑은 소리예요 — 스~",
-      internal: "혀끝을 윗니 뒤에 가깝게 두고 혀 가운데로 좁은 길을 만들어 바람을 곧게 보내요",
+      external: "ㅅ은 앞니 사이로 바람이 새는 맑은 소리예요 — 스~ (거친 '쉬' 소리가 아니라)",
+      internal: "혀를 뒤로 당기지 말고 혀끝을 윗니 뒤에 가깝게 두고 가운데로 좁은 길을 만들어요",
     },
-    // 통합 화면은 대립쌍 대조를 안 쓰므로 error는 미사용(연습 낱말 target만 의미).
+    // 대립쌍 대조 미사용 — error는 빈 값(연습 낱말 target만 의미).
     minimalPairs: [
       { target: "사자", error: "", note: "SLP 검토 필요" },
       { target: "소", error: "", note: "SLP 검토 필요" },

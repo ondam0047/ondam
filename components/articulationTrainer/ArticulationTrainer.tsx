@@ -41,20 +41,11 @@ import { lerpPose, fullPose, IDLE_POSE, type Pose } from "@/components/articulat
 // 무음(정조음·오조음 어느 쪽도 아닐 때)에 보여줄 휴지 자세.
 const IDLE_FULL = fullPose(IDLE_POSE);
 
-// 통합 /ㅅ/ 분류기 앵커 자세(오류 유형별 목표 3D 자세).
+// /ㅅ/ 훈련 앵커 자세: 구개음화(혀 뒤·경구개). 정조음은 목표 자세(c_s) 사용.
 const POSE_PALATAL = fullPose({
   tongue_front_up: 0.85, tongue_tip_up: 0, tongue_back_up: 0.6,
   tongue_retract: 0.9, tongue_groove: 0.35, lips_closed: 0.5,
-}); // 구개음화(혀 뒤·경구개)
-const POSE_LATERAL = fullPose({
-  tongue_tip_up: 1, tongue_front_up: 0.3, tongue_groove: 0, lips_closed: 0.5,
-}); // 설측음화(혀끝 붙고 중앙 홈 닫힘)
-const POSE_STOP = fullPose(phoneById("c_t").pose); // 파열음화(대치=ㄷ, 완전 폐쇄)
-
-// 분류 임계(성인 근사, 대상자별 조정): hfRatio=고주파 집중도.
-const S_R_CORRECT = 0.75; // centroid 높음 + hfRatio 이 이상 = 정조음
-const S_R_LATERAL = 0.68; // hfRatio 이 미만 = 설측(둔탁·다습)
-const STOP_ENERGY = 0.02; // 마찰 아닌데 이 이상 에너지 = 파열음화(대치), 미만 = 휴지
+});
 
 const GAUGE_MIN = 2000;
 const GAUGE_MAX = 9500;
@@ -493,23 +484,12 @@ function PracticeScreen({
         setSampleCount((n) => n + 1);
         if (zone && sm >= zone.min && sm <= zone.max) setInZoneCount((n) => n + 1);
         if (sTrainerRef.current) {
-          // 통합 /ㅅ/ 분류(마찰 있음): centroid+hfRatio로 정조음/구개음화/설측음화 판별.
-          if (sm >= S_CORRECT_HZ && r.hfRatio >= S_R_CORRECT) {
-            applyLive(targetPoseRef.current); // 정조음(치조 앞·중앙)
-            distortAmtRef.current = 0;
-            lateralAmtRef.current = 0;
-            bump("정조음");
-          } else if (r.hfRatio < S_R_LATERAL) {
-            applyLive(POSE_LATERAL); // 설측음화(둔탁·다습 → 양옆)
-            distortAmtRef.current = 1;
-            lateralAmtRef.current = 1;
-            bump("설측음화");
-          } else {
-            applyLive(POSE_PALATAL); // 구개음화(저주파·후방)
-            distortAmtRef.current = 1;
-            lateralAmtRef.current = 0;
-            bump("구개음화");
-          }
+          // /ㅅ/ 실시간 판별(마찰 있음): centroid로 정조음↔구개음화 연속 보간.
+          const d = Math.min(1, Math.max(0, (S_CORRECT_HZ - sm) / (S_CORRECT_HZ - S_PALATAL_HZ)));
+          applyLive(lerpPose(targetPoseRef.current, POSE_PALATAL, d));
+          distortAmtRef.current = d;
+          lateralAmtRef.current = 0;
+          bump(d < 0.35 ? "정조음" : "구개음화");
           airActiveRef.current = true;
         } else if (distortRef.current) {
           // (단일 왜곡 카드용) 음향→왜곡량 d. 구개음화=센트로이드만, 설측=centroid+hfRatio 평균.
@@ -526,24 +506,11 @@ function PracticeScreen({
         }
       } else {
         setIsFric(false);
-        // 마찰 없음. 통합 모드면 에너지로 파열음화(대치=ㄷ) vs 휴지 구분.
-        if (sTrainerRef.current) {
-          const speaking = r.hfEnergy + r.lfEnergy > STOP_ENERGY;
-          if (speaking) {
-            applyLive(POSE_STOP); // 마찰 대신 폐쇄 → 파열음화(대치)
-            distortAmtRef.current = 1;
-            lateralAmtRef.current = 0;
-            airActiveRef.current = false; // 폐쇄라 기류 없음
-            bump("파열음화(대치)");
-          } else {
-            applyLive(IDLE_FULL);
-            airActiveRef.current = false;
-            bump("휴지");
-          }
-        } else if (distortRef.current) {
-          // 단일 왜곡 카드: 무음 → 휴지.
+        // 마찰 없음(무음) → 휴지.
+        if (distortRef.current) {
           applyLive(IDLE_FULL);
           airActiveRef.current = false;
+          if (sTrainerRef.current) bump("휴지");
         }
       }
     },
@@ -754,9 +721,9 @@ function PracticeScreen({
               {process.sTrainer ? (
                 <>
                   <p className="text-xs leading-relaxed text-slate-600">
-                    <strong>마이크 시작</strong> 후 <strong>「ㅅ」을 길게</strong> 내보세요. 소리를 듣고 지금 조음이
-                    <strong> 정조음 / 구개음화(뒤) / 설측음화(옆) / 파열음화(막힘=ㄷ)</strong> 중 무엇인지 실시간으로 3D·기류로 보여줘요.
-                    옆으로 새는 설측은 <strong>정면·비스듬</strong>에서 잘 보여요(드래그 회전).
+                    <strong>마이크 시작</strong> 후 <strong>「ㅅ」을 길게</strong> 내보세요. 정확한
+                    <strong> 치조</strong> 위치면 3D 혀가 <strong>앞</strong>에(기류 초록), 구개음화되면 혀가
+                    <strong> 뒤(경구개)</strong>로(기류 빨강) 실시간으로 움직여요. 소리가 낮아 혀가 뒤로 가면 앞으로 당기도록 도와주세요.
                   </p>
                   <div className="mt-3 flex items-center gap-2">
                     <span className="text-[11px] text-slate-400">지금 감지</span>
