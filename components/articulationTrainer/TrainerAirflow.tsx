@@ -49,6 +49,8 @@ export default function TrainerAirflow({
   staticPose,
   livePoseRef,
   airActiveRef,
+  distortAmtRef,
+  lateral = false,
 }: {
   segsRef: React.RefObject<Seg[] | null>;
   clockRef: React.RefObject<Clock>;
@@ -57,6 +59,9 @@ export default function TrainerAirflow({
   livePoseRef?: React.RefObject<Pose | null>;
   // 실시간 구동 시 마찰 산출 중일 때만 기류 표시(무음=휴지면 숨김). 미지정(데모)이면 항상 표시.
   airActiveRef?: React.RefObject<boolean>;
+  // 실시간 왜곡량(0=정조음/초록, 1=왜곡/빨강). 색·설측 fork 강도. 미지정이면 자세에서 유도.
+  distortAmtRef?: React.RefObject<number>;
+  lateral?: boolean; // 설측음화: 협착점에서 기류를 좌우(±Z)로 갈라 표시.
 }) {
   const N = 110;
   const ptsRef = useRef<THREE.Points>(null);
@@ -91,10 +96,19 @@ export default function TrainerAirflow({
     const posterior = posteriorOf(eff);
     const tc = 0.8 - 0.3 * posterior; // 협착점: 정확=치조(u≈0.8), 후방화될수록 경구개(u↓)
 
-    // 기류 색: 정확(앞, posterior≈0)=초록 → 왜곡(뒤)=빨강. 목표대역 근처는 초록 유지.
-    // 가법 블렌딩에서 또렷하게 보이도록 살짝 오버드라이브(>1).
-    const colorT = Math.min(1, Math.max(0, (posterior - 0.05) / 0.45));
-    curColor.copy(AIR_GREEN).lerp(AIR_RED, colorT).multiplyScalar(1.4);
+    // 왜곡량(0=정조음/초록, 1=왜곡/빨강): 실시간 구동 시 외부 신호(음향) 우선, 아니면 자세에서 유도
+    // (설측=중앙 홈 닫힘 1-groove, 구개음화=후방화 posterior).
+    const liveDriven2 = livePoseRef?.current != null;
+    const grooveClosed = 1 - (eff.tongue_groove ?? 0);
+    const amt =
+      liveDriven2 && distortAmtRef
+        ? Math.min(1, Math.max(0, distortAmtRef.current))
+        : lateral
+          ? Math.min(1, Math.max(0, (grooveClosed - 0.5) / 0.5))
+          : Math.min(1, Math.max(0, (posterior - 0.05) / 0.45));
+
+    // 기류 색: 초록→빨강. 가법 블렌딩에서 또렷하게 보이도록 살짝 오버드라이브(>1).
+    curColor.copy(AIR_GREEN).lerp(AIR_RED, amt).multiplyScalar(1.4);
     (grp.material as THREE.PointsMaterial).color.copy(curColor);
 
     const dtl = Math.min(dt, 0.05);
@@ -106,13 +120,21 @@ export default function TrainerAirflow({
       phases[i] = p;
       const uc = Math.min(0.999, Math.max(0, p));
       S_CURVE.getPointAt(uc, tmp);
-      let x = tmp.x, y = tmp.y;
-      const z = tmp.z + 0.02;
+      let x = tmp.x, y = tmp.y, z = tmp.z + 0.02;
       // 난류: 협착점~하류(틈 통과 후)에서 지글거림, 통과 뒤 더 흩어짐.
       if (p > tc - 0.06) {
         const amp = 0.018 * (p > tc ? 2 : 1);
         x += (Math.random() - 0.5) * amp;
         y += (Math.random() - 0.5) * amp;
+      }
+      // 설측음화: 협착점(치조)에서 공기가 혀 양옆(±Z)으로 갈라져 샘. 왜곡량(amt)에 비례.
+      // ±Z=진짜 좌우(정면/비스듬에서 보임), ±Y=시상면 가시성용 상하 스프레드(좌우 대칭).
+      if (lateral && amt > 0.02) {
+        const zSide = i % 2 === 0 ? 1 : -1;
+        const ySide = Math.floor(i / 2) % 2 === 0 ? 1 : -1;
+        const fork = Math.max(0, 1 - Math.abs(p - tc) / 0.22) * amt;
+        z += zSide * 0.16 * fork;
+        y += ySide * 0.05 * fork;
       }
       positions[i * 3] = x;
       positions[i * 3 + 1] = y;

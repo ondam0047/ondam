@@ -35,6 +35,9 @@ export type PhonologicalProcess = {
   // 왜곡(distortion): 오류가 "다른 낱말로 대치(뜻 바뀜)"가 아니라 "같은 낱말이 왜곡되게 산출"됨.
   // true면 우측 패널을 대립쌍(의사소통 실패) 대신 "정상 ↔ 왜곡" 대조로 표시(뜻은 유지).
   distortion?: boolean;
+  // 설측음화(lateral): 공기가 혀 중앙(홈)이 아니라 양옆으로 샘. true면 기류를 좌우로 갈라 보이고,
+  // 좌우는 측면(사지탈)에서 안 보이므로 기본 시점을 정면/비스듬으로. 검출은 centroid+hfRatio.
+  lateral?: boolean;
   metaphorAxis: string; // "막음 ↔ 흐름"
   directionText: string; // 오류→목표 전환 캡션(무엇이 어떻게 바뀌나)
   acoustic: AcousticFeature;
@@ -139,6 +142,43 @@ export const PROCESSES: PhonologicalProcess[] = [
       { target: "소", error: "쇼", note: "예시 — SLP 검토 필요" },
       { target: "수박", error: "슈박", note: "예시 — SLP 검토 필요" },
       { target: "가위", error: "가위(왜곡)", note: "어중 ㅅ 왜곡 — SLP 검토 필요" },
+    ],
+    ready: true,
+  },
+  {
+    id: "distortion_s_lateral",
+    label: "ㅅ 왜곡 (설측음화)",
+    // 설측음화(lateral lisp): 혀끝이 치조에 붙어 중앙 홈이 막히고 공기가 혀 양옆으로 샘([ɬ]).
+    // 청지각적으로 둔탁·다습한 "슬러시" 소리(맑은 중앙 마찰 대비 저주파·저집중).
+    short: "중앙 마찰 ↔ 양옆 샘",
+    targetPhone: "c_s",
+    errorPhone: "c_s",
+    // 정상 ㅅ에서 혀끝을 올려 붙이고(tip_up↑) 중앙 홈을 닫은(groove 0) 설측 자세.
+    // (tongue_lateral_channel 모프는 리거 납품본 버그로 제외 — 좌우 표현은 기류로.)
+    errorPoseOverride: {
+      tongue_tip_up: 1,
+      tongue_front_up: 0.3,
+      tongue_groove: 0,
+      lips_closed: 0.5,
+    },
+    targetGrapheme: "ㅅ",
+    errorGrapheme: "ㅅ(설측음화)",
+    airflow: true,
+    distortion: true,
+    lateral: true,
+    metaphorAxis: "가운데로 곧게 ↔ 옆으로 샘",
+    directionText:
+      "혀끝을 완전히 붙이지 말고, 혀 가운데로 좁은 길을 만들어 바람을 곧게 앞으로 보내요 (옆으로 새지 않게)",
+    acoustic: "centroid",
+    centroidZone: S_ZONE,
+    cue: {
+      external: "ㅅ은 가운데로 곧게 새는 맑은 소리예요 — 스~ (옆으로 새는 축축한 소리가 아니라)",
+      internal: "혀끝을 살짝 떼고 혀 가운데에 좁은 홈을 만들어 바람이 앞으로 곧게 나가게 해요",
+    },
+    minimalPairs: [
+      { target: "사자", error: "사자(설측)", note: "설측음화 ㅅ≈[ɬ] — SLP 검토 필요" },
+      { target: "소", error: "소(설측)", note: "예시 — SLP 검토 필요" },
+      { target: "수박", error: "수박(설측)", note: "예시 — SLP 검토 필요" },
     ],
     ready: true,
   },

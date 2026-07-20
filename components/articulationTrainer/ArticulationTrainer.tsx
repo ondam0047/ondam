@@ -49,6 +49,10 @@ const EMA_ALPHA = 0.55;
 // (구개음화 /ɕ/는 /s/보다 센트로이드가 내려가지만 목표대역 하한까지 안 떨어질 수 있어 임계를 위로.)
 const S_CORRECT_HZ = 5800; // 이 이상 = 정조음(앞)
 const S_PALATAL_HZ = 4000; // 이 이하 = 구개음화(뒤)
+// 설측음화 추가 판별: 고주파 집중도(hfRatio). 정조음=날카로운 중앙 마찰(hfRatio↑),
+// 설측=둔탁·다습(hfRatio↓). centroid 부족분과 평균해 왜곡량 산출.
+const HF_CORRECT = 0.82; // 이 이상 = 정조음(집중)
+const HF_LATERAL = 0.62; // 이 이하 = 설측(둔탁)
 
 function freqToX(f: number, w: number, padL: number, padR: number) {
   const inner = w - padL - padR;
@@ -428,8 +432,11 @@ function PracticeScreen({
   const livePoseRef = useRef<Pose | null>(null);
   const liveDisplayRef = useRef<Pose | null>(null); // 프레임 간 부드러운 전이용(휴지↔산출)
   const airActiveRef = useRef(false); // 기류 표시(마찰 산출 중일 때만)
+  const distortAmtRef = useRef(0); // 실시간 왜곡량(0=정조음/초록, 1=왜곡/빨강) — 기류 색·설측 fork용
   const distortRef = useRef(!!process.distortion);
   distortRef.current = !!process.distortion;
+  const lateralRef = useRef(!!process.lateral);
+  lateralRef.current = !!process.lateral;
   const targetPoseRef = useRef(targetPose);
   targetPoseRef.current = targetPose;
   const errorPoseRef = useRef(errorPose);
@@ -458,13 +465,16 @@ function PracticeScreen({
         setIsFric(true);
         setSampleCount((n) => n + 1);
         if (zone && sm >= zone.min && sm <= zone.max) setInZoneCount((n) => n + 1);
-        // 왜곡 변동: 센트로이드→혀 위치. 정조음(높은 센트로이드)=치조 앞(target),
-        // 구개음화(낮을수록)=경구개 뒤(error)로 실시간 보간.
+        // 왜곡 변동: 음향→왜곡량 d(0=정조음, 1=왜곡). 구개음화=센트로이드만,
+        // 설측음화=센트로이드 부족분과 고주파 집중도(hfRatio) 부족분의 평균(둘 다 낮아야 설측).
         if (distortRef.current) {
-          const d = Math.min(
-            1,
-            Math.max(0, (S_CORRECT_HZ - sm) / (S_CORRECT_HZ - S_PALATAL_HZ)),
-          );
+          const dC = Math.min(1, Math.max(0, (S_CORRECT_HZ - sm) / (S_CORRECT_HZ - S_PALATAL_HZ)));
+          let d = dC;
+          if (lateralRef.current) {
+            const dR = Math.min(1, Math.max(0, (HF_CORRECT - r.hfRatio) / (HF_CORRECT - HF_LATERAL)));
+            d = Math.min(1, Math.max(0, (dC + dR) / 2));
+          }
+          distortAmtRef.current = d;
           applyLive(lerpPose(targetPoseRef.current, errorPoseRef.current, d));
           airActiveRef.current = true; // 마찰 산출 중 → 기류 표시
         }
@@ -487,6 +497,7 @@ function PracticeScreen({
     livePoseRef.current = null;
     liveDisplayRef.current = null;
     airActiveRef.current = false;
+    distortAmtRef.current = 0;
     setCentroid(null);
     setIsFric(false);
     setInZoneCount(0);
@@ -498,6 +509,7 @@ function PracticeScreen({
     livePoseRef.current = null;
     liveDisplayRef.current = null;
     airActiveRef.current = false;
+    distortAmtRef.current = 0;
   };
 
   const inZone = !!(zone && centroid !== null && isFric && centroid >= zone.min && centroid <= zone.max);
@@ -579,6 +591,9 @@ function PracticeScreen({
               airflow={process.airflow}
               livePoseRef={isDistortion ? livePoseRef : undefined}
               airActiveRef={isDistortion ? airActiveRef : undefined}
+              distortAmtRef={isDistortion ? distortAmtRef : undefined}
+              lateral={process.lateral}
+              frontView={process.lateral}
             />
           </div>
 
@@ -669,11 +684,19 @@ function PracticeScreen({
               <h3 className="mb-2 text-sm font-semibold text-slate-800">
                 {process.targetGrapheme} 실시간 연습
               </h3>
-              <p className="text-xs leading-relaxed text-slate-600">
-                아래 <strong>마이크 시작</strong>을 누르고 <strong>「{process.targetGrapheme}」 소리를 길게</strong> 내보세요.
-                정확한 <strong>치조</strong> 위치면 3D 혀가 <strong>앞</strong>에(기류 초록), 왜곡(구개음화)되면 혀가
-                <strong> 뒤(경구개)</strong>로(기류 빨강) 실시간으로 움직여요. 소리가 낮아 혀가 뒤로 가면 앞으로 당기도록 도와주세요.
-              </p>
+              {process.lateral ? (
+                <p className="text-xs leading-relaxed text-slate-600">
+                  아래 <strong>마이크 시작</strong>을 누르고 <strong>「{process.targetGrapheme}」 소리를 길게</strong> 내보세요.
+                  정확하면 바람이 혀 <strong>가운데로 곧게</strong>(기류 초록), 설측음화되면 공기가
+                  <strong> 양옆으로 갈라져</strong>(기류 빨강) 실시간으로 보여요. 옆으로 새는 건 <strong>정면·비스듬</strong>에서 잘 보여요(드래그로 회전).
+                </p>
+              ) : (
+                <p className="text-xs leading-relaxed text-slate-600">
+                  아래 <strong>마이크 시작</strong>을 누르고 <strong>「{process.targetGrapheme}」 소리를 길게</strong> 내보세요.
+                  정확한 <strong>치조</strong> 위치면 3D 혀가 <strong>앞</strong>에(기류 초록), 왜곡(구개음화)되면 혀가
+                  <strong> 뒤(경구개)</strong>로(기류 빨강) 실시간으로 움직여요. 소리가 낮아 혀가 뒤로 가면 앞으로 당기도록 도와주세요.
+                </p>
+              )}
             </div>
           )}
 

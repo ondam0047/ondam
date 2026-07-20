@@ -27,6 +27,9 @@ import TrainerAirflow from "./TrainerAirflow";
 // 사지탈 초기 카메라: +Z에서 XY 시상면을 정면으로 봄(입술=+X 오른쪽).
 // 측면(사지탈)을 처음부터 보여주되, OrbitControls로 3D 회전도 가능하게 한다.
 const SAG_CAM = { position: [0, 0, 3] as [number, number, number], fov: 35, near: 0.01, far: 100 };
+// 설측음화용 정면·비스듬 초기 카메라: 공기가 좌우(±Z)로 갈라지는 게 측면에선 안 보이므로
+// 앞·오른쪽·살짝 위에서 봐 양옆 기류가 보이게. (OrbitControls로 계속 회전 가능.)
+const FRONT_CAM = { position: [2.1, 0.5, 1.9] as [number, number, number], fov: 35, near: 0.01, far: 100 };
 
 export type SagittalMode = "transition" | "target" | "error";
 
@@ -42,6 +45,9 @@ export default function SagittalArticulator({
   airflow = false,
   livePoseRef,
   airActiveRef,
+  distortAmtRef,
+  lateral = false,
+  frontView = false,
 }: {
   errorPose: Pose;
   targetPose: Pose;
@@ -56,6 +62,10 @@ export default function SagittalArticulator({
   livePoseRef?: React.RefObject<Pose | null>;
   // 기류 표시 여부(마찰 산출 중일 때만 true). 실시간 구동 시 무음이면 기류 숨김.
   airActiveRef?: React.RefObject<boolean>;
+  // 실시간 왜곡량(0=정조음/초록, 1=왜곡/빨강) — 기류 색·설측 좌우 fork 강도.
+  distortAmtRef?: React.RefObject<number>;
+  lateral?: boolean; // 설측음화: 기류를 좌우로 갈라 표시.
+  frontView?: boolean; // 초기 시점을 정면·비스듬으로(설측 좌우 기류가 보이게).
 }) {
   const clockRef = useRef<Clock>({ t: 0 });
   const playRef = useRef<PlayState>({ playing: false, speed, loop: true, total: 0 });
@@ -99,7 +109,7 @@ export default function SagittalArticulator({
 
   return (
     <div className="relative h-full w-full overflow-hidden rounded-xl" style={{ background: bg }}>
-      <Canvas camera={SAG_CAM} dpr={[1, 2]} gl={{ alpha: true, antialias: true }}>
+      <Canvas camera={frontView ? FRONT_CAM : SAG_CAM} dpr={[1, 2]} gl={{ alpha: true, antialias: true }}>
         <Lights />
         <ClockDriver clockRef={clockRef} playRef={playRef} onEnd={() => undefined} />
         <Suspense fallback={null}>
@@ -126,6 +136,8 @@ export default function SagittalArticulator({
             staticPose={staticPose}
             livePoseRef={livePoseRef}
             airActiveRef={airActiveRef}
+            distortAmtRef={distortAmtRef}
+            lateral={lateral}
           />
         )}
         {/* 측면(사지탈)을 기본으로 보되 3D 회전·줌 가능. */}
