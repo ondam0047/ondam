@@ -91,7 +91,8 @@ export default function SagittalArticulator({
   const staticPose = mode === "error" ? errorPose : targetPose;
   const hl = mode === "transition" ? highlight : undefined;
 
-  const bg = "radial-gradient(circle at 50% 40%, #f1f5f9 0%, #e2e8f0 60%, #cbd5e1 100%)";
+  // 어두운 배경 — 초록/빨강 기류 입자가 잘 대비되도록.
+  const bg = "radial-gradient(circle at 50% 38%, #2a2531 0%, #1a1720 55%, #0f0d14 100%)";
 
   return (
     <div className="relative h-full w-full overflow-hidden rounded-xl" style={{ background: bg }}>

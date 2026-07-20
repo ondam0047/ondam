@@ -109,13 +109,14 @@ export const PROCESSES: PhonologicalProcess[] = [
     short: "치조 ㅅ ↔ 경구개 ㅅ",
     targetPhone: "c_s",
     errorPhone: "c_s", // 왜곡이라 대치음 없음 — 자세는 errorPoseOverride로.
-    // 정상 ㅅ 자세에서 혀를 뒤·위(경구개)로 보낸 왜곡: retract·back_up↑, tip_up↓, front_up↑.
+    // 정상 ㅅ 자세에서 혀를 뒤·위(경구개)로 크게 보낸 왜곡: retract·back_up↑↑, tip_up 0, front_up↑.
+    // 정확(치조 앞)↔왜곡(경구개 뒤) 사이 혀 이동 폭을 넓혀 실시간 대비가 잘 보이게.
     errorPoseOverride: {
-      tongue_front_up: 0.7,
-      tongue_tip_up: 0.1,
-      tongue_back_up: 0.4,
-      tongue_retract: 0.55,
-      tongue_groove: 0.4,
+      tongue_front_up: 0.85,
+      tongue_tip_up: 0,
+      tongue_back_up: 0.6,
+      tongue_retract: 0.9,
+      tongue_groove: 0.35,
       lips_closed: 0.5,
     },
     targetGrapheme: "ㅅ",

@@ -32,15 +32,14 @@ const S_CURVE = new THREE.CatmullRomCurve3(
   "catmullrom",
   0.5,
 );
-const AIR_ORAL = new THREE.Color(0x66ddff);
+const AIR_GREEN = new THREE.Color(0x34d399); // 정확(치조 앞) — 초록
+const AIR_RED = new THREE.Color(0xf43f5e); // 왜곡(경구개 뒤) — 빨강
 
-// 현재 혀 자세 → 협착점 u. 정상 ㅅ(치조, 음소산출과 동일 u≈0.80),
-// 혀가 뒤·위(경구개)로 갈수록 협착점이 뒤로(u↓, 최소 ~0.60).
-function constrictionFromPose(eff: Pose): number {
+// 현재 혀 자세 → 후방화 정도(0=치조 앞/정확, 1=경구개 뒤/왜곡). 협착점·기류색 공통 신호.
+function posteriorOf(eff: Pose): number {
   const retract = eff.tongue_retract ?? 0;
   const backUp = eff.tongue_back_up ?? 0;
-  const posterior = Math.min(1, Math.max(0, Math.max(retract, backUp * 0.6)));
-  return 0.8 - 0.3 * posterior;
+  return Math.min(1, Math.max(0, Math.max(retract, backUp * 0.6)));
 }
 
 export default function TrainerAirflow({
@@ -63,6 +62,7 @@ export default function TrainerAirflow({
   const speeds = useRef(Float32Array.from({ length: N }, (_, i) => 0.85 + ((i * 37) % 40) / 60)).current;
   const positions = useRef(new Float32Array(N * 3)).current;
   const tmp = useRef(new THREE.Vector3()).current;
+  const curColor = useRef(new THREE.Color()).current;
   const staticRef = useRef(staticPose);
   staticRef.current = staticPose;
 
@@ -80,7 +80,13 @@ export default function TrainerAirflow({
         ? sampleSegs(segs, clockRef.current.t)
         : staticRef.current);
     const eff = fullPose(pose);
-    const tc = constrictionFromPose(eff); // 협착점(좁은 틈)
+    const posterior = posteriorOf(eff);
+    const tc = 0.8 - 0.3 * posterior; // 협착점: 정확=치조(u≈0.8), 후방화될수록 경구개(u↓)
+
+    // 기류 색: 정확(앞, posterior≈0)=초록 → 왜곡(뒤)=빨강. 목표대역 근처는 초록 유지.
+    const colorT = Math.min(1, Math.max(0, (posterior - 0.05) / 0.45));
+    curColor.copy(AIR_GREEN).lerp(AIR_RED, colorT);
+    (grp.material as THREE.PointsMaterial).color.copy(curColor);
 
     const dtl = Math.min(dt, 0.05);
     for (let i = 0; i < N; i++) {
@@ -112,13 +118,12 @@ export default function TrainerAirflow({
         <bufferAttribute attach="attributes-position" args={[positions, 3]} count={N} itemSize={3} />
       </bufferGeometry>
       <pointsMaterial
-        size={0.03}
+        size={0.032}
         sizeAttenuation
         transparent
-        opacity={0.85}
+        opacity={0.9}
         depthTest={false}
         depthWrite={false}
-        color={AIR_ORAL}
         blending={THREE.AdditiveBlending}
       />
     </points>
