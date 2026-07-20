@@ -48,12 +48,15 @@ export default function TrainerAirflow({
   playRef,
   staticPose,
   livePoseRef,
+  airActiveRef,
 }: {
   segsRef: React.RefObject<Seg[] | null>;
   clockRef: React.RefObject<Clock>;
   playRef: React.RefObject<PlayState>;
   staticPose: Pose;
   livePoseRef?: React.RefObject<Pose | null>;
+  // 실시간 구동 시 마찰 산출 중일 때만 기류 표시(무음=휴지면 숨김). 미지정(데모)이면 항상 표시.
+  airActiveRef?: React.RefObject<boolean>;
 }) {
   const N = 110;
   const ptsRef = useRef<THREE.Points>(null);
@@ -70,6 +73,11 @@ export default function TrainerAirflow({
     const grp = ptsRef.current;
     const geo = geomRef.current;
     if (!grp || !geo) return;
+
+    // 실시간 구동 중엔 마찰 산출 중일 때만 기류 표시(무음=휴지면 숨김). 데모(미구동)면 항상.
+    const liveDriven = livePoseRef?.current != null;
+    grp.visible = liveDriven && airActiveRef ? !!airActiveRef.current : true;
+    if (!grp.visible) return;
 
     // 현재 유효 자세: 실시간 구동 우선 → 재생 중 타임라인 샘플 → 정적(StaticArticulator와 동일 규칙).
     const playing = playRef.current?.playing;

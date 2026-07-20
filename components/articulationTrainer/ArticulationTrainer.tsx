@@ -36,14 +36,19 @@ import {
 import { useAudioAnalyser } from "@/components/audio/useAudioAnalyser";
 import { analyzeSibilantSpectrum } from "@/components/vocalTract/spectralMoments";
 import SaveToHistory from "@/components/SaveToHistory";
-import { lerpPose, type Pose } from "@/components/articulator/phonemeMap";
+import { lerpPose, fullPose, IDLE_POSE, type Pose } from "@/components/articulator/phonemeMap";
+
+// 무음(정조음·오조음 어느 쪽도 아닐 때)에 보여줄 휴지 자세.
+const IDLE_FULL = fullPose(IDLE_POSE);
 
 const GAUGE_MIN = 2000;
 const GAUGE_MAX = 9500;
 const EMA_ALPHA = 0.55;
-// 왜곡(구개음화) 실시간 매핑의 하한 센트로이드(Hz): 목표대역 min보다 낮을수록 혀가 뒤(경구개)로,
-// 이 값에서 완전 왜곡(error 자세). 성인 /ɕ/ 근사 — 연령별 보정은 후속.
-const PALATAL_FLOOR = 3000;
+// 왜곡(구개음화) 실시간 매핑 — 센트로이드(Hz) → 혀 후방화(0=정조음 앞/초록, 1=구개음화 뒤/빨강).
+// 실제 산출에 민감하게: 이 값 이상=정조음(치조 앞), 이하=구개음화(경구개 뒤). 그 사이 선형.
+// (구개음화 /ɕ/는 /s/보다 센트로이드가 내려가지만 목표대역 하한까지 안 떨어질 수 있어 임계를 위로.)
+const S_CORRECT_HZ = 5800; // 이 이상 = 정조음(앞)
+const S_PALATAL_HZ = 4000; // 이 이하 = 구개음화(뒤)
 
 function freqToX(f: number, w: number, padL: number, padR: number) {
   const inner = w - padL - padR;
@@ -421,6 +426,8 @@ function PracticeScreen({
   // 실시간 음향→3D 혀 위치 바이오피드백(왜곡 변동). 매 오디오 프레임 stale 클로저를 피하려고
   // 최신 값을 ref로 읽는다. livePoseRef 가 set 되면 SagittalArticulator가 그 자세를 실시간 렌더.
   const livePoseRef = useRef<Pose | null>(null);
+  const liveDisplayRef = useRef<Pose | null>(null); // 프레임 간 부드러운 전이용(휴지↔산출)
+  const airActiveRef = useRef(false); // 기류 표시(마찰 산출 중일 때만)
   const distortRef = useRef(!!process.distortion);
   distortRef.current = !!process.distortion;
   const targetPoseRef = useRef(targetPose);
@@ -434,6 +441,13 @@ function PracticeScreen({
       const freq = new Float32Array(analyser.frequencyBinCount);
       analyser.getFloatFrequencyData(freq);
       const r = analyzeSibilantSpectrum(freq, ctx.sampleRate);
+      // 목표 자세로 프레임 간 부드럽게 전이(휴지↔정조음↔오조음 급변 방지).
+      const applyLive = (desired: Pose) => {
+        const cur = liveDisplayRef.current;
+        const next = cur ? lerpPose(cur, desired, 0.3) : desired;
+        liveDisplayRef.current = next;
+        livePoseRef.current = next;
+      };
       if (r.isFricative) {
         const sm =
           smoothRef.current === null
@@ -444,14 +458,23 @@ function PracticeScreen({
         setIsFric(true);
         setSampleCount((n) => n + 1);
         if (zone && sm >= zone.min && sm <= zone.max) setInZoneCount((n) => n + 1);
-        // 왜곡 변동: 센트로이드→혀 위치. 목표대역(정확 ㅅ)=치조 앞(target),
-        // 목표대역보다 낮을수록(구개음화) 경구개 뒤(error)로 실시간 보간.
-        if (distortRef.current && zone) {
-          const d = Math.min(1, Math.max(0, (zone.min - sm) / (zone.min - PALATAL_FLOOR)));
-          livePoseRef.current = lerpPose(targetPoseRef.current, errorPoseRef.current, d);
+        // 왜곡 변동: 센트로이드→혀 위치. 정조음(높은 센트로이드)=치조 앞(target),
+        // 구개음화(낮을수록)=경구개 뒤(error)로 실시간 보간.
+        if (distortRef.current) {
+          const d = Math.min(
+            1,
+            Math.max(0, (S_CORRECT_HZ - sm) / (S_CORRECT_HZ - S_PALATAL_HZ)),
+          );
+          applyLive(lerpPose(targetPoseRef.current, errorPoseRef.current, d));
+          airActiveRef.current = true; // 마찰 산출 중 → 기류 표시
         }
       } else {
         setIsFric(false);
+        // 정조음·오조음 어느 쪽도 아님(무음) → 휴지 자세로, 기류 숨김.
+        if (distortRef.current) {
+          applyLive(IDLE_FULL);
+          airActiveRef.current = false;
+        }
       }
     },
     [zone],
@@ -462,6 +485,8 @@ function PracticeScreen({
   const resetLive = () => {
     smoothRef.current = null;
     livePoseRef.current = null;
+    liveDisplayRef.current = null;
+    airActiveRef.current = false;
     setCentroid(null);
     setIsFric(false);
     setInZoneCount(0);
@@ -469,7 +494,10 @@ function PracticeScreen({
   };
   const stopLive = () => {
     audio.stop();
-    livePoseRef.current = null; // 정지 시 실시간 구동 해제 → 기본(목표/전환) 자세로 복귀.
+    // 정지 시 실시간 구동 해제 → 기본(목표/전환) 자세로 복귀.
+    livePoseRef.current = null;
+    liveDisplayRef.current = null;
+    airActiveRef.current = false;
   };
 
   const inZone = !!(zone && centroid !== null && isFric && centroid >= zone.min && centroid <= zone.max);
@@ -550,6 +578,7 @@ function PracticeScreen({
               speed={speed}
               airflow={process.airflow}
               livePoseRef={isDistortion ? livePoseRef : undefined}
+              airActiveRef={isDistortion ? airActiveRef : undefined}
             />
           </div>
 

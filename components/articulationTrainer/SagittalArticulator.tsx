@@ -41,6 +41,7 @@ export default function SagittalArticulator({
   speed = 0.8,
   airflow = false,
   livePoseRef,
+  airActiveRef,
 }: {
   errorPose: Pose;
   targetPose: Pose;
@@ -53,6 +54,8 @@ export default function SagittalArticulator({
   airflow?: boolean; // 마찰음 계열: 기류(공기 흐름) 입자 표시
   // 실시간 외부 구동 포즈(마이크 음향→혀 위치 바이오피드백). 설정 시 재생/정적 대신 이 포즈 렌더.
   livePoseRef?: React.RefObject<Pose | null>;
+  // 기류 표시 여부(마찰 산출 중일 때만 true). 실시간 구동 시 무음이면 기류 숨김.
+  airActiveRef?: React.RefObject<boolean>;
 }) {
   const clockRef = useRef<Clock>({ t: 0 });
   const playRef = useRef<PlayState>({ playing: false, speed, loop: true, total: 0 });
@@ -122,6 +125,7 @@ export default function SagittalArticulator({
             playRef={playRef}
             staticPose={staticPose}
             livePoseRef={livePoseRef}
+            airActiveRef={airActiveRef}
           />
         )}
         {/* 측면(사지탈)을 기본으로 보되 3D 회전·줌 가능. */}
