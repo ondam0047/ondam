@@ -509,6 +509,7 @@ function PracticeScreen({
   // 강화(게임): 정조음 유지 시 캐릭터가 목표로 전진(progress 0~1), 도달 시 보상.
   const [progress, setProgress] = useState(0);
   const progressRef = useRef(0);
+  const lastTimeRef = useRef(0); // 프레임 간 실제 경과(ms) — 5초 유지를 프레임률과 무관하게.
   const [reached, setReached] = useState(false);
   const reachedRef = useRef(false);
   const feedbackRef = useRef<ReturnType<typeof createFeedbackAudio> | null>(null);
@@ -578,11 +579,15 @@ function PracticeScreen({
         }
       }
 
-      // 강화(게임): 정조음 유지 시 캐릭터 전진, 오류 시 후퇴, 무음은 유지. 도달 시 보상.
+      // 강화(게임): 정조음 유지 시 자동차 전진, 오류 시 후퇴, 무음은 유지. 도달 시 보상.
+      // 진행은 실제 경과 시간 기준 — 정조음을 5초 유지하면 결승선 도착(프레임률 무관).
       if (sTrainerRef.current) {
+        const now = performance.now();
+        const dt = lastTimeRef.current ? Math.min(0.1, (now - lastTimeRef.current) / 1000) : 0;
+        lastTimeRef.current = now;
         const correct = detectedRef.current === "정조음";
-        if (correct) progressRef.current = Math.min(1, progressRef.current + 0.008);
-        else if (r.isFricative) progressRef.current = Math.max(0, progressRef.current - 0.006);
+        if (correct) progressRef.current = Math.min(1, progressRef.current + dt / 5); // 5초 유지=도착
+        else if (r.isFricative) progressRef.current = Math.max(0, progressRef.current - dt / 3);
         if (!feedbackRef.current) feedbackRef.current = createFeedbackAudio();
         feedbackRef.current.update(correct, progressRef.current);
         setProgress(progressRef.current);
@@ -610,6 +615,7 @@ function PracticeScreen({
     feedbackRef.current?.quiet();
     if (rewardTimerRef.current) clearTimeout(rewardTimerRef.current);
     progressRef.current = 0;
+    lastTimeRef.current = 0;
     reachedRef.current = false;
     setProgress(0);
     setReached(false);
@@ -869,31 +875,32 @@ function PracticeScreen({
             </div>
           )}
 
-          {/* 강화 게임: 정조음(맑은 ㅅ)을 길게 유지하면 뱀이 사과까지 나아가고, 도착하면 보상. */}
+          {/* 강화 게임: 정조음(맑은 ㅅ)을 5초 유지하면 자동차가 결승선까지 달려 도착, 보상. */}
           {process.sTrainer && (
             <div className="rounded-2xl bg-white p-4 shadow-sm">
               <div className="mb-2 flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-slate-800">바르게 유지하기</h3>
-                <span className="text-[11px] text-slate-400">맑은 「스~」를 길게 유지하면 도착!</span>
+                <h3 className="text-sm font-semibold text-slate-800">결승선까지 달리기</h3>
+                <span className="text-[11px] text-slate-400">맑은 「스~」를 5초 유지하면 도착!</span>
               </div>
-              <div className="relative h-16 overflow-hidden rounded-xl bg-gradient-to-r from-sky-50 via-emerald-50 to-amber-50 ring-1 ring-slate-100">
-                {/* 진행 채움 */}
+              <div className="relative h-16 overflow-hidden rounded-xl bg-slate-700 ring-1 ring-slate-300">
+                {/* 도로 중앙 점선 */}
+                <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 border-t-2 border-dashed border-amber-300/70" />
+                {/* 결승선(체커) */}
                 <div
-                  className="absolute inset-y-0 left-0 bg-emerald-300/40"
-                  style={{ width: `${progress * 100}%` }}
+                  className="absolute right-0 top-0 bottom-0 w-3"
+                  style={{ backgroundImage: "repeating-linear-gradient(0deg,#fff 0 6px,#111 6px 12px)" }}
                 />
-                {/* 목표(사과) */}
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 text-2xl">🍎</div>
-                {/* 캐릭터(뱀) — 진행에 따라 전진 */}
+                <div className="absolute right-1 top-0.5 text-base">🏁</div>
+                {/* 자동차 — 진행에 따라 결승선으로 주행 */}
                 <div
                   className="absolute top-1/2 -translate-y-1/2 text-2xl"
-                  style={{ left: `calc(${progress * 88}% + 6px)`, transition: "left 90ms linear" }}
+                  style={{ left: `calc(${progress * 84}% + 6px)`, transition: "left 90ms linear" }}
                 >
-                  🐍
+                  🏎️
                 </div>
                 {reached && (
-                  <div className="absolute inset-0 grid place-items-center bg-emerald-500/20 text-lg font-extrabold text-emerald-800">
-                    🎉 도착! 잘했어요
+                  <div className="absolute inset-0 grid place-items-center bg-emerald-500/30 text-lg font-extrabold text-white">
+                    🎉 결승선 도착!
                   </div>
                 )}
               </div>
