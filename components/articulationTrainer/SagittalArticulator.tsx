@@ -22,6 +22,7 @@ import {
   type PlayState,
   type Seg,
 } from "@/components/articulator/renderCore";
+import TrainerAirflow from "./TrainerAirflow";
 
 // 사지탈 초기 카메라: +Z에서 XY 시상면을 정면으로 봄(입술=+X 오른쪽).
 // 측면(사지탈)을 처음부터 보여주되, OrbitControls로 3D 회전도 가능하게 한다.
@@ -38,6 +39,7 @@ export default function SagittalArticulator({
   showArt = true,
   lipOpacity = 0.55,
   speed = 0.8,
+  airflow = false,
 }: {
   errorPose: Pose;
   targetPose: Pose;
@@ -47,6 +49,7 @@ export default function SagittalArticulator({
   showArt?: boolean; // KP fade: 끄면 혀·입술 숨김(단면만)
   lipOpacity?: number;
   speed?: number;
+  airflow?: boolean; // 마찰음 계열: 기류(공기 흐름) 입자 표시
 }) {
   const clockRef = useRef<Clock>({ t: 0 });
   const playRef = useRef<PlayState>({ playing: false, speed, loop: true, total: 0 });
@@ -106,6 +109,15 @@ export default function SagittalArticulator({
             />
           </Bounds>
         </Suspense>
+        {/* 기류(마찰음 계열) — Bounds 밖(모델과 같은 월드좌표). 협착점은 현재 혀 자세에서 유도. */}
+        {airflow && (
+          <TrainerAirflow
+            segsRef={segsRef}
+            clockRef={clockRef}
+            playRef={playRef}
+            staticPose={staticPose}
+          />
+        )}
         {/* 측면(사지탈)을 기본으로 보되 3D 회전·줌 가능. */}
         <OrbitControls enablePan enableZoom enableRotate minDistance={0.5} maxDistance={20} makeDefault />
       </Canvas>

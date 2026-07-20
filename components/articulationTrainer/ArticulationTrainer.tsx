@@ -367,7 +367,8 @@ function PracticeScreen({
 }) {
   const mode = modeOf(process);
   const targetPose = phoneById(process.targetPhone).pose;
-  const errorPose = phoneById(process.errorPhone).pose;
+  // 왜곡(같은 음소의 조음 변형)이면 대치음 자세 대신 지정된 오류 포즈 사용.
+  const errorPose = process.errorPoseOverride ?? phoneById(process.errorPhone).pose;
 
   // 움직이는 조음기관(오류→목표 차이)으로 강조 부위 유도.
   const highlight: Highlight = useMemo(() => {
@@ -523,6 +524,7 @@ function PracticeScreen({
               highlight={highlight}
               showArt={kpVisible}
               speed={speed}
+              airflow={process.airflow}
             />
           </div>
 

@@ -4,7 +4,7 @@
 //
 // ⚠️ 임상 주의: minimalPairs 시작 단어는 반드시 SLP 검토 후 사용. 대치 위치·연령 적합성 확인.
 
-import { CONSONANTS, mannerOf, type Manner } from "@/components/articulator/phonemeMap";
+import { CONSONANTS, mannerOf, type Manner, type Pose } from "@/components/articulator/phonemeMap";
 
 export type PracticeMode = "live" | "capture";
 export type AcousticFeature = "centroid" | "formants" | "burst" | "none";
@@ -14,7 +14,8 @@ export type ProcessId =
   | "velar_fronting" // ㄱ→ㄷ (연구개음 전방화)
   | "stopping_affricate" // ㅈ→ㄷ (파찰음의 파열음화)
   | "tap_vs_lateral" // ㄹ 탄설 ↔ 설측
-  | "gliding_liquid"; // ㄹ→활음 (유음의 활음화)
+  | "gliding_liquid" // ㄹ→활음 (유음의 활음화)
+  | "distortion_s"; // ㅅ 왜곡 (구개음화 — 혀가 뒤로/경구개)
 
 export type MinimalPair = { target: string; error: string; note?: string };
 
@@ -26,6 +27,11 @@ export type PhonologicalProcess = {
   errorPhone: string; // "c_t"
   targetGrapheme: string; // "ㅅ"
   errorGrapheme: string; // "ㄷ"
+  // 오류가 "다른 음소로 대치"가 아니라 "같은 음소의 조음 왜곡"(예: 구개음화 ㅅ)일 때,
+  // errorPhone(대치음) 대신 이 자세를 오류 포즈로 사용. (없으면 errorPhone 음소 자세 사용.)
+  errorPoseOverride?: Pose;
+  // 3D 시상면에 기류(공기 흐름)를 함께 보일지 — 마찰음 계열(협착 틈 마찰)에서만 의미 있음.
+  airflow?: boolean;
   metaphorAxis: string; // "막음 ↔ 흐름"
   directionText: string; // 오류→목표 전환 캡션(무엇이 어떻게 바뀌나)
   acoustic: AcousticFeature;
@@ -88,6 +94,46 @@ export const PROCESSES: PhonologicalProcess[] = [
       { target: "사자", error: "따자" },
       { target: "시소", error: "시도", note: "어중 ㅅ 대치" },
       { target: "사과", error: "따과" },
+    ],
+    ready: true,
+  },
+  {
+    id: "distortion_s",
+    label: "ㅅ 왜곡 (구개음화)",
+    // 마찰음 /ㅅ/의 협착점이 치조(앞)에서 경구개(뒤)로 밀려 혀가 뒤로 솟는 왜곡.
+    // 대치(다른 음소)가 아니라 같은 ㅅ의 조음 위치가 뒤로 간 것 → errorPoseOverride 사용.
+    // 청지각적으로 [ɕ]에 가까운 "쉬"스러운 소리(맑은 ㅅ 대비 후방·저주파).
+    short: "치조 ㅅ ↔ 경구개 ㅅ",
+    targetPhone: "c_s",
+    errorPhone: "c_s", // 왜곡이라 대치음 없음 — 자세는 errorPoseOverride로.
+    // 정상 ㅅ 자세에서 혀를 뒤·위(경구개)로 보낸 왜곡: retract·back_up↑, tip_up↓, front_up↑.
+    errorPoseOverride: {
+      tongue_front_up: 0.7,
+      tongue_tip_up: 0.1,
+      tongue_back_up: 0.4,
+      tongue_retract: 0.55,
+      tongue_groove: 0.4,
+      lips_closed: 0.5,
+    },
+    targetGrapheme: "ㅅ",
+    errorGrapheme: "ㅅ(구개음화)",
+    airflow: true,
+    metaphorAxis: "앞(치조) ↔ 뒤(경구개)",
+    directionText:
+      "혀를 뒤로 올리지 말고, 혀끝을 앞으로 가져와 윗니 뒤(치조)에서 좁은 틈을 만들어요 (경구개 뒤 → 치조 앞)",
+    acoustic: "centroid",
+    centroidZone: S_ZONE,
+    cue: {
+      external: "ㅅ은 앞니 사이로 바람이 새는 맑은 소리예요 — 스~ (거친 '쉬' 소리가 아니라)",
+      internal: "혀를 뒤로 당기지 말고 혀끝을 윗니 뒤에 가깝게 두고 가운데로 좁은 길을 만들어요",
+    },
+    // 왜곡은 낱말 자체가 바뀌지 않음 — target=정상 ㅅ 낱말, error=구개음화된 청지각 근사(한글).
+    // 반드시 SLP가 아동의 실제 왜곡을 듣고 편집.
+    minimalPairs: [
+      { target: "사자", error: "샤자", note: "구개음화 ㅅ≈[ɕ] — SLP 검토 필요" },
+      { target: "소", error: "쇼", note: "예시 — SLP 검토 필요" },
+      { target: "수박", error: "슈박", note: "예시 — SLP 검토 필요" },
+      { target: "가위", error: "가위(왜곡)", note: "어중 ㅅ 왜곡 — SLP 검토 필요" },
     ],
     ready: true,
   },
