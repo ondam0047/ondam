@@ -142,3 +142,50 @@ export function fillTitleMonth(xml: string, year: number, month: number): string
     return r === inner ? full : `<hp:t>${r}</hp:t>`;
   });
 }
+
+// 제목의 "라벨 ( N월 )" 표기를 고른 월로 바꾼다(기록지·일정표 공용).
+// 한글 문서는 제목이 여러 <hp:t> 런으로 쪼개져 있을 수 있어(표준형 템플릿: "…기록지"|" (6"|"월)")
+// 원시 XML 정규식 한 방으로는 런 사이 태그에 막혀 못 찾는다 — 템플릿에 박힌 옛 월이 그대로
+// 나가는 원인(7월 기록지 제목이 6월로 출력). 문서순 <hp:t> 텍스트를 이어붙인 좌표에서 찾고,
+// 걸친 런들만 고쳐 쓴다. 숫자가 빈 양식("(  월)")이면 '월' 앞에 삽입한다.
+export function fillTitleParenMonth(xml: string, label: string, month: number): string {
+  if (!month) return xml;
+  const segs: { start: number; end: number; text: string }[] = [];
+  const tRe = /<hp:t>([\s\S]*?)<\/hp:t>/g;
+  let m: RegExpExecArray | null;
+  while ((m = tRe.exec(xml))) {
+    const start = m.index + "<hp:t>".length;
+    segs.push({ start, end: start + m[1].length, text: m[1] });
+  }
+  const joined = segs.map((s) => s.text).join("");
+  const tm = new RegExp(`${label}\\s*[(（]\\s*(\\d*)(?=\\s*월)`).exec(joined);
+  if (!tm) return xml;
+  const numEnd = tm.index + tm[0].length;
+  const numStart = numEnd - tm[1].length;
+  const monthStr = String(month);
+
+  // joined 좌표 [numStart, numEnd) 를 각 런의 로컬 좌표로 환산 — 새 숫자는 첫 지점의 런에
+  // 넣고, 다른 런에 걸친 옛 숫자 조각은 지운다.
+  const patches: { seg: (typeof segs)[number]; text: string }[] = [];
+  let acc = 0;
+  for (const seg of segs) {
+    const s = acc;
+    const e = acc + seg.text.length;
+    acc = e;
+    if (numStart < numEnd) {
+      if (e <= numStart || s >= numEnd) continue;
+      const ovS = Math.max(s, numStart);
+      const ovE = Math.min(e, numEnd);
+      const ins = ovS === numStart ? monthStr : "";
+      patches.push({ seg, text: seg.text.slice(0, ovS - s) + ins + seg.text.slice(ovE - s) });
+    } else if (s <= numStart && numStart < e) {
+      patches.push({ seg, text: seg.text.slice(0, numStart - s) + monthStr + seg.text.slice(numStart - s) });
+      break;
+    }
+  }
+  let out = xml;
+  for (const p of patches.sort((a, b) => b.seg.start - a.seg.start)) {
+    out = out.slice(0, p.seg.start) + p.text + out.slice(p.seg.end);
+  }
+  return out;
+}

@@ -2,7 +2,7 @@
 // 자동매핑/보정 결과(spec)를 따라 실데이터를 셀에 써넣는다. 5칸/5행 물리 정리 적용.
 
 import { readSection0, readHeader, patchFiles, fixHwpxLineSpacing } from "@/lib/hwpx";
-import { fillCells, type CellEdit, type Coord } from "@/lib/record-fill";
+import { fillCells, fillTitleParenMonth, type CellEdit, type Coord } from "@/lib/record-fill";
 import { removeTableColumns, removeTableRows } from "@/lib/record-trim";
 import { detectCalendarFromXml, detectOpinionFromXml, type ResolvedSpec } from "@/lib/record-resolver";
 import { buildCalendarEdits, type CalSession } from "@/lib/schedule-calendar";
@@ -302,8 +302,8 @@ export function generateRecordFromForm(
       edits.push(...buildCalendarEdits(cal, yr, payload.month, calSessions, { timeCharPr, redCharPr, holidayCharPr, holidays: monthHolidays }));
     }
     xml = fillCells(xml, edits);
-    // 제목의 "( N월 )" 채우기 (빈 양식은 "(  월)" 처럼 비어 있음)
-    if (payload.month) xml = xml.replace(/(기록지\s*\(\s*)\d*(\s*월)/, `$1${payload.month}$2`);
+    // 제목의 "( N월 )" 채우기 (빈 양식은 "(  월)" 처럼 비어 있음; 제목 런 쪼개짐 허용)
+    if (payload.month) xml = fillTitleParenMonth(xml, "기록지", payload.month);
     // 결과 칸 글자 자동축소 — 긴 결과가 칸을 넘쳐 아래 표와 겹치는 것 방지.
     let outHeader = header;
     if (narrByTable.size) {

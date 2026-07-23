@@ -10,7 +10,7 @@ import {
   readSection0,
   type ZipEntry,
 } from "@/lib/hwpx";
-import { fillCells, type CellEdit, type Coord } from "@/lib/record-fill";
+import { fillCells, fillTitleParenMonth, type CellEdit, type Coord } from "@/lib/record-fill";
 import { autoFitRecordFont } from "@/lib/record-autofit";
 import type { RecordFormKey } from "@/lib/record-forms";
 
@@ -248,8 +248,9 @@ function buildCoordEdits(spec: CoordSpec, p: RecordPayload): CellEdit[] {
 
 function substituteCoordXml(xml: string, p: RecordPayload, spec: CoordSpec): string {
   let out = fillCells(xml, buildCoordEdits(spec, p));
-  // 제목의 "( N월 )" 표기 채우기 (빈 양식은 "(  월)" 처럼 비어 있기도 함)
-  out = out.replace(/(기록지\s*\(\s*)\d*(\s*월)/, `$1${p.month}$2`);
+  // 제목의 "( N월 )" 표기 채우기 (빈 양식은 "(  월)" 처럼 비어 있기도 함).
+  // 표준형 템플릿은 제목이 여러 런("…기록지"|" (6"|"월)")이라 런 관용 치환을 쓴다.
+  out = fillTitleParenMonth(out, "기록지", p.month);
   return out;
 }
 

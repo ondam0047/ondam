@@ -3,7 +3,7 @@
 // (요일×슬롯 주간 격자 본문은 다음 단계)
 
 import { readSection0, readHeader, patchSection0, patchFiles } from "@/lib/hwpx";
-import { fillCells, type CellEdit, type Coord } from "@/lib/record-fill";
+import { fillCells, fillTitleParenMonth, type CellEdit, type Coord } from "@/lib/record-fill";
 import { detectCalendarFromXml, type ResolvedSpec } from "@/lib/record-resolver";
 import { buildCalendarEdits } from "@/lib/schedule-calendar";
 import { getCellRunCharPr, addClonedCharPr } from "@/lib/hwpx-charpr";
@@ -101,8 +101,8 @@ export function generateScheduleFromForm(
   }
 
   xml = fillCells(xml, edits);
-  // 제목 "( N월 )"
-  if (p.month) xml = xml.replace(/(일정표\s*\(\s*)\d*(\s*월)/, `$1${p.month}$2`);
+  // 제목 "( N월 )" (제목 런 쪼개짐 허용)
+  if (p.month) xml = fillTitleParenMonth(xml, "일정표", p.month);
   return usedHeader
     ? patchFiles(template, { "Contents/section0.xml": xml, "Contents/header.xml": header })
     : patchSection0(template, xml);
