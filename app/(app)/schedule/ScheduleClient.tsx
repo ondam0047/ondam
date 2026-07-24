@@ -388,7 +388,7 @@ export default function ScheduleClient({
     setServiceType(s.serviceType);
     setTarget(s.target);
     setMgmt(s.mgmtNumber ?? "");
-    setPvOrg(s.pvOrg);
+    setPvOrg(s.pvOrg || defaultOrg); // 저장본에 제공자명이 비어 있으면 센터 기관명으로 폴백
     setPvTel(defaultTel || s.pvTel || ""); // 전화는 센터 설정이 우선(옛 저장본의 하드코딩 번호 무시)
     setPvCharge(s.pvCharge ?? "");
     setPvType(s.pvType);
@@ -445,7 +445,7 @@ export default function ScheduleClient({
     setServiceType(s.serviceType);
     setTarget(s.target);
     setMgmt(s.mgmtNumber ?? "");
-    setPvOrg(s.pvOrg);
+    setPvOrg(s.pvOrg || defaultOrg); // 저장본에 제공자명이 비어 있으면 센터 기관명으로 폴백
     setPvTel(defaultTel || s.pvTel || ""); // 전화는 센터 설정이 우선(옛 저장본의 하드코딩 번호 무시)
     setPvCharge(s.pvCharge ?? "");
     setPvType(s.pvType);
