@@ -1051,7 +1051,7 @@ export default function ScheduleClient({
                   </tr>
                   <tr>
                     <td><input value={pvOrg} onChange={(e) => setPvOrg(e.target.value)} style={{ minWidth: 120 }} /></td>
-                    <td><input value={pvTel} onChange={(e) => setPvTel(e.target.value)} style={{ width: 78 }} /></td>
+                    <td><input value={pvTel} onChange={(e) => setPvTel(e.target.value)} style={{ minWidth: 110 }} /></td>
                     <td><input value={pvCharge} onChange={(e) => setPvCharge(e.target.value)} style={{ width: 64 }} /></td>
                     <td><input value={pvType} onChange={(e) => setPvType(e.target.value)} style={{ width: 84 }} /></td>
                     <td>{cycle}</td>
