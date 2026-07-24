@@ -19,6 +19,7 @@ type RecordSessionData = {
   resultExtra?: string | null;
   retroReason?: string | null;
   status?: string | null;
+  apprNumber?: string | null;
 };
 
 type SessionRow = {
@@ -40,18 +41,21 @@ function parseYMD(s: string): { y: number; mo: number; d: number } | null {
   return m ? { y: +m[1], mo: +m[2], d: +m[3] } : null;
 }
 
-// 일정표 회기 ↔ 엑셀 행을 "같은 일자" 기준으로 우선 매칭. 정확히 일치하는 일자는 그대로
-// 매치, 남은 회기는 순서대로 빈 행에 채워넣음. (1,3,8,13,15 vs 3,5,8,13,15 의 경우
-// 3·8·13·15 가 일치 처리되고 남은 1 이 5 행에 할당됨)
+// 일정표 예정일 ↔ 회기(확정 제공일)를 "같은 일자" 기준으로 우선 매칭. 같은 날짜가 있으면
+// 그 회기에 고정하고, 남은 예정일만 짝 없는 회기에 순서대로 붙인다. 회차가 통째로 밀리지 않는다.
+// (예정 1·6·8·13·15 / 실제 1·6·8·15·20 → 15 는 15 에 그대로 붙고, 남은 13 이 20 일 회기로.
+//  = "13일에 하기로 한 걸 20일에 했다" 한 건만 어긋난 것으로 잡힘)
 function pairScheduleDays(
   scheduleDays: (number | null)[],
-  rowPayDays: (number | null)[]
+  rowFixedDays: (number | null)[]
 ): (number | null)[] {
   const schedSet = new Set<number>();
   for (const d of scheduleDays) if (d != null) schedSet.add(d);
   const usedSched = new Set<number>();
-  const result: (number | null)[] = rowPayDays.map((pd) => {
-    if (pd != null && schedSet.has(pd)) {
+  const result: (number | null)[] = rowFixedDays.map((pd) => {
+    // 예정일 하나는 회기 하나에만 붙는다. (하루 두 번 수업처럼 같은 날짜가 두 회기에
+    // 걸리면 앞 회기만 일치로 보고, 뒤 회기는 남은 예정일과 짝지어 사유를 받게 한다)
+    if (pd != null && schedSet.has(pd) && !usedSched.has(pd)) {
       usedSched.add(pd);
       return pd;
     }
@@ -666,6 +670,8 @@ function RecordSheet({
   const [dates, setDates] = useState(
     rows.map((s) => { const pu = parseYMD(s.use); return pu ? `${pu.mo}/${pu.d}` : String(s.use ?? ""); })
   );
+  // 임상가가 직접 정한 제공일자 칸 — 나중에 엑셀이 와도 덮어쓰지 않는다(하루 두 번 결제 등).
+  const dateFixedByUser = useRef<Set<number>>(new Set());
   const [vouchers, setVouchers] = useState(rows.map(() => "40"));
   const [extras, setExtras] = useState(rows.map(() => "10"));
   const [amounts, setAmounts] = useState(
@@ -727,6 +733,20 @@ function RecordSheet({
     return () => { cancelled = true; };
   }, [childServiceId, monthNumForLoad, year, rows]);
 
+  // 승인내역(엑셀)이 나중에 올라오거나 바뀌면 제공일자를 확정일(서비스이용일자)로 다시 채운다.
+  // 일정표로 미리 작성해 둔 '예정일'이 그대로 남아 있으면 화면에 예정일과 승인내역이 섞여
+  // 회차가 한 칸씩 밀려 보이고, 없는 불일치 경고가 생겼다(회기 수가 같으면 리마운트도 안 됨).
+  const apprSig = rows.map((s) => s.appr || "").join("|");
+  useEffect(() => {
+    if (!rows.some((s) => s.appr)) return; // 엑셀 없는 작업본은 기록지에 적은 날이 확정일
+    setDates((prev) => prev.map((v, i) => {
+      if (dateFixedByUser.current.has(i)) return v;
+      const pu = parseYMD(rows[i]?.use ?? "");
+      return pu ? `${pu.mo}/${pu.d}` : v;
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apprSig]);
+
   useEffect(() => {
     if (!childServiceId || !monthNumForLoad) return;
     // 아동/월 전환 — 자동저장 게이트 초기화(이전 아동 데이터로 잘못 저장 방지)
@@ -741,14 +761,35 @@ function RecordSheet({
         setLoadedRecordId(rec.id);
         setOpinion(rec.opinion ?? "");
         if (rec.formId) setOutFormId(rec.formId); // 저장 시 기억한 출력 양식 복원
-        const sm = new Map<number, RecordSessionData>();
-        for (const s of rec.sessions as RecordSessionData[]) sm.set(s.ordinal, s);
+        // 저장본 ↔ 화면 회기 짝짓기 — 승인번호가 있으면 그걸로 맞춘다. 엑셀은 서비스이용일자
+        // 순으로 정렬돼 들어오므로 회차 순번만 믿으면 회기가 통째로 밀려 붙는다.
+        const byOrd = new Map<number, RecordSessionData>();
+        const byAppr = new Map<string, RecordSessionData>();
+        for (const s of rec.sessions as RecordSessionData[]) {
+          byOrd.set(s.ordinal, s);
+          if (s.apprNumber) byAppr.set(String(s.apprNumber), s);
+        }
+        const sm = {
+          get(ord: number): RecordSessionData | undefined {
+            const appr = rows[ord - 1]?.appr;
+            if (appr && byAppr.size) return byAppr.get(appr); // 못 찾으면 새 회기 → 남의 값 붙이지 않음
+            return byOrd.get(ord);
+          },
+        };
         setTimes((prev) => prev.map((t, i) => {
           const s = sm.get(i + 1);
           return s ? { start: s.startTime ?? t.start, end: s.endTime ?? t.end } : t;
         }));
-        // 저장된 편집 날짜(제공일자) 복원 — 없으면 시드값(승인내역 기준) 유지.
-        setDates((prev) => prev.map((v, i) => sm.get(i + 1)?.date ?? v));
+        // 저장된 제공일자 복원 — 단, 승인번호 없이(=일정표 예정일로 미리) 저장해 둔 값이
+        // 나중에 붙은 엑셀 확정일을 덮지 않게 한다. 엑셀이 있는 상태에서 저장된 값은
+        // 임상가가 확정한 날짜이므로 그대로 살리고 재시드에서도 보호한다.
+        setDates((prev) => prev.map((v, i) => {
+          const s = sm.get(i + 1);
+          if (!s?.date) return v;
+          if (!s.apprNumber && rows[i]?.appr) return v; // 예정일 저장본 < 엑셀 확정일
+          dateFixedByUser.current.add(i);
+          return s.date;
+        }));
         setVouchers((prev) => prev.map((v, i) => sm.get(i + 1)?.voucher ?? v));
         setExtras((prev) => prev.map((v, i) => sm.get(i + 1)?.extra ?? v));
         // 총이용금액도 저장값으로 복원 — 회차별로 다른 금액을 저장하면 그대로 유지된다.
@@ -810,8 +851,8 @@ function RecordSheet({
       const monthNum = typeof month === "number" ? month : parseInt(String(month)) || 0;
       const sessionsPayload = rows.map((s, i) => {
         const pp = parseYMD(s.pay);
-        // 편집된 제공일자(dates[i]) 우선 — 없으면 일정표 매칭일(useDays)로 폴백.
-        const useDayNum = editedDay(i) ?? useDays[i];
+        // 출력 useDay = 확정 제공일(제공일자 칸 > 승인내역 이용일자). 일정표 예정일은 쓰지 않는다.
+        const useDayNum = fixedDays[i] ?? null;
         return {
           date: dates[i] || "",
           startTime: times[i].start,
@@ -880,27 +921,23 @@ function RecordSheet({
     });
   }
   function setDate(i: number, v: string) {
+    dateFixedByUser.current.add(i);
     setDates((prev) => { const n = [...prev]; n[i] = v; return n; });
   }
-  // 편집된 "M/D" 문자열에서 '일'만 뽑기 — 제공일자 표시·승인일자 대조·출력 useDay 에 사용.
-  function editedDay(i: number): number | null {
-    const m = String(dates[i] ?? "").match(/(\d{1,2})\s*$/);
-    return m ? +m[1] : null;
-  }
-
-  // 제공일자(useDay) 매칭 — 같은 일자 우선, 남는 회기는 순서대로 할당.
-  // 1,3,8,13,15 일정에 3,5,8,13,15 엑셀이 오면 3·8·13·15 는 자동 일치, 5 는 1 로 매핑.
-  // 일정표에서 매칭된 일자 그 자체(폴백 없음) — "일정표 ↔ 승인내역" 대조에 쓴다.
-  // useDays 는 매칭 실패 시 승인내역 이용일자로 폴백하므로 대조에 쓰면 항상 일치해버린다.
-  const schedDays = useMemo(() => {
-    const payDs = rows.map((s) => parseYMD(s.pay)?.d ?? null);
-    return pairScheduleDays(scheduleDays, payDs);
-  }, [scheduleDays, rows]);
-
-  const useDays = useMemo(
-    () => schedDays.map((d, i) => d ?? (parseYMD(rows[i].use)?.d ?? null)),
-    [schedDays, rows],
+  // 확정 제공일 — 제공일자 칸("M/D")의 '일'이 최우선, 없으면 승인내역 서비스이용일자.
+  // 일정표는 '예정일'일 뿐이므로 확정일 판정에 쓰지 않는다(예정 13일 → 실제 20일 제공이 정상).
+  const fixedDays = useMemo(
+    () => rows.map((s, i) => {
+      const m = String(dates[i] ?? "").match(/(\d{1,2})\s*$/);
+      return m ? +m[1] : (parseYMD(s.use)?.d ?? null);
+    }),
+    [rows, dates],
   );
+
+  // 일정표 예정일 ↔ 회기 짝짓기(확정일 기준). 결제일로 짝지으면 결제가 하루라도 밀린 회기부터
+  // 예정일이 통째로 한 칸씩 밀려 없는 불일치가 줄줄이 생겼다.
+  const schedDays = useMemo(() => pairScheduleDays(scheduleDays, fixedDays), [scheduleDays, fixedDays]);
+
 
   // 작업 중 자동 저장 — 사용자가 실제 입력했거나(이미 저장된 기록 편집 중) 일 때만 조용히 서버 저장.
   // (다른 컴퓨터에서도 같은 아동·월을 고르면 자동으로 불러와짐)
@@ -912,7 +949,7 @@ function RecordSheet({
       const payload = {
         childServiceId, year, month: monthNumForLoad, org, childName: child, childBirth: birth, opinion,
         sessions: rows.map((s, i) => {
-          const pp = parseYMD(s.pay); const useDayNum = editedDay(i) ?? useDays[i];
+          const pp = parseYMD(s.pay); const useDayNum = fixedDays[i] ?? null;
           return {
             ordinal: i + 1, date: dates[i] || "", startTime: times[i].start, endTime: times[i].end,
             voucher: vouchers[i], extra: extras[i], amount: amounts[i],
@@ -934,7 +971,7 @@ function RecordSheet({
     const t = window.setTimeout(() => { void autoSaveRecord(); }, 1800);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [childServiceId, year, monthNumForLoad, rows, times, dates, vouchers, extras, amounts, results, statuses, mismatchReasons, retroReasons, opinion, useDays, outFormId, loadedRecordId]);
+  }, [childServiceId, year, monthNumForLoad, rows, times, dates, vouchers, extras, amounts, results, statuses, mismatchReasons, retroReasons, opinion, fixedDays, outFormId, loadedRecordId]);
 
   // 제공일자(월·일) = 실제 서비스이용일자(승인내역 원본). 예전엔 일정표 매칭일(useDays)을
   // 썼는데, 회기가 옮겨지거나 결제일과 어긋나면 승인내역·일정표 어디에도 없는 날짜가 찍혔음.
@@ -1060,19 +1097,20 @@ function RecordSheet({
         </h3>
         {rows.map((s, i) => {
           const pp = parseYMD(s.pay);
-          // 제공일자 = 편집값(dates) 우선 → 승인내역(서비스이용일자) → 일정표 매칭일. 화면·출력·대조 모두 이 값으로 통일.
-          const useD = editedDay(i) ?? parseYMD(s.use)?.d ?? useDays[i] ?? null;
+          // 제공일자 = 확정일(임상가가 고친 값 > 승인내역 서비스이용일자). 화면·출력·대조 모두 이 값.
+          const useD = fixedDays[i] ?? null;
           const payD = pp ? pp.d : null;
           const hasBoth = useD !== null && payD !== null;
           const match = hasBoth && useD === payD;
           const isRetro = (s.payKind || "").includes("소급");
-          // 일정표 ↔ 승인내역 대조. 위 useD 는 f2420dd 이후 승인내역 이용일자를 우선하므로
-          // (출력물 날짜를 승인내역과 맞추려는 의도) 그것끼리 비교하면 일정표와의 어긋남을
-          // 영영 못 잡는다 → 폴백 없는 일정표 매칭일(schedDays)과 승인내역 원본을 따로 본다.
-          const apprUseD = parseYMD(s.use)?.d ?? null;
+          // 일정표는 '예정일' — 확정 제공일과 다르면 예정이 바뀐 것이므로 그 회기에만 사유를 받는다.
+          // (예정 13일 → 실제 20일 제공이면 20일 회기 한 칸에만 뜬다. 15일처럼 예정대로 한
+          //  회기는 그대로 일치로 남는다.)
           const schedD = schedDays[i] ?? null;
-          const schedMismatch = schedD !== null && apprUseD !== null && schedD !== apprUseD;
-          const needReason = schedMismatch || (hasBoth && !match);
+          const schedMismatch = schedD !== null && useD !== null && schedD !== useD;
+          // 사유는 여기 하나만 받는다 — 일정표 예정일과 기록지 확정일이 같은 회기는 사유 없음.
+          // 결제일(승인일자)이 다른 건 사유 대상이 아니라 안내만(소급건은 아래 '소급 사유'가 따로 있다).
+          const needReason = schedMismatch;
           return (
             <div
               key={i}
@@ -1090,10 +1128,12 @@ function RecordSheet({
                 )}
                 {!hasBoth && <span className="sub-mute" style={{ fontSize: 11.5 }}>(엑셀 미업로드)</span>}
                 {schedMismatch && (
-                  <span className="warnflag">⚠ 일정표({schedD}일)≠승인내역({apprUseD}일) — 사유 작성 필요</span>
+                  <span className="warnflag">⚠ 일정표 예정 {schedD}일 → 실제 제공 {useD}일 — 사유 작성 필요</span>
                 )}
-                {hasBoth && !match && <span className="warnflag">⚠ 제공일자≠승인일자 — 사유 작성 필요</span>}
-                {hasBoth && match && !schedMismatch && <span className="okflag">✓ 일치</span>}
+                {!schedMismatch && hasBoth && !match && (
+                  <span className="sub-mute" style={{ fontSize: 11.5 }}>결제일이 제공일과 달라요(참고)</span>
+                )}
+                {!schedMismatch && schedD !== null && <span className="okflag">✓ 일정표와 같음</span>}
               </div>
               {splitStatus && (
                 <div style={{ marginBottom: 8 }}>
@@ -1122,11 +1162,12 @@ function RecordSheet({
               {needReason && (
                 <div style={{ marginTop: 8 }}>
                   <label style={{ display: "block", fontSize: 12.5, fontWeight: 600, color: "var(--danger)", marginBottom: 4 }}>
-                    불일치 사유
+                    일정 변경 사유
                   </label>
                   <input
                     className="input"
                     value={mismatchReasons[i]}
+                    placeholder={`예) ${schedD}일 예정이었으나 아동 사정으로 ${useD}일에 제공함`}
                     onChange={(e) => setMismatchReasons((p) => { const n = [...p]; n[i] = e.target.value; return n; })}
                   />
                 </div>
