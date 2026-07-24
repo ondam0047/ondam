@@ -60,14 +60,19 @@ function Warn($m)  { Write-Host "! $m" -ForegroundColor Yellow }
 function Die($m)   { Write-Host "✗ $m" -ForegroundColor Red; exit 1 }
 
 # native 명령 실행 + 실패 시 중단 (DryRun이면 출력만)
+# 주의: $ErrorActionPreference="Stop" 상태에서 native exe 의 stderr 를 2>&1 로 성공 스트림에
+# 합치면 PowerShell 5.1 이 각 줄을 NativeCommandError 로 감싸 첫 줄에서 스크립트가 죽는다.
+# git·ssh 는 진행 상황을 stderr 로 쓰므로 정상 동작 중에도 걸린다 — 실제로 배포가 git pull
+# 직후 끊겨 서버가 "새 코드 + 옛 빌드(pm2 재시작 없음)" 상태로 조용히 남은 적이 있다.
+# → stderr 는 그대로 콘솔에 흘리고(긴 빌드 로그도 실시간으로 보임) 성패는 종료코드로만 판단.
 function Run($exe, $argList) {
     $pretty = "$exe $($argList -join ' ')"
-    if ($DryRun) { Write-Host "  [dry-run] $pretty" -ForegroundColor DarkGray; return "" }
+    if ($DryRun) { Write-Host "  [dry-run] $pretty" -ForegroundColor DarkGray; return }
     Write-Host "  $ $pretty" -ForegroundColor DarkGray
-    $out = & $exe @argList 2>&1
-    if ($out) { $out | ForEach-Object { Write-Host "    $_" } }
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try { & $exe @argList } finally { $ErrorActionPreference = $prev }
     if ($LASTEXITCODE -ne 0) { Die "명령 실패(exit $LASTEXITCODE): $pretty" }
-    return $out
 }
 
 # ── 브랜치 결정 ────────────────────────────────────────────────
