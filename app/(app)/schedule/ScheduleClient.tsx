@@ -58,6 +58,7 @@ export default function ScheduleClient({
   slots,
   defaultFilterTherapist = null,
   defaultOrg = "",
+  defaultTel = "",
   centerDefaultUnit = 60000,
 }: {
   children: ChildOption[];
@@ -66,6 +67,7 @@ export default function ScheduleClient({
   slots: string[];
   defaultFilterTherapist?: string | null;
   defaultOrg?: string;
+  defaultTel?: string;
   centerDefaultUnit?: number;
 }) {
   const betaUx = useBetaUx();
@@ -103,7 +105,9 @@ export default function ScheduleClient({
   const [genM, setGenM] = useState(0);
   const [mgmt, setMgmt] = useState("");
   const [pvOrg, setPvOrg] = useState(defaultOrg);
-  const [pvTel, setPvTel] = useState("775-0047");
+  // 전화 기본값 = 센터 설정 전화(center.phone). 예전엔 온담 번호가 하드코딩돼 다른 센터가
+  // 잘못된 번호를 쓰거나, 빈 값으로 저장된 일정표를 열면 아예 빈칸이 됐다.
+  const [pvTel, setPvTel] = useState(defaultTel);
   const [pvCharge, setPvCharge] = useState(defaultFilterTherapist || therapists[0]?.name || "");
   const [pvType, setPvType] = useState(serviceTypes[0] ?? "");
   const [costUnit, setCostUnit] = useState(centerDefaultUnit.toLocaleString("ko-KR"));
@@ -213,7 +217,7 @@ export default function ScheduleClient({
         if (typeof d.childBirth === "string") setChildBirth(d.childBirth);
         if (typeof d.mgmt === "string") setMgmt(d.mgmt);
         // pvOrg(제공기관명), pvCharge(담당), pvType(서비스 종류) 도 설정에서 옴 — 복원 안 함.
-        if (typeof d.pvTel === "string") setPvTel(d.pvTel);
+        if (typeof d.pvTel === "string") setPvTel(d.pvTel || defaultTel);
         if (typeof d.costUnit === "string") setCostUnit(d.costUnit);
         if (typeof d.costSelf === "string") setCostSelf(d.costSelf);
         if (typeof d.writeDate === "string") setWriteDate(d.writeDate);
@@ -384,7 +388,7 @@ export default function ScheduleClient({
     setTarget(s.target);
     setMgmt(s.mgmtNumber ?? "");
     setPvOrg(s.pvOrg);
-    setPvTel(s.pvTel ?? "");
+    setPvTel(s.pvTel || defaultTel);
     setPvCharge(s.pvCharge ?? "");
     setPvType(s.pvType);
     setCostUnit(s.costUnit);
@@ -441,7 +445,7 @@ export default function ScheduleClient({
     setTarget(s.target);
     setMgmt(s.mgmtNumber ?? "");
     setPvOrg(s.pvOrg);
-    setPvTel(s.pvTel ?? "");
+    setPvTel(s.pvTel || defaultTel);
     setPvCharge(s.pvCharge ?? "");
     setPvType(s.pvType);
     setCostUnit(s.costUnit);
