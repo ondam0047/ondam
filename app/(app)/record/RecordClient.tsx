@@ -890,11 +890,17 @@ function RecordSheet({
 
   // 제공일자(useDay) 매칭 — 같은 일자 우선, 남는 회기는 순서대로 할당.
   // 1,3,8,13,15 일정에 3,5,8,13,15 엑셀이 오면 3·8·13·15 는 자동 일치, 5 는 1 로 매핑.
-  const useDays = useMemo(() => {
+  // 일정표에서 매칭된 일자 그 자체(폴백 없음) — "일정표 ↔ 승인내역" 대조에 쓴다.
+  // useDays 는 매칭 실패 시 승인내역 이용일자로 폴백하므로 대조에 쓰면 항상 일치해버린다.
+  const schedDays = useMemo(() => {
     const payDs = rows.map((s) => parseYMD(s.pay)?.d ?? null);
-    const matched = pairScheduleDays(scheduleDays, payDs);
-    return matched.map((d, i) => d ?? (parseYMD(rows[i].use)?.d ?? null));
+    return pairScheduleDays(scheduleDays, payDs);
   }, [scheduleDays, rows]);
+
+  const useDays = useMemo(
+    () => schedDays.map((d, i) => d ?? (parseYMD(rows[i].use)?.d ?? null)),
+    [schedDays, rows],
+  );
 
   // 작업 중 자동 저장 — 사용자가 실제 입력했거나(이미 저장된 기록 편집 중) 일 때만 조용히 서버 저장.
   // (다른 컴퓨터에서도 같은 아동·월을 고르면 자동으로 불러와짐)
@@ -1060,10 +1066,17 @@ function RecordSheet({
           const hasBoth = useD !== null && payD !== null;
           const match = hasBoth && useD === payD;
           const isRetro = (s.payKind || "").includes("소급");
+          // 일정표 ↔ 승인내역 대조. 위 useD 는 f2420dd 이후 승인내역 이용일자를 우선하므로
+          // (출력물 날짜를 승인내역과 맞추려는 의도) 그것끼리 비교하면 일정표와의 어긋남을
+          // 영영 못 잡는다 → 폴백 없는 일정표 매칭일(schedDays)과 승인내역 원본을 따로 본다.
+          const apprUseD = parseYMD(s.use)?.d ?? null;
+          const schedD = schedDays[i] ?? null;
+          const schedMismatch = schedD !== null && apprUseD !== null && schedD !== apprUseD;
+          const needReason = schedMismatch || (hasBoth && !match);
           return (
             <div
               key={i}
-              className={"result-row" + (betaUx ? " compact" : "") + (match ? "" : hasBoth ? " mismatch" : "")}
+              className={"result-row" + (betaUx ? " compact" : "") + (needReason ? " mismatch" : "")}
               data-retro={isRetro ? "true" : undefined}
             >
               <div className="rr-head">
@@ -1075,11 +1088,12 @@ function RecordSheet({
                     소급결제
                   </span>
                 )}
-                {!hasBoth
-                  ? <span className="sub-mute" style={{ fontSize: 11.5 }}>(엑셀 미업로드)</span>
-                  : match
-                    ? <span className="okflag">✓ 일치</span>
-                    : <span className="warnflag">⚠ 제공일자≠승인일자 — 사유 작성 필요</span>}
+                {!hasBoth && <span className="sub-mute" style={{ fontSize: 11.5 }}>(엑셀 미업로드)</span>}
+                {schedMismatch && (
+                  <span className="warnflag">⚠ 일정표({schedD}일)≠승인내역({apprUseD}일) — 사유 작성 필요</span>
+                )}
+                {hasBoth && !match && <span className="warnflag">⚠ 제공일자≠승인일자 — 사유 작성 필요</span>}
+                {hasBoth && match && !schedMismatch && <span className="okflag">✓ 일치</span>}
               </div>
               {splitStatus && (
                 <div style={{ marginBottom: 8 }}>
@@ -1105,7 +1119,7 @@ function RecordSheet({
                 placeholder=""
                 onChange={(e) => setResults((p) => { const n = [...p]; n[i] = e.target.value; return n; })}
               />
-              {hasBoth && !match && (
+              {needReason && (
                 <div style={{ marginTop: 8 }}>
                   <label style={{ display: "block", fontSize: 12.5, fontWeight: 600, color: "var(--danger)", marginBottom: 4 }}>
                     불일치 사유
