@@ -216,8 +216,9 @@ export default function ScheduleClient({
         }
         if (typeof d.childBirth === "string") setChildBirth(d.childBirth);
         if (typeof d.mgmt === "string") setMgmt(d.mgmt);
-        // pvOrg(제공기관명), pvCharge(담당), pvType(서비스 종류) 도 설정에서 옴 — 복원 안 함.
-        if (typeof d.pvTel === "string") setPvTel(d.pvTel || defaultTel);
+        // pvOrg(제공기관명)·pvCharge(담당)·pvType(서비스 종류)·pvTel(전화) 은 모두 센터 설정에서 옴 —
+        // 임시본에서 복원하지 않는다. (예전 하드코딩 전화 "775-0047"이 임시본에 박혀 센터 설정을
+        //  덮던 문제. 전화는 useState 기본값 = defaultTel(센터 대표전화)을 그대로 쓴다.)
         if (typeof d.costUnit === "string") setCostUnit(d.costUnit);
         if (typeof d.costSelf === "string") setCostSelf(d.costSelf);
         if (typeof d.writeDate === "string") setWriteDate(d.writeDate);
@@ -388,7 +389,7 @@ export default function ScheduleClient({
     setTarget(s.target);
     setMgmt(s.mgmtNumber ?? "");
     setPvOrg(s.pvOrg);
-    setPvTel(s.pvTel || defaultTel);
+    setPvTel(defaultTel || s.pvTel || ""); // 전화는 센터 설정이 우선(옛 저장본의 하드코딩 번호 무시)
     setPvCharge(s.pvCharge ?? "");
     setPvType(s.pvType);
     setCostUnit(s.costUnit);
@@ -445,7 +446,7 @@ export default function ScheduleClient({
     setTarget(s.target);
     setMgmt(s.mgmtNumber ?? "");
     setPvOrg(s.pvOrg);
-    setPvTel(s.pvTel || defaultTel);
+    setPvTel(defaultTel || s.pvTel || ""); // 전화는 센터 설정이 우선(옛 저장본의 하드코딩 번호 무시)
     setPvCharge(s.pvCharge ?? "");
     setPvType(s.pvType);
     setCostUnit(s.costUnit);
