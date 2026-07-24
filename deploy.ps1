@@ -145,6 +145,7 @@ $steps += "pm2 restart $pm2Name"
 $remoteCmd = "set -e; " + ($steps -join " && ")
 
 $sshArgs = @()
+if ($cfg.sshPort) { $sshArgs += @("-p", "$($cfg.sshPort)") }
 if ($cfg.sshKey) {
     if (-not (Test-Path $cfg.sshKey)) { Die "sshKey 경로를 찾을 수 없습니다: $($cfg.sshKey)" }
     $sshArgs += @("-i", $cfg.sshKey)
