@@ -40,7 +40,9 @@ function buildFillMap(spec: ResolvedSpec, d: Payload): Map<string, string> {
   put(spec.name, d.studentName);
   put(spec.org,  d.org);
   put(spec.birth, d.birth ?? "");
-  (spec.therapist ?? []).forEach((co) => put(co, d.therapistName));
+  // 담당재활사(회기별 서명 행)는 수기 서명·날인 칸 — 자동 출력하지 않고 빈칸으로 남긴다(전역 일관, 기록지와 동일).
+  // spec.therapist 좌표는 감지만 유지하되 이름을 채우지 않는다. 헤더성 치료사 이름 칸은 별개.
+  // (spec.therapist ?? []).forEach((co) => put(co, d.therapistName));
   putArr(spec.date,  (i) => S[i]?.date ?? "");
   putArr(spec.start, (i) => S[i]?.startTime ?? "");
   putArr(spec.end,   (i) => S[i]?.endTime ?? "");

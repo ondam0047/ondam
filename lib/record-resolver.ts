@@ -156,7 +156,7 @@ export type ResolvedSpec = {
   date: Coord[]; start: Coord[]; end: Coord[];
   voucher: Coord[]; extra: Coord[]; amount: Coord[];
   voucherAmount?: Coord[]; copayAmount?: Coord[];
-  therapist?: Coord[]; // 담당재활사 행 × 날짜 열 — 치료사 이름 자동 채움
+  therapist?: Coord[]; // 담당재활사 행 × 날짜 열 좌표(감지만) — 수기 서명 칸이라 자동 채우지 않음(빈칸 출력)
   serviceName?: Coord; // 본표 서비스 종류 칸("( )재활") — 치료사 종류 기반 채움
   dateTable?: number;          // 회기(날짜축) 표 인덱스
   extraSessionCols?: number[]; // 5칸 초과 회기 열(날짜축에서 6번째 이후, 누계 제외) — 5칸 정리용
@@ -307,7 +307,9 @@ export function resolveForm(xml: string): ResolveOutput {
   } else if (startRows.length === 1) {
     spec.start = valsAt(startRows[0]); if (endRows[0] != null) spec.end = valsAt(endRows[0]);
   }
-  // 담당재활사 행 × 날짜 열 → 치료사 이름 자동 채움(다서비스 양식은 블록마다 행이 여러 개)
+  // 담당재활사 행 × 날짜 열 좌표만 감지해 둔다(다서비스 양식은 블록마다 행이 여러 개).
+  // ※ 이름을 자동으로 채우지는 않는다 — 담당재활사 칸은 회기별 수기 서명·날인 칸이므로 빈칸으로 출력.
+  //    (실제 채움은 record-fill-spec.ts / buildSampleEdits 에서 의도적으로 비활성)
   const therapistRows = labelRows(/담당재활사/);
   if (therapistRows.length > 0 && dcols.length > 0) {
     spec.therapist = therapistRows.flatMap((r) => valsAt(r));
@@ -527,7 +529,8 @@ export function buildSampleEdits(spec: ResolvedSpec, normCharPr?: number, calOpt
   spec.date.forEach((co, i) => put(co, `6/${days[i] ?? i + 1}`));
   spec.start.forEach((co) => put(co, "10:00"));
   spec.end.forEach((co) => put(co, "10:50"));
-  (spec.therapist ?? []).forEach((co) => put(co, "김치료"));
+  // 담당재활사 행은 수기(손글씨/도장) 칸 — 실출력(record-fill-spec.ts)과 동일하게 미리보기도 빈칸으로 둔다.
+  // (spec.therapist ?? []).forEach((co) => put(co, "김치료"));
   spec.serviceBlocks?.forEach((blk) => { blk.start.forEach((co) => put(co, "10:00")); blk.end.forEach((co) => put(co, "10:50")); });
   spec.voucher.forEach((co) => put(co, "50"));
   spec.extra.forEach((co) => put(co, "0"));

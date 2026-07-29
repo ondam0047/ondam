@@ -76,7 +76,12 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
   put(spec.birth, d.childBirth);
   put(spec.serviceArea, d.serviceType, true);
   put(spec.serviceName, d.serviceType, true);
-  (spec.therapist ?? []).forEach((co) => put(co, d.therapistName));
+  // 담당재활사(회기별 서명 행)는 수기(손글씨/도장) 칸 — 자동 출력하지 않고 빈칸으로 남긴다.
+  // 근거: 발달재활 바우처 기록지의 담당재활사 칸은 회기별 제공 사실을 직접 서명·날인하는 칸이며,
+  // 내장 standard 양식(record-hwpx.ts)도 이 칸을 채우지 않는다(전역 일관). spec.therapist 좌표는
+  // 리졸버가 계속 감지하되(향후 재사용 대비) 여기서 이름을 채우지 않는다. 미리보기(buildSampleEdits)도 동일하게 빈칸.
+  // 헤더성 치료사 이름 칸(schedVal '담당' / scalarVal '치료사이름')은 별개이며 그대로 채운다.
+  // (spec.therapist ?? []).forEach((co) => put(co, d.therapistName));
   // 종합의견(부모상담 종합 의견란 등) — resolver 가 잡은 의견 칸에 채움.
   if (spec.opinion) put(spec.opinion, d.opinion ?? "");
 
