@@ -3,7 +3,8 @@ import ScheduleClient from "./ScheduleClient";
 import ViewTabs from "./ViewTabs";
 import { bulkGenerateSchedules } from "./bulk-actions";
 import { requireRole, getEffectiveTherapistId } from "@/lib/auth";
-import { parseSlots, THERAPIST_TO_SERVICE } from "@/lib/constants";
+import { parseSlots, THERAPIST_TO_SERVICE, BULK_FAIL_COOKIE } from "@/lib/constants";
+import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
@@ -24,10 +25,25 @@ function monthOptions(): { value: string; label: string; current: boolean }[] {
 export default async function SchedulePage({
   searchParams,
 }: {
-  searchParams: Promise<{ bulk?: string; berr?: string }>;
+  searchParams: Promise<{ bulk?: string; berr?: string; bfail?: string }>;
 }) {
   const user = await requireRole(["OWNER", "THERAPIST"]);
   const sp = await searchParams;
+
+  // 일괄 생성 부분 실패 — 건수는 URL(bfail), 아동 이름은 짧게 사는 쿠키에서만 읽는다.
+  // 이름을 쿼리스트링에 실으면 접근로그·방문기록에 남기 때문. 쿠키가 없으면(만료·차단)
+  // 이름만 빠지고 '몇 명이 실패했다'는 사실은 그대로 보인다.
+  const failCount = Math.max(0, Math.trunc(Number(sp.bfail)) || 0);
+  let failNames: string[] = [];
+  if (failCount > 0) {
+    try {
+      const raw = (await cookies()).get(BULK_FAIL_COOKIE)?.value;
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (Array.isArray(parsed)) {
+        failNames = parsed.filter((v) => typeof v === "string" && v).slice(0, 5);
+      }
+    } catch {}
+  }
   const centerId = user.centerId ?? -1;
   const myTherapistId = await getEffectiveTherapistId(user);
 
@@ -86,6 +102,14 @@ export default async function SchedulePage({
       <ViewTabs active="edit" />
       {sp.bulk && <div className="flash ok" style={{ marginBottom: 14 }}>{sp.bulk}</div>}
       {sp.berr && <div className="flash warn" style={{ marginBottom: 14 }}>{sp.berr}</div>}
+      {failCount > 0 && (
+        <div className="flash warn" style={{ marginBottom: 14, fontWeight: 700 }}>
+          ⚠ {failCount}명은 저장하지 못했어요
+          {failNames.length > 0 &&
+            ` (${failNames.join(", ")}${failCount > failNames.length ? ` 외 ${failCount - failNames.length}명` : ""})`}
+          {" — 이 아동들의 기존 일정표는 그대로 있어요. 잠시 뒤 다시 시도하거나 아래에서 개별로 만들어 주세요."}
+        </div>
+      )}
 
       {/* 월초 전체 아동 일괄 생성 — 아래의 '한 명씩 작성'(step1/step2) 흐름과 구분되도록
           step 마커 없이 접이식 유틸로 시각 격하. */}

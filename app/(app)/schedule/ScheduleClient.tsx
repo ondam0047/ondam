@@ -118,8 +118,17 @@ export default function ScheduleClient({
   const [writeDate, setWriteDate] = useState("");
   const [downloadingHwpx, setDownloadingHwpx] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
-  const [autoStatus, setAutoStatus] = useState<"" | "saving" | "saved">("");
+  const [autoStatus, setAutoStatus] = useState<"" | "saving" | "saved" | "error" | "authError">("");
   const schedTouched = useRef(false); // 사용자가 실제 편집했을 때만 자동저장(로컬 임시본이 서버 최신본 덮어쓰기 방지)
+  // 자동저장 뮤텍스 — 겹쳐 돌면 서버가 회기를 deleteMany 하는 사이 다른 저장의 createMany 가
+  // 끼어들어 unique(scheduleId, day) 충돌·회기 중복삭제가 난다 → 한 번에 하나만, 나머지는 다시 예약.
+  const savingRef = useRef(false);
+  const savePendingRef = useRef(false);
+  const saveFailRef = useRef(0);
+  // 401(다른 기기 로그인으로 세션이 지워짐) — 재시도해도 계속 401 이므로 사용자가
+  // 다시 로그인하고 '지금 저장'을 누를 때까지 멈춘다. 자동 리다이렉트는 하지 않는다(작성분 소실).
+  const authFailedRef = useRef(false);
+  const [saveTick, setSaveTick] = useState(0);
   // 저장한 우리 센터 일정표 양식 — 있으면 출력 양식 선택
   const [savedForms, setSavedForms] = useState<Array<{ id: number; name: string }>>([]);
   const [outFormId, setOutFormId] = useState<number | "">("");
@@ -142,6 +151,10 @@ export default function ScheduleClient({
     _count: { sessions: number };
   };
   const [savedList, setSavedList] = useState<SavedRow[]>([]);
+  // 목록을 못 불러왔을 때의 안내 — 빈 목록을 '저장된 게 없다'로 오해하지 않게.
+  const [savedListErr, setSavedListErr] = useState("");
+  // 지금 들고 있는 목록이 어느 아동 것인지 — 실패 시 다른 아동 목록을 남기지 않기 위해.
+  const savedListOwner = useRef<number | null>(null);
   const [loadedScheduleId, setLoadedScheduleId] = useState<number | null>(null);
 
   // day editor modal
@@ -358,10 +371,37 @@ export default function ScheduleClient({
   }
 
   // 아동 서비스 변경 시 저장된 일정표 목록 fetch
+  // 목록을 못 불러온 것과 '저장된 게 없는 것'은 완전히 다르다 — 조용히 비우면
+  // 사용자가 "없네" 하고 새로 만들다가 그 작업까지 통째로 못 저장한다(로그아웃 상태면 특히).
   const refreshSavedList = useCallback(async (childServiceId: number) => {
-    const res = await fetch(`/api/schedule/list?childServiceId=${childServiceId}`);
-    if (!res.ok) { setSavedList([]); return; }
-    setSavedList((await res.json()) as SavedRow[]);
+    setSavedListErr("");
+    let failed = false;
+    try {
+      const res = await fetch(`/api/schedule/list?childServiceId=${childServiceId}`);
+      if (res.ok) {
+        setSavedList((await res.json()) as SavedRow[]);
+        savedListOwner.current = childServiceId;
+        return;
+      }
+      failed = true;
+      if (res.status === 401) {
+        // 세션이 지워진 상태 — 자동저장과 같은 배너를 띄워 '다시 로그인'으로 안내한다.
+        authFailedRef.current = true;
+        setAutoStatus("authError");
+        setSavedListErr("⚠ 로그아웃된 상태라 저장된 일정표 목록을 불러오지 못했어요 — 화면 위 안내를 확인하세요. (‘저장된 일정표가 없음’이 아닙니다)");
+      } else {
+        setSavedListErr("⚠ 저장된 일정표 목록을 불러오지 못했어요 — ‘저장된 일정표가 없음’이 아닙니다. 잠시 뒤 아동을 다시 선택해 보세요.");
+      }
+    } catch {
+      failed = true;
+      setSavedListErr("⚠ 저장된 일정표 목록을 불러오지 못했어요 — ‘저장된 일정표가 없음’이 아닙니다. 인터넷 연결을 확인해 주세요.");
+    }
+    // 실패했을 때 목록은 그대로 둔다. 단, 지금 고른 아동의 것이 아니면(아동을 막 바꾼 경우)
+    // 남겨두면 다른 아동의 일정표를 불러오거나 지우는 사고가 나므로 이때만 비운다.
+    if (failed && savedListOwner.current !== childServiceId) {
+      setSavedList([]);
+      savedListOwner.current = null;
+    }
   }, []);
 
   useEffect(() => {
@@ -369,8 +409,23 @@ export default function ScheduleClient({
       refreshSavedList(selectedChildId);
     } else {
       setSavedList([]);
+      savedListOwner.current = null;
+      setSavedListErr("");
     }
   }, [selectedChildId, refreshSavedList]);
+
+  // 불러오기·삭제 실패 안내. 401(다른 기기에서 로그인돼 세션이 지워짐)은 일반 실패와 뜻이
+  // 완전히 달라서 — 다시 눌러도 영영 안 된다 — 자동저장과 같은 배너로 재로그인을 안내한다.
+  // status 0 = 요청 자체가 못 나감(네트워크 끊김).
+  function alertRequestFailure(status: number, fallbackMsg: string) {
+    if (status === 401) {
+      authFailedRef.current = true;
+      setAutoStatus("authError");
+      alert("다른 기기에서 로그인되어 로그아웃됐어요 — 화면 위 안내를 확인하세요.");
+      return;
+    }
+    alert(status === 0 ? `${fallbackMsg} — 인터넷 연결을 확인해 주세요.` : fallbackMsg);
+  }
 
   // 가장 최근 저장된 일정을 가져와 현재 선택된 (year, month) 로 변환해서 채우기.
   // 요일 + 시간 패턴을 새 월의 같은 요일에 매핑. 사용자가 수정 후 저장 가능.
@@ -380,8 +435,10 @@ export default function ScheduleClient({
       return;
     }
     const latest = savedList[0]; // savedList 는 year/month DESC 정렬
-    const res = await fetch(`/api/schedule/load?id=${latest.id}`);
-    if (!res.ok) { alert("불러오기 실패"); return; }
+    let res: Response;
+    try { res = await fetch(`/api/schedule/load?id=${latest.id}`); }
+    catch { alertRequestFailure(0, "불러오기 실패"); return; }
+    if (!res.ok) { alertRequestFailure(res.status, "불러오기 실패"); return; }
     const s = await res.json();
     // 메타 정보 복사 (월/년은 현재 선택된 ym 유지)
     setTherapist(s.therapist);
@@ -436,8 +493,10 @@ export default function ScheduleClient({
   async function loadSavedSchedule(idStr: string) {
     if (!idStr) return;
     const id = Number(idStr);
-    const res = await fetch(`/api/schedule/load?id=${id}`);
-    if (!res.ok) { alert("불러오기 실패"); return; }
+    let res: Response;
+    try { res = await fetch(`/api/schedule/load?id=${id}`); }
+    catch { alertRequestFailure(0, "불러오기 실패"); return; }
+    if (!res.ok) { alertRequestFailure(res.status, "불러오기 실패"); return; }
     const s = await res.json();
     // 폼 값 채우기
     setYm(`${s.year}-${s.month}`);
@@ -472,17 +531,24 @@ export default function ScheduleClient({
 
   async function deleteSaved(id: number) {
     if (!confirm("이 일정표를 정말 삭제할까요?")) return;
-    const res = await fetch("/api/schedule/delete", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
-    });
-    if (!res.ok) { alert("삭제 실패"); return; }
-    if (typeof selectedChildId === "number") await refreshSavedList(selectedChildId);
+    let res: Response;
+    try {
+      res = await fetch("/api/schedule/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+    } catch { alertRequestFailure(0, "삭제 실패"); return; }
+    // 실패했으면 목록에서 빼지 않는다 — 서버엔 남아 있는데 화면에서만 사라지면 지운 줄 안다.
+    if (!res.ok) { alertRequestFailure(res.status, "삭제 실패"); return; }
+    // 서버에서 실제로 지워진 뒤에만 화면에서 제거한다. 이렇게 해두면 뒤따르는 목록 재조회가
+    // 실패해도(옛 목록 유지 정책) 방금 지운 일정표가 되살아나 보이지 않는다.
+    setSavedList((arr) => arr.filter((s) => s.id !== id));
     if (loadedScheduleId === id) {
       setLoadedScheduleId(null);
       setSavedMsg("");
     }
+    if (typeof selectedChildId === "number") await refreshSavedList(selectedChildId);
   }
 
   // 반복 요일에 해당하는 이 달의 회기 후보일(공휴일 제외), 날짜순.
@@ -614,6 +680,9 @@ export default function ScheduleClient({
   // (다른 컴퓨터에서도 같은 아동·월을 고르면 이어서 작성 가능)
   const autoSave = useCallback(async () => {
     if (!sessions || typeof selectedChildId !== "number" || days.length === 0 || !schedTouched.current) return;
+    if (authFailedRef.current) return; // 로그아웃 상태 — 다시 로그인 후 사용자가 눌러야 재개
+    if (savingRef.current) { savePendingRef.current = true; return; }
+    savingRef.current = true;
     setAutoStatus("saving");
     try {
       const payload = {
@@ -624,16 +693,39 @@ export default function ScheduleClient({
         sessions: days.map((d) => ({ day: d, time: sessions[d].time, makeup: sessions[d].makeup })),
       };
       const res = await fetch("/api/schedule/save", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      if (res.ok) { const j = await res.json(); setLoadedScheduleId(j.scheduleId); setAutoStatus("saved"); }
-      else setAutoStatus("");
-    } catch { setAutoStatus(""); }
+      if (res.ok) {
+        const j = await res.json();
+        setLoadedScheduleId(j.scheduleId);
+        setAutoStatus("saved");
+        saveFailRef.current = 0;
+      } else if (res.status === 401) {
+        // 이 계정은 단일 세션(lib/auth.ts createSession 이 기존 세션을 지운다)이라
+        // 집에서 로그인하면 센터 PC 창은 쿠키만 남아 화면은 멀쩡한데 저장만 401 이 된다.
+        // 재시도는 무의미 → 멈추고, 새 탭 로그인 후 이어서 저장하도록 안내한다.
+        authFailedRef.current = true;
+        savePendingRef.current = false;
+        setAutoStatus("authError");
+      } else {
+        saveFailRef.current += 1;
+        setAutoStatus("error"); // 조용히 실패하면 한 달치 일정이 사라진 걸 아무도 모른다
+        if (saveFailRef.current < 3) savePendingRef.current = true;
+      }
+    } catch {
+      saveFailRef.current += 1;
+      setAutoStatus("error");
+      if (saveFailRef.current < 3) savePendingRef.current = true;
+    } finally {
+      savingRef.current = false;
+      // 밀린 저장은 최신 값으로 다시 예약한다(옛 payload 를 그대로 재전송하지 않는다).
+      if (savePendingRef.current) { savePendingRef.current = false; setSaveTick((t) => t + 1); }
+    }
   }, [sessions, selectedChildId, genY, genM, therapist, serviceType, target, mgmt, pvOrg, pvTel, pvCharge, pvType, costUnit, costSelf, writeDate, outFormId, days]);
 
   useEffect(() => {
     if (!hydrated || !sessions || typeof selectedChildId !== "number" || days.length === 0 || !schedTouched.current) return;
     const t = window.setTimeout(() => { void autoSave(); }, 1800);
     return () => window.clearTimeout(t);
-  }, [hydrated, autoSave, sessions, selectedChildId, days.length]);
+  }, [hydrated, autoSave, sessions, selectedChildId, days.length, saveTick]);
 
   const cycle = useMemo(() => {
     if (!sessions) return "";
@@ -731,6 +823,46 @@ export default function ScheduleClient({
         </div>
       </div>
 
+      {/* 자동저장 실패 경고 — 데이터 소실 경고라 화면 아래가 아니라 상단에 고정해 둔다.
+          (달력을 스크롤하며 한 달치를 짜는 동안에도 눈에 들어와야 한다) */}
+      {(autoStatus === "error" || autoStatus === "authError") && (
+        <div style={{ position: "sticky", top: "var(--topbar-h)", zIndex: 4 }}>
+          {autoStatus === "error" ? (
+            <div className="flash warn" style={{ margin: 0, fontWeight: 700, boxShadow: "0 2px 8px rgba(0,0,0,.08)" }}>
+              ⚠ 저장에 실패했어요 — 다시 시도하고 있어요. 계속 이 표시가 남으면 인터넷 연결을 확인하고,
+              창을 닫기 전에 <b>한글파일(.hwpx) 다운로드</b>로 작성 내용을 먼저 받아두세요.
+            </div>
+          ) : (
+            <div className="flash warn" style={{ margin: 0, fontWeight: 700, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", boxShadow: "0 2px 8px rgba(0,0,0,.08)" }}>
+              <span>
+                ⚠ 다른 기기에서 로그인되어 이 창은 <b>로그아웃된 상태</b>예요 — 지금은 저장되지 않습니다.
+                화면에 짜 둔 일정은 그대로 있으니, 새 탭에서 다시 로그인한 뒤 <b>지금 저장</b>을 누르세요.
+              </span>
+              <a className="btn btn-sm" href="/login" target="_blank" rel="noopener noreferrer" style={{ fontWeight: 700 }}>
+                새 탭에서 다시 로그인 →
+              </a>
+              <button
+                type="button"
+                className="btn btn-sm btn-primary"
+                style={{ fontWeight: 700 }}
+                onClick={() => {
+                  authFailedRef.current = false;
+                  saveFailRef.current = 0;
+                  schedTouched.current = true;
+                  setAutoStatus("");
+                  setSaveTick((t) => t + 1);
+                  // 로그인이 풀린 동안 못 불러온 저장 목록도 같이 되살린다
+                  // (아직 로그아웃 상태면 이 호출이 배너를 즉시 다시 띄운다).
+                  if (typeof selectedChildId === "number") void refreshSavedList(selectedChildId);
+                }}
+              >
+                지금 저장
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="card">
         <div className="card-header">
           <span className="step">1</span>
@@ -816,7 +948,13 @@ export default function ScheduleClient({
             </div>
           )}
 
-          {betaUx && typeof selectedChildId === "number" && savedList.length === 0 && (
+          {/* 목록 로딩 실패 안내 — 빈 목록이 '저장된 게 없음'으로 읽히면
+              사용자가 새로 만들다 저장 실패와 겹쳐 한 달치를 잃는다. */}
+          {typeof selectedChildId === "number" && savedListErr && (
+            <div className="flash warn" style={{ marginBottom: 14, fontWeight: 700 }}>{savedListErr}</div>
+          )}
+
+          {betaUx && typeof selectedChildId === "number" && savedList.length === 0 && !savedListErr && (
             <p className="sub-mute" style={{ marginBottom: 12, fontSize: 12 }}>
               💡 이 아동의 지난 달 일정표를 저장해두면, 다음 달에 <b>요일·시간 패턴을 그대로 복사</b>할 수 있어요.
             </p>
@@ -1108,6 +1246,8 @@ export default function ScheduleClient({
             <div className="sub-mute" style={{ fontSize: 12, marginTop: 8, lineHeight: 1.6 }}>
               💾 작업 중 <b>자동으로 저장</b>돼요{autoStatus === "saving" ? " (저장 중…)" : autoStatus === "saved" ? " ✓ 저장됨" : ""}.
               다른 컴퓨터(집·센터 등)에서도 위에서 <b>같은 아동·월</b>을 고르면 이어서 작성할 수 있어요.
+              {autoStatus === "error" && <b style={{ color: "var(--danger)" }}> ⚠ 지금은 저장 실패 — 화면 위 안내를 확인하세요.</b>}
+              {autoStatus === "authError" && <b style={{ color: "var(--danger)" }}> ⚠ 로그아웃되어 저장되지 않았어요 — 화면 위 안내를 확인하세요.</b>}
             </div>
           </div>
         </div>
