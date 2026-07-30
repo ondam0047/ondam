@@ -129,7 +129,9 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
     put(row.date, s.date || "");
     put(row.apprDate, monthDayOnly(s.payDay || s.date || ""));
     put(row.apprNum, s.apprNumber || "");
-    put(row.time, s.startTime || "");
+    // 결과표의 단일 '시간' 칸 = 종료시간(= 엑셀 결제시간). 내장 양식(record-hwpx.ts)과 통일.
+    // 시작시간은 그 -50분이라 종료시간만으로 회기가 특정된다.
+    put(row.time, s.endTime || "");
     put(row.status, s.status || "");
     putNarr(row.result, composeResult(s));
   });

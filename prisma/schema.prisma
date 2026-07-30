@@ -370,6 +370,11 @@ model RecordSession {
   resultExtra String?
   retroReason String?
   status      String?
+  // 시작·종료시간을 임상가가 화면에서 직접 고쳤는지(출처 표식).
+  // true = 확정값 → 엑셀 결제시간·일정표 시간 재시드에서 잠금. false = 시드값 → 자동 교정 대상.
+  // (이 표식이 없던 시절엔 저장값이 예정 시드인지 확정값인지 추론해야 했고, 그 추론이 어긋나
+  //  일정표 예정시간이 결제시간을 덮어 출력되는 사고가 났다.)
+  timeFixed   Boolean  @default(false)
 
   @@unique([recordId, ordinal])
 }
