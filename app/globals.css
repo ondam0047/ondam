@@ -1041,6 +1041,15 @@ td.makeup .badge { font-size: 9px; color: #8A6422; font-weight: 700; padding: 0;
 .flash.ok { background: #DDEBD3; color: #3F6132; }
 .flash.warn { background: #FBEAE7; color: var(--danger); }
 
+/* 저장 실패 배너 고정 — 데이터 소실 경고는 스크롤해도 보여야 한다.
+   topbar(z-index:5) 바로 아래에 붙이고 z-index 는 그보다 낮게 둬 topbar 를 가리지 않는다.
+   overflow 가 걸린 조상 안에 넣으면 sticky 가 죽으니 .content 직속에서만 쓸 것. */
+.save-alert-sticky { position: sticky; top: var(--topbar-h); z-index: 4; }
+@media (max-width: 820px) {
+  /* 모바일 topbar 는 56px (아래 모바일 블록의 .topbar height 와 같은 값) */
+  .save-alert-sticky { top: 56px; }
+}
+
 /* 모달 */
 .modal-bg { display: flex; position: fixed; inset: 0; background: rgba(31,35,23,.45); z-index: 50; align-items: center; justify-content: center; padding: 20px; }
 .modal { background: var(--surface); border-radius: var(--r-lg); padding: 22px; width: 100%; max-width: 360px; box-shadow: var(--shadow-pop); }

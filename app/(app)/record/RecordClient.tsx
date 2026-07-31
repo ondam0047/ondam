@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import * as XLSX from "xlsx";
@@ -210,6 +211,12 @@ function buildMonthOptions() {
   }
   return out;
 }
+
+// 자동저장 실패 배너가 들어갈 최상위 자리(포털 대상)의 id.
+// 배너 자체는 RecordSheet 안에서 만들어지지만, RecordSheet 는 카드(.card) 안에 있고
+// 모바일에서 `.card { overflow-x: auto }`(globals.css) 때문에 그 안의 sticky 는 죽는다.
+// 그래서 DOM 위치만 이 자리로 옮겨(포털) 화면 위에 고정한다 — 내용·동작은 그대로.
+const SAVE_ALERT_SLOT = "record-save-alert-slot";
 
 export default function RecordClient({
   myServices,
@@ -576,6 +583,10 @@ export default function RecordClient({
         <a className="btn" href="/month" style={{ whiteSpace: "nowrap" }}>여러 명 한꺼번에 받기 →</a>
       </div>
 
+      {/* 자동저장 실패 배너가 붙는 자리 — 어떤 overflow 조상에도 들어가지 않도록 최상위(.content 직속)에 둔다.
+          display:contents 라 자기 박스를 만들지 않는다 → 배너가 없을 때 .content 의 gap(20px) 도 먹지 않는다. */}
+      <div id={SAVE_ALERT_SLOT} style={{ display: "contents" }} />
+
       {/* 직접 시작 — 엑셀 없이 */}
       <div className="card">
         <div className="card-header">
@@ -895,6 +906,9 @@ function RecordSheet({
   // 다시 로그인하고 '지금 저장'을 누를 때까지 멈춘다. 자동 리다이렉트는 하지 않는다(작성분 소실).
   const authFailedRef = useRef(false);
   const [saveTick, setSaveTick] = useState(0);
+  // 저장 실패 배너를 붙일 최상위 자리. 마운트 후에만 잡는다(SSR 렌더에는 없음 → hydration 안전).
+  const [alertSlot, setAlertSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => { setAlertSlot(document.getElementById(SAVE_ALERT_SLOT)); }, []);
 
   // 시간 자동 갱신 안내는 잠시 뒤 스스로 사라진다(한 번 뜨면 영영 남지 않게).
   useEffect(() => {
@@ -1417,6 +1431,46 @@ function RecordSheet({
 
   return (
     <div className="sheet" onChangeCapture={() => { recordTouched.current = true; }}>
+      {/* 자동저장 실패 경고 — 데이터 소실 경고라 화면 아래가 아니라 상단에 고정해 둔다.
+          (결과 서술을 길게 쓰며 스크롤하는 동안에도 눈에 들어와야 한다)
+          이 시트는 카드 안이고 모바일에서 .card 가 overflow-x:auto 라 여기서는 sticky 가 죽는다
+          → 최상위 자리(SAVE_ALERT_SLOT)로 포털해 띄운다. 내용·동작은 예전 하단 배너 그대로. */}
+      {alertSlot && (autoStatus === "error" || autoStatus === "authError") &&
+        createPortal(
+          <div className="save-alert-sticky">
+            {autoStatus === "error" ? (
+              <div className="flash warn" style={{ margin: 0, fontWeight: 700, boxShadow: "0 2px 8px rgba(0,0,0,.08)" }}>
+                ⚠ 저장에 실패했어요 — 다시 시도하고 있어요. 계속 이 표시가 남으면 인터넷 연결을 확인하고,
+                창을 닫기 전에 <b>한글파일(.hwpx) 다운로드</b>로 작성 내용을 먼저 받아두세요.
+              </div>
+            ) : (
+              <div className="flash warn" style={{ margin: 0, fontWeight: 700, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", boxShadow: "0 2px 8px rgba(0,0,0,.08)" }}>
+                <span>
+                  ⚠ 다른 기기에서 로그인되어 이 창은 <b>로그아웃된 상태</b>예요 — 지금은 저장되지 않습니다.
+                  화면에 쓴 내용은 그대로 있으니, 새 탭에서 다시 로그인한 뒤 <b>지금 저장</b>을 누르세요.
+                </span>
+                <a className="btn btn-sm" href="/login" target="_blank" rel="noopener noreferrer" style={{ fontWeight: 700 }}>
+                  새 탭에서 다시 로그인 →
+                </a>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-primary"
+                  style={{ fontWeight: 700 }}
+                  onClick={() => {
+                    authFailedRef.current = false;
+                    saveFailRef.current = 0;
+                    recordTouched.current = true;
+                    setAutoStatus("");
+                    setSaveTick((t) => t + 1);
+                  }}
+                >
+                  지금 저장
+                </button>
+              </div>
+            )}
+          </div>,
+          alertSlot,
+        )}
       <div className="sheet-title">발달재활서비스 제공 기록지 ({month}월)</div>
       <table className="meta-tbl">
         <tbody>
@@ -1716,37 +1770,9 @@ function RecordSheet({
       <div className="sub-mute" style={{ fontSize: 12, marginTop: 8, lineHeight: 1.6 }}>
         💾 작성하면 <b>자동으로 저장</b>돼요{autoStatus === "saving" ? " (저장 중…)" : autoStatus === "saved" ? " ✓ 저장됨" : ""}.
         다른 컴퓨터(집·센터 등)에서도 위에서 <b>같은 아동·월</b>을 고르면 이어서 작성할 수 있어요.
-        {autoStatus === "error" && (
-          <div className="flash warn" style={{ marginTop: 8, fontWeight: 700 }}>
-            ⚠ 저장에 실패했어요 — 다시 시도하고 있어요. 계속 이 표시가 남으면 인터넷 연결을 확인하고,
-            창을 닫기 전에 <b>한글파일(.hwpx) 다운로드</b>로 작성 내용을 먼저 받아두세요.
-          </div>
-        )}
-        {autoStatus === "authError" && (
-          <div className="flash warn" style={{ marginTop: 8, fontWeight: 700, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-            <span>
-              ⚠ 다른 기기에서 로그인되어 이 창은 <b>로그아웃된 상태</b>예요 — 지금은 저장되지 않습니다.
-              화면에 쓴 내용은 그대로 있으니, 새 탭에서 다시 로그인한 뒤 <b>지금 저장</b>을 누르세요.
-            </span>
-            <a className="btn btn-sm" href="/login" target="_blank" rel="noopener noreferrer" style={{ fontWeight: 700 }}>
-              새 탭에서 다시 로그인 →
-            </a>
-            <button
-              type="button"
-              className="btn btn-sm btn-primary"
-              style={{ fontWeight: 700 }}
-              onClick={() => {
-                authFailedRef.current = false;
-                saveFailRef.current = 0;
-                recordTouched.current = true;
-                setAutoStatus("");
-                setSaveTick((t) => t + 1);
-              }}
-            >
-              지금 저장
-            </button>
-          </div>
-        )}
+        {/* 실패 안내 본문은 화면 위 고정 배너에만 둔다(위아래 중복 금지). 여기서는 가리키기만. */}
+        {autoStatus === "error" && <b style={{ color: "var(--danger)" }}> ⚠ 지금은 저장 실패 — 화면 위 안내를 확인하세요.</b>}
+        {autoStatus === "authError" && <b style={{ color: "var(--danger)" }}> ⚠ 로그아웃되어 저장되지 않았어요 — 화면 위 안내를 확인하세요.</b>}
       </div>
     </div>
   );

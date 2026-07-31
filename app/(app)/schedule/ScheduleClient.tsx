@@ -826,7 +826,7 @@ export default function ScheduleClient({
       {/* 자동저장 실패 경고 — 데이터 소실 경고라 화면 아래가 아니라 상단에 고정해 둔다.
           (달력을 스크롤하며 한 달치를 짜는 동안에도 눈에 들어와야 한다) */}
       {(autoStatus === "error" || autoStatus === "authError") && (
-        <div style={{ position: "sticky", top: "var(--topbar-h)", zIndex: 4 }}>
+        <div className="save-alert-sticky">
           {autoStatus === "error" ? (
             <div className="flash warn" style={{ margin: 0, fontWeight: 700, boxShadow: "0 2px 8px rgba(0,0,0,.08)" }}>
               ⚠ 저장에 실패했어요 — 다시 시도하고 있어요. 계속 이 표시가 남으면 인터넷 연결을 확인하고,
