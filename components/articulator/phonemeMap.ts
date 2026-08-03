@@ -49,18 +49,47 @@ export function mannerOf(s: string): Manner {
   return "glottal";
 }
 
+// 혀 평행이동(가상 모프 2개). 리그의 혀 셰이프키는 전부 "모양 변형"이고 순수 이동은
+// 후방(tongue_retract) 하나뿐이라, 전진·상하 이동을 렌더 코드(RiggedViewer·renderCore)의
+// 혀 정점 루프에서 로컬 좌표 평행이동으로 만든다. 로컬 X: +전방(치조) / Y: +위(입천장).
+//   tongue_advance : +X 이동 (음수 = 후퇴)
+//   tongue_raise   : +Y 이동 (음수 = 하강, 아래 앞니 쪽)
+// 단위는 retract의 정확한 반대로 통일: GLB 실측 tongue_retract w=1 = 평균 ΔX −0.0294
+// (거의 균일한 후방 평행이동, 혀끝 −0.0311) → tongue_advance 1.0 ≈ tongue_retract −1.0,
+// tongue_raise도 같은 크기(1.0 = 0.0294)를 써서 두 축의 감각을 맞춘다.
+// (참고: 혀 rest bbox = X −0.233~0.193(길이 0.426) / Y 0.080~0.219(높이 0.139) —
+//  1.0 이동은 혀 길이의 약 7%, 높이의 약 21%.)
+// 1.0을 넘겨도(외삽) 우리 계산이라 three.js 클램프 없음 — 다만 혀가 치아·입천장을 뚫는지
+// 눈으로 확인할 것. 모양 변형이 아니라 강체 이동이라 혀뿌리까지 함께 움직인다.
+export const TONGUE_ADVANCE_X = 0.0294;
+export const TONGUE_RAISE_Y = 0.0294;
+
+// 입술 메시 전역 배치 오프셋(모든 음소 공통). 입술은 혀와 달리 음소별 이동 모프가 없어서
+// 검증 UI의 "입술 맞춤" 슬라이더로 맞춘 값을 기본값으로 굽는다. 세 탭(음소산출·비교·훈련)이
+// 같은 값을 쓰도록 여기서 한 번만 정의. (사용자 튜닝값 2026-08-03)
+export const LIP_PLACEMENT = { fwd: 0.004, up: 0.026 };
+
 // All controllable morph targets (for zeroing / iteration).
+// ⚠️ tongue_advance·tongue_raise는 GLB에 없는 가상 모프 — morphTargetDictionary 조회에서
+// 그냥 안 잡히고(무해), 혀 정점 루프가 대신 처리한다. 나머지는 실제 셰이프키 이름과 1:1.
 export const MORPHS = [
   "tongue_tip_up",
   "tongue_tip_down",
   "tongue_front_up",
   "tongue_back_up",
   "tongue_retract",
+  "tongue_advance",
+  "tongue_raise",
   "tongue_groove",
   "tongue_lateral_channel",
   "lips_closed",
   "lips_round",
   "lips_spread",
+  // 아랫입술 하강 셰이프키. 예전엔 MORPHS 밖이라 fullPose/lerpPose가 건드리지 않았고, 그래서
+  // 렌더 쪽에서 "지속 ref에 Math.max 누적 → 입이 벌어진 채 고정"되는 버그가 났다. 이제 목록에
+  // 넣어 매 프레임 포즈에서 새로 계산되게 하고(누적 불가), 음소 포즈가 직접 값을 지정할 수도 있다.
+  // 렌더에서는 턱 연동값과 max로 합쳐 적용한다(포즈 지정값 vs jaw_open 추종 중 큰 쪽).
+  "lips_jaw_open",
   "jaw_open",
   "velum_open",
 ] as const;
@@ -105,9 +134,36 @@ export const CONSONANTS: Consonant[] = [
     id: "s",
     label: "ㅅㅆ",
     manner: "치조 마찰",
-    pose: { tongue_front_up: 0.55, tongue_tip_up: 0.35, tongue_groove: 0.5, lips_closed: 0.6 },
+    // 2026-08-03 사용자(언어재활사)가 검증 UI 수동 모프로 직접 맞춘 자세로 교체.
+    // 혀끝을 아래 앞니 뒤로 내리고(tip_down + raise 음수) 혀 앞날로 치조에 좁은 틈을 만드는
+    // 설단 /s/. 이전 값(front_up 0.55·tip_up 0.35·groove 0.5·lips_closed 0.6)에서 전면 교체.
+    // ⚠️ 외삽·음수 주의: three.js는 morph influence를 클램프하지 않으므로 1.0 초과(tip_up 1.33,
+    // groove 1.44)와 음수(front_up −0.33 = 앞날 내림, lateral_channel −0.92, lips_closed −0.21,
+    // jaw_open −1.0 = 휴지보다 더 다묾)가 모두 의도된 값이다.
+    // ⚠️ tongue_advance/raise는 GLB에 없는 가상 모프(정점 평행이동). 사용자가 튜닝할 때 쓰던
+    // 전역 "혀 맞춤" 슬라이더(앞뒤 0.058·상하 0.026)를 이 포즈에 흡수한 값 —
+    // advance −1.020 + 0.058/0.0294 = 0.953, raise −1.380 + 0.026/0.0294 = −0.496.
+    // 덕분에 전역 슬라이더는 0으로 되돌려 다른 음소는 영향을 받지 않고, 비교/훈련 탭
+    // (renderCore, 전역 혀 오프셋 없음)에서도 같은 자세가 재현된다.
+    // velum_open은 스크린샷의 1.0(휴지 잔여값) 대신 구강음 규칙대로 0.1(닫힘) 유지.
+    pose: {
+      tongue_tip_up: 1.33,
+      tongue_tip_down: 0.5,
+      tongue_front_up: -0.33,
+      tongue_back_up: 0.26,
+      tongue_retract: 0.38,
+      tongue_groove: 1.44,
+      tongue_lateral_channel: -0.92,
+      tongue_advance: 0.953,
+      tongue_raise: -0.496,
+      lips_closed: -0.21,
+      lips_spread: 0.88,
+      lips_jaw_open: -0.09,
+      jaw_open: -1.0,
+      velum_open: 0.1,
+    },
     opacity: LIP_OPACITY.fricative,
-    note: "마찰음: 혀 앞날이 치조에 접근하되 닿지 않고 좁은 틈 유지 — front_up 0.55(0.65는 너무 붙어 보여 살짝 낮춤, 마찰 틈 확보). 턱 안 벌어짐(lips_closed 0.6, 립 반투명이라 혀 그루브 보임)",
+    note: "마찰음(설단 /s/): 혀끝은 아래 앞니 뒤로 내리고 혀 앞날이 치조에 접근해 좁은 틈 유지. 사용자가 수동 모프로 직접 맞춘 자세(2026-08-03) — 전역 혀 맞춤 오프셋을 tongue_advance/raise로 흡수해 포즈 자체로 완결. jaw_open −1.0으로 턱을 휴지보다 다물고, lips_spread 0.88로 입술을 옆으로 편다.",
   },
   {
     id: "c",

@@ -19,6 +19,9 @@ import {
   VELUM_INVERTED,
   VELUM_CLOSE,
   VELUM_CLOSED_MIN,
+  TONGUE_ADVANCE_X,
+  TONGUE_RAISE_Y,
+  LIP_PLACEMENT,
   IDLE_POSE,
   mannerOf,
   fullPose,
@@ -670,15 +673,14 @@ function RiggedModel({
     // 3) jaw coupling values
     const jawW = eff["jaw_open"] ?? 0;
     // lower-lip drop is the rigger's `lips_jaw_open` morph, coupled to jaw opening.
-    // Read the manual override from pose.current (the debug slider writes there) —
-    // NOT from the persistent `eff` ref. `lips_jaw_open` is not in MORPHS, so it's
-    // never reset by the per-frame pose loop; taking Math.max against the stale eff
-    // value made it stick at its peak forever (mouth stayed open across phonemes
-    // after any vowel). Recompute fresh each frame so it releases when the jaw shuts.
-    const manualJawLip = pose.current["lips_jaw_open"] ?? 0;
+    // ⚠️ 예전 버그: lips_jaw_open이 MORPHS 밖이라 지속 ref인 eff에서 리셋되지 않았고,
+    // 거기에 Math.max를 누적하니 최대치에 영원히 고정(모음 뒤로 입이 벌어진 채)됐다.
+    // 지금은 MORPHS에 포함돼 위 1) 포즈 루프가 매 프레임 새 값으로 덮어쓰므로(누적 불가)
+    // eff에서 그대로 읽어도 안전하다 — 덕분에 음소 포즈가 이 모프를 직접 지정할 수 있다.
+    const poseJawLip = eff["lips_jaw_open"] ?? 0;
     eff["lips_jaw_open"] = j.on
-      ? Math.max(manualJawLip, jawW * j.lips)
-      : manualJawLip;
+      ? Math.max(poseJawLip, jawW * j.lips)
+      : poseJawLip;
     pivot.set(j.pivotX, j.pivotY, 0);
     const maxRad = THREE.MathUtils.degToRad(j.maxDeg) * jawW;
 
@@ -738,11 +740,15 @@ function RiggedModel({
         // 넘는 순간 리프트가 0→0.05로 툭 튀어 "뚝뚝 끊겨" 보였다. 0.75~1.0 구간에서 연속으로
         // 램프시켜 팝 제거(ㅇ 0.71·모음 ≤0.6은 여전히 0, ㄱ 1.0은 full).
         const dlift = Math.min(1, Math.max(0, (backUp - 0.75) / 0.25)) * 0.05;
+        // 혀 평행이동(가상 모프): 리그에 전방·상하 이동 셰이프키가 없어 여기서 로컬 좌표
+        // 평행이동으로 만든다. advance 1.0 ≈ retract −1.0 (실측 변위), raise는 동일 크기의 +Y.
+        const adv = (eff["tongue_advance"] ?? 0) * TONGUE_ADVANCE_X;
+        const rise = (eff["tongue_raise"] ?? 0) * TONGUE_RAISE_Y;
         for (let i = 0; i < arr.length; i += 3) {
           const lx = base[i]; // 로컬 X: +전방(치조) / −후방(연구개쪽)
           const post = Math.min(1, Math.max(0, (-0.02 - lx) / 0.21));
-          arr[i] = base[i] + tf.fwd;
-          arr[i + 1] = base[i + 1] + tf.up + post * dlift;
+          arr[i] = base[i] + tf.fwd + adv;
+          arr[i + 1] = base[i + 1] + tf.up + rise + post * dlift;
           arr[i + 2] = base[i + 2];
         }
         posAttr.needsUpdate = true;
@@ -858,7 +864,9 @@ export default function RiggedViewer({ dev = false }: { dev?: boolean } = {}) {
   });
   // v2.5: rigger removed the head's original lips, so the temporary forward
   // offset that hid the z-fighting is no longer needed (default 0).
-  const fit = useRef<LipFit>({ fwd: 0, up: 0, scale: 1.0 });
+  // 2026-08-03: 사용자가 맞춘 입술 배치를 기본값으로 승격(LIP_PLACEMENT, 전 음소 공통).
+  // 입술은 음소별 이동 모프가 없어 이 전역 오프셋이 유일한 배치 수단이다.
+  const fit = useRef<LipFit>({ ...LIP_PLACEMENT, scale: 1.0 });
   // v17 restored v1's COMPLETE tongue primitive (indices+UV+normals+7 morphs).
   // Native rest pokes the tip past the front teeth, so we shrink slightly about
   // the centroid (scale 0.85, NO fwd offset). Shrinking pulls the tip back behind
@@ -1539,10 +1547,17 @@ export default function RiggedViewer({ dev = false }: { dev?: boolean } = {}) {
               {found.map((ff) => (
                 <div key={ff.mesh}>
                   <div className="text-[11px] font-medium text-slate-500">{ff.mesh}</div>
+                  {/* 범위 −1~2: three.js는 morphTargetInfluences를 클램프하지 않고 셰이더로 그대로
+                      넘기므로(r184 WebGLMorphtargets.js) 1.0 초과 외삽·음수(모프의 반대 방향)가 실제로
+                      먹는다. 혀끝을 1.0보다 더 내리기(tongue_tip_down>1) 같은 조정을 위해 개방.
+                      ⚠️ 외삽은 선형 연장이라 과하면 메시가 치아·입천장을 뚫으니 눈으로 확인할 것.
+                      (포즈에도 이미 lips_closed 1.1·lips_round 1.5 같은 외삽값을 쓰고 있다.) */}
                   {ff.targets.map((name) => (
                     <Slider
                       key={name}
                       label={name}
+                      min={-1}
+                      max={2}
                       warn={!expectedFlat.includes(name)}
                       value={pose.current[name] ?? 0}
                       onChange={(v) => setMorph(name, v)}
@@ -1550,6 +1565,24 @@ export default function RiggedViewer({ dev = false }: { dev?: boolean } = {}) {
                   ))}
                 </div>
               ))}
+              {/* 가상 모프: GLB 셰이프키가 아니라 정점 루프가 만드는 것(리그에 전진이 없어서). */}
+              <div>
+                <div className="text-[11px] font-medium text-slate-500">tongue (가상)</div>
+                <Slider
+                  label="tongue_advance"
+                  min={-2}
+                  max={2}
+                  value={pose.current["tongue_advance"] ?? 0}
+                  onChange={(v) => setMorph("tongue_advance", v)}
+                />
+                <Slider
+                  label="tongue_raise"
+                  min={-2}
+                  max={2}
+                  value={pose.current["tongue_raise"] ?? 0}
+                  onChange={(v) => setMorph("tongue_raise", v)}
+                />
+              </div>
               <label className="flex items-center gap-2 text-xs text-slate-700">
                 <input type="checkbox" checked={autoRotate} onChange={(e) => setAutoRotate(e.target.checked)} />
                 자동 회전

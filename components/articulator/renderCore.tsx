@@ -16,6 +16,9 @@ import {
   VELUM_INVERTED,
   VELUM_CLOSE,
   VELUM_CLOSED_MIN,
+  TONGUE_ADVANCE_X,
+  TONGUE_RAISE_Y,
+  LIP_PLACEMENT,
   fullPose,
   lerpPose,
   type Pose,
@@ -364,7 +367,9 @@ export function StaticArticulator({
         : poseRef.current);
     const eff = fullPose(activePose);
     const jawW = eff["jaw_open"] ?? 0;
-    const lipsJaw = jawW * JAW.lips; // 아랫입술 하강(턱 개구 연동)
+    // 아랫입술 하강: 턱 개구 연동값과 포즈가 직접 지정한 값 중 큰 쪽(RiggedViewer와 동일 규칙).
+    // eff는 매 프레임 fullPose로 새로 만들어지므로 누적 위험 없음.
+    const lipsJaw = Math.max(eff["lips_jaw_open"] ?? 0, jawW * JAW.lips);
     pivot.set(JAW.pivotX, JAW.pivotY, 0);
     const maxRad = THREE.MathUtils.degToRad(JAW.maxDeg) * jawW;
 
@@ -393,11 +398,15 @@ export function StaticArticulator({
         // 0.75~1.0 연속 램프라 팝 없이 부드럽게(ㅇ 0.71·모음 ≤0.6은 0). (v1과 동일)
         const backUp = eff["tongue_back_up"] ?? 0;
         const dlift = Math.min(1, Math.max(0, (backUp - 0.75) / 0.25)) * 0.05;
+        // 혀 평행이동(가상 모프) — RiggedViewer와 동일 처리. 리그엔 후방(retract)만 있어
+        // 전진(+X)·상하(+Y)는 정점 이동으로 만든다.
+        const adv = (eff["tongue_advance"] ?? 0) * TONGUE_ADVANCE_X;
+        const rise = (eff["tongue_raise"] ?? 0) * TONGUE_RAISE_Y;
         for (let i = 0; i < arr.length; i += 3) {
           const lx = base[i]; // 로컬 X: +전방(치조) / −후방(연구개쪽)
           const post = Math.min(1, Math.max(0, (-0.02 - lx) / 0.21));
-          arr[i] = base[i];
-          arr[i + 1] = base[i + 1] + post * dlift;
+          arr[i] = base[i] + adv;
+          arr[i + 1] = base[i + 1] + rise + post * dlift;
           arr[i + 2] = base[i + 2];
         }
         posAttr.needsUpdate = true;
@@ -413,7 +422,9 @@ export function StaticArticulator({
         }
         styleArticulator(b.mesh, b.mats, false);
       } else if (isLipMesh(b.name)) {
-        b.mesh.position.copy(b.pos);
+        // 입술 전역 배치 오프셋 — 음소산출(RiggedViewer)의 "입술 맞춤" 기본값과 동일하게
+        // 맞춰 세 탭의 입술 위치를 일치시킨다(입술은 음소별 이동 모프가 없음).
+        b.mesh.position.set(b.pos.x + LIP_PLACEMENT.fwd, b.pos.y + LIP_PLACEMENT.up, b.pos.z);
         b.mesh.quaternion.copy(b.quat);
         styleArticulator(b.mesh, b.mats, true);
       }
