@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { getCurrentUser, canAccessService } from "@/lib/auth";
+import { isUniqueViolation, parseSaveGuard, RacedCreateError, saveConflictResponse, StaleWriteError } from "@/lib/save-conflict";
 
 type SessionInput = {
   ordinal: number;
@@ -31,6 +32,11 @@ type Body = {
   opinion?: string;
   formId?: number; // 출력에 쓸 업로드 양식
   sessions: SessionInput[];
+  // 낙관적 잠금(lib/save-conflict.ts) — 이 창이 불러온 시점의 Record.updatedAt.
+  // null = '이 달 저장본이 아직 없다'. 아예 안 보내면 검사하지 않는다(옛 클라이언트 호환).
+  baseUpdatedAt?: string | null;
+  // 충돌 안내에서 사용자가 '이 창 내용으로 저장'을 고른 경우에만 true.
+  overwrite?: boolean;
 };
 
 export async function POST(req: NextRequest) {
@@ -41,6 +47,10 @@ export async function POST(req: NextRequest) {
   if (!body.childServiceId || !body.year || !body.month) {
     return Response.json({ error: "missing childServiceId/year/month" }, { status: 400 });
   }
+
+  const parsedGuard = parseSaveGuard(body);
+  if (!parsedGuard.ok) return Response.json({ error: "invalid baseUpdatedAt" }, { status: 400 });
+  const guard = parsedGuard.guard;
 
   const cs = await prisma.childService.findUnique({
     where: { id: body.childServiceId },
@@ -95,31 +105,69 @@ export async function POST(req: NextRequest) {
     timeFixed: s.timeFixed === true,
   }));
 
-  const recordId = await prisma.$transaction(async (tx) => {
-    let id: number;
-    if (existing) {
-      await tx.record.update({ where: { id: existing.id }, data: meta });
-      await tx.recordSession.deleteMany({ where: { recordId: existing.id } });
-      id = existing.id;
-    } else {
-      const created = await tx.record.create({
-        data: {
-          childServiceId: body.childServiceId,
-          year: body.year,
-          month: body.month,
-          ...meta,
-          createdById: user.id,
-        },
-      });
-      id = created.id;
-    }
-    if (sessionData.length > 0) {
-      await tx.recordSession.createMany({
-        data: sessionData.map((s) => ({ ...s, recordId: id })),
-      });
-    }
-    return id;
-  });
+  let saved: { id: number; updatedAt: Date | null };
+  try {
+    saved = await prisma.$transaction(async (tx) => {
+      let id: number | null = null;
+      if (existing) {
+        if (guard.active) {
+          // 낙관적 잠금 — 대조와 갱신이 한 문장(UPDATE … WHERE updatedAt=?)이라 검사와 쓰기 사이에
+          // 다른 창이 끼어들 틈이 없다. 진 쪽은 count 0 이 되어 아래에서 되돌아간다.
+          const hit = guard.base
+            ? await tx.record.updateMany({ where: { id: existing.id, updatedAt: guard.base }, data: meta })
+            : { count: 0 }; // 이 창은 '저장본이 없다'고 알고 있었는데 이미 있다 → 남의 저장본이다
+          if (hit.count === 0) {
+            const cur = await tx.record.findUnique({ where: { id: existing.id }, select: { updatedAt: true } });
+            // 행이 아직 있으면 그 사이 다른 곳이 저장한 것 → 충돌(작성분을 조용히 덮지 않는다).
+            // 행이 사라졌으면 지워진 것 → 새로 만든다(덮어쓸 남의 내용이 없다).
+            if (cur) throw new StaleWriteError(existing.id, cur.updatedAt);
+          } else {
+            id = existing.id;
+          }
+        } else {
+          await tx.record.update({ where: { id: existing.id }, data: meta });
+          id = existing.id;
+        }
+      }
+      if (id === null) {
+        try {
+          const created = await tx.record.create({
+            data: {
+              childServiceId: body.childServiceId,
+              year: body.year,
+              month: body.month,
+              ...meta,
+              createdById: user.id,
+            },
+          });
+          id = created.id;
+        } catch (e) {
+          // 여기서의 P2002 = unique(childServiceId, year, month) → 다른 창이 방금 먼저 만들었다.
+          // 회기 unique 위반 등 다른 P2002 는 충돌이 아니므로 그대로 500 으로 흘린다.
+          if (isUniqueViolation(e)) throw new RacedCreateError();
+          throw e;
+        }
+      }
+      await tx.recordSession.deleteMany({ where: { recordId: id } });
+      if (sessionData.length > 0) {
+        await tx.recordSession.createMany({
+          data: sessionData.map((s) => ({ ...s, recordId: id })),
+        });
+      }
+      // 새 기준시각을 함께 돌려준다 — 화면이 이걸로 자기 값을 갱신해야 다음 저장이
+      // 자기 자신과 충돌하지 않는다(자동저장이 1.8초마다 도는 화면에서 제일 중요한 부분).
+      const after = await tx.record.findUnique({ where: { id }, select: { updatedAt: true } });
+      return { id, updatedAt: after?.updatedAt ?? null };
+    });
+  } catch (e) {
+    const conflict = saveConflictResponse(e);
+    if (conflict) return conflict;
+    throw e;
+  }
 
-  return Response.json({ ok: true, recordId });
+  return Response.json({
+    ok: true,
+    recordId: saved.id,
+    updatedAt: saved.updatedAt ? saved.updatedAt.toISOString() : null,
+  });
 }

@@ -6,6 +6,10 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import * as XLSX from "xlsx";
 import { minusMin } from "@/lib/constants";
+import {
+  SAVE_CONFLICT_STATUS, baseField, stampFromLoaded, stampFromSaveResponse,
+  type SaveBase,
+} from "@/lib/save-conflict";
 import { useBetaUx } from "../BetaUxContext";
 
 type RecordSessionData = {
@@ -250,6 +254,8 @@ export default function RecordClient({
 
   const [grouped, setGrouped] = useState<Grouped>({});
   const [curChild, setCurChild] = useState<string | null>(null);
+  // 두 탭 충돌에서 '최신 내용 불러오기'를 고르면 올라간다 → RecordSheet key 가 바뀌어 리마운트.
+  const [sheetReloadNonce, setSheetReloadNonce] = useState(0);
   // 현재 직접시작 아동의 일정표 회기 수 — 기록지 회기 수와 다르면 '다시 불러오기' 안내(일정표를 나중에 수정한 경우).
   const [schedCount, setSchedCount] = useState<number | null>(null);
 
@@ -774,12 +780,15 @@ export default function RecordClient({
                 // 리마운트가 없어 3월의 제공일자·시간·잠금·일정표·소급사유·임상 서술이 4월 서류에
                 // 그대로 실렸다(자동저장이 4월 기록으로 확정). 새 달은 전부 새로 시작하고,
                 // 지난달 내용이 필요하면 시트 안의 '전월 기록 가져오기' 버튼을 쓴다.
-                key={sheetKey(curChild, grouped[curChild])}
+                // 두 탭 충돌에서 '최신 내용 불러오기'를 고르면 nonce 를 올려 리마운트한다 —
+                // 마운트 경로(엑셀 시드 → 저장본 복원)를 그대로 다시 타므로 별도 복원 로직이 필요 없다.
+                key={`${sheetKey(curChild, grouped[curChild])}:${sheetReloadNonce}`}
                 child={curChild}
                 rows={grouped[curChild]}
                 therapist={therapist}
                 myServices={myServices}
                 recordForm={recordForm}
+                onReloadFromServer={() => setSheetReloadNonce((n) => n + 1)}
               />
             )}
           </div>
@@ -795,12 +804,16 @@ function RecordSheet({
   therapist,
   myServices,
   recordForm,
+  onReloadFromServer,
 }: {
   child: string;
   rows: SessionRow[];
   therapist: string;
   myServices: MyServiceOption[];
   recordForm: string;
+  // 두 탭 충돌에서 '최신 내용 불러오기'를 고른 경우 — 부모가 이 시트를 리마운트해
+  // 엑셀·저장본에서 처음부터 다시 시드한다(이 창에서 편집한 내용은 버린다).
+  onReloadFromServer?: () => void;
 }) {
   const betaUx = useBetaUx();
   // 서식B(동탄)는 '이용자 상태'와 '서비스 결과'가 별도 칸 → 상태 입력칸을 따로 보여준다.
@@ -897,7 +910,7 @@ function RecordSheet({
   const [downloading, setDownloading] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
   const [loadedRecordId, setLoadedRecordId] = useState<number | null>(null);
-  const [autoStatus, setAutoStatus] = useState<"" | "saving" | "saved" | "error" | "authError">("");
+  const [autoStatus, setAutoStatus] = useState<"" | "saving" | "saved" | "error" | "authError" | "conflict">("");
   const recordTouched = useRef(false); // 사용자가 실제 입력했을 때만 자동저장(빈 기록 생성·덮어쓰기 방지)
   const savingRef = useRef(false);      // 자동저장 뮤텍스 — 겹쳐 돌면 회기 unique 충돌·중복 delete/insert
   const savePendingRef = useRef(false);
@@ -905,6 +918,18 @@ function RecordSheet({
   // 401(다른 기기 로그인으로 세션이 지워짐) — 재시도해도 계속 401 이므로 사용자가
   // 다시 로그인하고 '지금 저장'을 누를 때까지 멈춘다. 자동 리다이렉트는 하지 않는다(작성분 소실).
   const authFailedRef = useRef(false);
+  // ── 두 탭 덮어쓰기 방지(낙관적 잠금, lib/save-conflict.ts) ───────────────
+  // 이 창이 마지막으로 읽거나 쓴 서버 저장본의 시각 + 그게 어느 (아동, 연, 월) 것인지.
+  // 값의 출처는 **서버 응답(불러오기/저장)뿐**이다. null = '모른다'(아직 못 읽었거나 조회 실패)
+  // → 그 상태에서는 저장 요청에서 baseUpdatedAt 키를 아예 빼 예전처럼 그냥 저장한다.
+  //   (조회 한 번 실패한 것을 '저장본 없음'으로 단정하면 가짜 충돌로 저장이 멈춘다.)
+  // ⚠ state 가 아니라 ref 인 이유: 저장할 때마다 값이 바뀌는데 state 로 두면 자동저장 effect 가
+  //   다시 돌아 1.8초마다 영원히 저장한다(그리고 응답으로 갱신하지 않으면 자기 자신과 충돌한다).
+  const baseRef = useRef<SaveBase | null>(null);
+  // 충돌 중에는 자동저장을 멈춘다 — 계속 409 를 때리는 것도, 조용히 덮어쓰는 것도 안 된다.
+  const conflictRef = useRef(false);
+  // 사용자가 '이 창 내용으로 저장'을 고른 경우에만 켜지는 깃발(저장에 성공하면 스스로 꺼진다).
+  const forceOverwriteRef = useRef(false);
   const [saveTick, setSaveTick] = useState(0);
   // 저장 실패 배너를 붙일 최상위 자리. 마운트 후에만 잡는다(SSR 렌더에는 없음 → hydration 안전).
   const [alertSlot, setAlertSlot] = useState<HTMLElement | null>(null);
@@ -986,13 +1011,20 @@ function RecordSheet({
     if (!childServiceId || !monthNumForLoad) { setRecordLoaded(true); return; }
     // 아동/월 전환 — 자동저장 게이트 초기화(이전 아동 데이터로 잘못 저장 방지)
     recordTouched.current = false; setLoadedRecordId(null); setAutoStatus("");
+    // 다른 달의 기준시각·충돌 상태를 끌고 가면 안 된다(그 달의 저장본을 아직 안 읽었다).
+    baseRef.current = null; conflictRef.current = false; forceOverwriteRef.current = false;
     let cancelled = false;
     (async () => {
       try {
         const r = await fetch(`/api/record/load?childServiceId=${childServiceId}&year=${year}&month=${monthNumForLoad}`);
+        // 조회 자체가 실패하면(500·네트워크) 기준시각은 '모른다'로 남긴다 — 여기서 '저장본 없음'으로
+        // 단정하면 서버에 기록이 있는데도 첫 저장이 409 가 되어 저장이 멈춘다(가짜 충돌).
         if (!r.ok || cancelled) return;
         const rec = await r.json();
-        if (cancelled || !rec || !rec.id) return;
+        if (cancelled) return;
+        // 조회에 성공했다 → 저장본이 없다는 것까지 '확인'된다(rec === null 이면 stamp = null).
+        baseRef.current = { csId: childServiceId, y: year, m: monthNumForLoad, stamp: stampFromLoaded(rec) };
+        if (!rec || !rec.id) return;
         setLoadedRecordId(rec.id);
         setOpinion(rec.opinion ?? "");
         if (rec.formId) setOutFormId(rec.formId); // 저장 시 기억한 출력 양식 복원
@@ -1349,6 +1381,39 @@ function RecordSheet({
     );
   }
 
+  // 두 탭 충돌에서 '최신 내용 불러오기'를 고른 경우.
+  // ⚠ 순서가 중요하다 — **서버 저장본을 먼저 확인한 뒤에** 이 창 내용을 버린다(리마운트).
+  //   먼저 버리고 나서 조회가 실패하면 이 창 내용도 서버 내용도 없는 막다른 길이 된다.
+  //   (일정표 reloadFromServer 와 같은 방식·같은 안내)
+  const [reloadingFromServer, setReloadingFromServer] = useState(false);
+  async function reloadFromServer() {
+    if (!childServiceId || !monthNumForLoad) return;
+    setReloadingFromServer(true);
+    try {
+      let r: Response;
+      try {
+        r = await fetch(`/api/record/load?childServiceId=${childServiceId}&year=${year}&month=${monthNumForLoad}`);
+      } catch {
+        alert("불러오기 실패 — 인터넷 연결을 확인해 주세요. 지금 화면 내용은 그대로 두었어요.");
+        return;
+      }
+      if (!r.ok) {
+        alert(r.status === 401
+          ? "다른 기기에서 로그인되어 로그아웃된 상태예요 — 새 탭에서 다시 로그인한 뒤 다시 눌러주세요. 지금 화면 내용은 그대로 두었어요."
+          : "불러오기 실패 — 잠시 뒤 다시 눌러주세요. 지금 화면 내용은 그대로 두었어요.");
+        return;
+      }
+      const rec = await r.json().catch(() => null);
+      if (!rec || !rec.id) {
+        alert("서버에 저장된 이 달 기록지를 찾지 못했어요. ‘이 창 내용으로 저장’을 고르면 지금 화면 그대로 저장됩니다.");
+        return;
+      }
+      onReloadFromServer?.(); // 서버 저장본을 확인한 뒤에만 이 창 내용을 버리고 다시 시드한다
+    } finally {
+      setReloadingFromServer(false);
+    }
+  }
+
   // 작업 중 자동 저장 — 사용자가 실제 입력했거나(이미 저장된 기록 편집 중) 일 때만 조용히 서버 저장.
   // (다른 컴퓨터에서도 같은 아동·월을 고르면 자동으로 불러와짐)
   async function autoSaveRecord() {
@@ -1356,6 +1421,8 @@ function RecordSheet({
     if (loadedRecordId === null && !recordTouched.current) return;
     if (!restoreDone) return; // 저장본 복원 전에는 저장하지 않는다(옛값·빈값 선저장 방지)
     if (authFailedRef.current) return; // 로그아웃 상태 — 다시 로그인 후 사용자가 눌러야 재개
+    // 다른 창이 먼저 저장해 충돌한 상태 — 사용자가 어느 쪽을 남길지 고를 때까지 저장을 멈춘다.
+    if (conflictRef.current && !forceOverwriteRef.current) return;
     // 저장이 겹치면 서버가 회기를 지우고 다시 넣는 사이 다른 저장이 끼어들어
     // unique(recordId, ordinal) 충돌·중복 삭제가 난다 → 한 번에 하나만, 나머지는 다시 예약.
     if (savingRef.current) { savePendingRef.current = true; return; }
@@ -1382,13 +1449,31 @@ function RecordSheet({
           };
         }),
         formId: outFormId || undefined,
+        // 두 탭 덮어쓰기 방지 — 이 창이 불러온 시점의 저장본 시각. 그 사이 다른 창이 저장했으면
+        // 서버가 409 로 거절한다(작성분을 조용히 지우지 않는다).
+        // 기준시각을 '모르는' 상태면 키 자체가 빠져 예전처럼 그냥 저장된다(가짜 충돌 방지).
+        ...baseField(baseRef.current, childServiceId, year, monthNumForLoad),
+        ...(forceOverwriteRef.current ? { overwrite: true } : {}),
       };
       const res = await fetch("/api/record/save", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       if (res.ok) {
         const j = await res.json();
         setLoadedRecordId(j.recordId);
+        // ⚠ 새 기준시각으로 갱신 — 이걸 빼먹으면 두 번째 저장부터 자기 자신과 충돌해 저장이 멈춘다.
+        baseRef.current = { csId: childServiceId, y: year, m: monthNumForLoad, stamp: stampFromSaveResponse(j) };
+        forceOverwriteRef.current = false;
+        conflictRef.current = false;
         setAutoStatus("saved");
         saveFailRef.current = 0;
+      } else if (res.status === SAVE_CONFLICT_STATUS) {
+        // 같은 아동·같은 달이 이 창 밖(=다른 탭)에서 먼저 저장됐다.
+        // 1계정 1기기(lib/auth.ts)라 '다른 기기'는 401 로 갈리므로 여기로 오지 않는다.
+        // 어느 쪽을 남길지는 임상 서술이 걸린 결정이므로 반드시 사용자가 고른다.
+        conflictRef.current = true;
+        forceOverwriteRef.current = false;
+        savePendingRef.current = false;
+        saveFailRef.current = 0;
+        setAutoStatus("conflict");
       } else if (res.status === 401) {
         // 이 계정은 단일 세션(lib/auth.ts createSession 이 기존 세션을 지운다)이라
         // 집에서 로그인하면 센터 PC 창은 쿠키만 남아 화면은 멀쩡한데 저장만 401 이 된다.
@@ -1416,6 +1501,7 @@ function RecordSheet({
     if (!childServiceId) return;
     if (loadedRecordId === null && !recordTouched.current) return;
     if (!restoreDone) return; // 저장본·일정표 응답이 1.8초를 넘겨도 옛값이 먼저 써지지 않게
+    if (conflictRef.current) return; // 충돌 중 — 사용자가 고를 때까지 예약도 하지 않는다
     const t = window.setTimeout(() => { void autoSaveRecord(); }, 1800);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1435,10 +1521,52 @@ function RecordSheet({
           (결과 서술을 길게 쓰며 스크롤하는 동안에도 눈에 들어와야 한다)
           이 시트는 카드 안이고 모바일에서 .card 가 overflow-x:auto 라 여기서는 sticky 가 죽는다
           → 최상위 자리(SAVE_ALERT_SLOT)로 포털해 띄운다. 내용·동작은 예전 하단 배너 그대로. */}
-      {alertSlot && (autoStatus === "error" || autoStatus === "authError") &&
+      {alertSlot && (autoStatus === "error" || autoStatus === "authError" || autoStatus === "conflict") &&
         createPortal(
           <div className="save-alert-sticky">
-            {autoStatus === "error" ? (
+            {autoStatus === "conflict" ? (
+              /* 같은 아동·같은 달을 다른 탭에서도 열어 둔 상태. 저장은 '병합'이 아니라 '전면 교체'라
+                 어느 쪽이든 한쪽 내용은 사라진다 → 무엇을 잃는지 밝히고 사용자가 고르게 한다.
+                 고를 때까지 자동저장은 멈춘다(conflictRef). */
+              <div className="flash warn" style={{ margin: 0, fontWeight: 700, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", boxShadow: "0 2px 8px rgba(0,0,0,.08)" }}>
+                <span>
+                  ⚠ 이 달 기록지가 <b>이 창 밖에서 바뀌었어요</b>(같은 아동·같은 달을 열어 둔 다른 탭) — 지금 이 창의 내용은 아직 저장되지 않았습니다.
+                  <br />
+                  저장은 덧붙이기가 아니라 통째로 바꾸는 것이라 <b>나중에 저장한 쪽이 앞서 저장한 내용을 통째로 지웁니다.</b> 어느 쪽을 남길지 골라주세요.
+                  <br />
+                  <span style={{ fontWeight: 500 }}>
+                    고르기 전에 <b>한글파일(.hwpx) 다운로드</b>로 지금 화면 내용을 받아두면 안전해요.
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  style={{ fontWeight: 700 }}
+                  disabled={reloadingFromServer}
+                  onClick={() => {
+                    if (!confirm("서버에 저장된 최신 내용을 불러옵니다.\n지금 이 창에 쓴 내용(결과·종합의견 등)은 사라집니다. 계속할까요?")) return;
+                    void reloadFromServer();
+                  }}
+                >
+                  {reloadingFromServer ? "불러오는 중…" : "최신 내용 불러오기 (이 창에 쓴 내용은 사라짐)"}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-primary"
+                  style={{ fontWeight: 700 }}
+                  onClick={() => {
+                    if (!confirm("이 창의 내용으로 저장합니다.\n다른 곳에서 저장한 내용은 사라집니다. 계속할까요?")) return;
+                    forceOverwriteRef.current = true;
+                    conflictRef.current = false;
+                    recordTouched.current = true;
+                    setAutoStatus("saving");
+                    void autoSaveRecord();
+                  }}
+                >
+                  이 창 내용으로 저장 (다른 곳의 내용을 덮어씀)
+                </button>
+              </div>
+            ) : autoStatus === "error" ? (
               <div className="flash warn" style={{ margin: 0, fontWeight: 700, boxShadow: "0 2px 8px rgba(0,0,0,.08)" }}>
                 ⚠ 저장에 실패했어요 — 다시 시도하고 있어요. 계속 이 표시가 남으면 인터넷 연결을 확인하고,
                 창을 닫기 전에 <b>한글파일(.hwpx) 다운로드</b>로 작성 내용을 먼저 받아두세요.
@@ -1773,6 +1901,7 @@ function RecordSheet({
         {/* 실패 안내 본문은 화면 위 고정 배너에만 둔다(위아래 중복 금지). 여기서는 가리키기만. */}
         {autoStatus === "error" && <b style={{ color: "var(--danger)" }}> ⚠ 지금은 저장 실패 — 화면 위 안내를 확인하세요.</b>}
         {autoStatus === "authError" && <b style={{ color: "var(--danger)" }}> ⚠ 로그아웃되어 저장되지 않았어요 — 화면 위 안내를 확인하세요.</b>}
+        {autoStatus === "conflict" && <b style={{ color: "var(--danger)" }}> ⚠ 이 창 밖에서 바뀌어 지금은 저장이 멈춰 있어요 — 화면 위 안내에서 골라주세요.</b>}
       </div>
     </div>
   );

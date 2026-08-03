@@ -6,6 +6,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   WEEK, holiday, pad, parseDaySlots,
 } from "@/lib/constants";
+import {
+  SAVE_CONFLICT_STATUS, baseField, baseMatches, stampFromLoaded, stampFromSaveResponse,
+  type SaveBase,
+} from "@/lib/save-conflict";
 import { useBetaUx } from "../BetaUxContext";
 
 type Session = { time: string; makeup: boolean };
@@ -118,7 +122,7 @@ export default function ScheduleClient({
   const [writeDate, setWriteDate] = useState("");
   const [downloadingHwpx, setDownloadingHwpx] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
-  const [autoStatus, setAutoStatus] = useState<"" | "saving" | "saved" | "error" | "authError">("");
+  const [autoStatus, setAutoStatus] = useState<"" | "saving" | "saved" | "error" | "authError" | "conflict">("");
   const schedTouched = useRef(false); // 사용자가 실제 편집했을 때만 자동저장(로컬 임시본이 서버 최신본 덮어쓰기 방지)
   // 자동저장 뮤텍스 — 겹쳐 돌면 서버가 회기를 deleteMany 하는 사이 다른 저장의 createMany 가
   // 끼어들어 unique(scheduleId, day) 충돌·회기 중복삭제가 난다 → 한 번에 하나만, 나머지는 다시 예약.
@@ -128,6 +132,18 @@ export default function ScheduleClient({
   // 401(다른 기기 로그인으로 세션이 지워짐) — 재시도해도 계속 401 이므로 사용자가
   // 다시 로그인하고 '지금 저장'을 누를 때까지 멈춘다. 자동 리다이렉트는 하지 않는다(작성분 소실).
   const authFailedRef = useRef(false);
+  // ── 두 탭 덮어쓰기 방지(낙관적 잠금, lib/save-conflict.ts) — 기록지와 같은 방식·같은 범위 ──
+  // 이 창이 마지막으로 읽거나 쓴 서버 저장본의 시각 + 그게 어느 (아동, 연, 월) 것인지.
+  // ⚠ 값의 출처는 **서버 응답(불러오기/저장)뿐**이다. 저장본 목록(savedList)은 표시용이라
+  //   자동저장 뒤에도 갱신되지 않고 실패 시 옛 목록을 그대로 두는 느슨한 규칙이라, 이걸 기준시각의
+  //   출처로 쓰면 '생성 → 저장 → 다시 생성'만 해도 기준시각이 옛 값으로 되돌아가 혼자서도 409 가 났다.
+  // ⚠ state 가 아니라 ref 인 이유: 저장할 때마다 값이 바뀌는데 state 로 두면 자동저장이 다시 돌고,
+  //   응답으로 갱신하지 않으면 두 번째 저장부터 자기 자신과 충돌해 저장이 아예 멈춘다.
+  const baseRef = useRef<SaveBase | null>(null);
+  // 충돌 중에는 자동저장을 멈춘다 — 계속 409 를 때리는 것도, 조용히 덮어쓰는 것도 안 된다.
+  const conflictRef = useRef(false);
+  // 사용자가 '이 창 내용으로 저장'을 고른 경우에만 켜지는 깃발(저장에 성공하면 스스로 꺼진다).
+  const forceOverwriteRef = useRef(false);
   const [saveTick, setSaveTick] = useState(0);
   // 저장한 우리 센터 일정표 양식 — 있으면 출력 양식 선택
   const [savedForms, setSavedForms] = useState<Array<{ id: number; name: string }>>([]);
@@ -156,6 +172,13 @@ export default function ScheduleClient({
   // 지금 들고 있는 목록이 어느 아동 것인지 — 실패 시 다른 아동 목록을 남기지 않기 위해.
   const savedListOwner = useRef<number | null>(null);
   const [loadedScheduleId, setLoadedScheduleId] = useState<number | null>(null);
+
+  // 충돌 상태 해제 — 아동·월·저장본이 바뀌면 이전 충돌은 의미가 없다.
+  const clearConflict = useCallback(() => {
+    conflictRef.current = false;
+    forceOverwriteRef.current = false;
+    setAutoStatus((s) => (s === "conflict" ? "" : s));
+  }, []);
 
   // day editor modal
   const [editDay, setEditDay] = useState<number | null>(null);
@@ -341,6 +364,9 @@ export default function ScheduleClient({
     setLoadedScheduleId(null);
     setSessions(null);   // 아동 바꾸면 캘린더 비움(이전 아동 세션 자동저장 오염 방지)
     schedTouched.current = false;
+    // 다른 아동의 기준시각·충돌 상태를 끌고 가지 않는다(새 아동 것은 위 동기화 effect 가 서버에서 읽는다).
+    baseRef.current = null;
+    clearConflict();
     setSavedMsg("");
     if (id === "") {
       setSavedList([]);
@@ -414,6 +440,34 @@ export default function ScheduleClient({
     }
   }, [selectedChildId, refreshSavedList]);
 
+  // 편집 대상(아동·연·월)이 바뀌면 그 달의 서버 저장본을 한 번 읽어 기준시각을 세운다.
+  // 여기가 기준시각의 유일한 보충 경로다(목록·임시본에서 추정하지 않는다).
+  //  · 이미 그 아동·그 달의 기준시각을 들고 있으면 손대지 않는다 — 메모리 값이 서버 조회보다 최신이다
+  //    (자동저장 직후 '생성'을 다시 눌러도 옛 값으로 되돌아가지 않는다).
+  //  · 조회가 실패하면 '모른다'로 남긴다 → 저장 요청에서 baseUpdatedAt 을 아예 빼므로
+  //    일시적 끊김이 가짜 충돌·저장 정지로 번지지 않는다.
+  useEffect(() => {
+    if (typeof selectedChildId !== "number" || !genY || !genM) return;
+    if (baseMatches(baseRef.current, selectedChildId, genY, genM)) return;
+    baseRef.current = null; // 다른 아동·다른 달의 시각을 그대로 쓰면 안 된다
+    const csId = selectedChildId, y = genY, m = genM;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`/api/schedule/load?childServiceId=${csId}&year=${y}&month=${m}`);
+        if (!r.ok || cancelled) return;
+        const s = await r.json();
+        if (cancelled) return;
+        // 그 사이 저장·불러오기가 더 새 값을 세웠으면 덮지 않는다.
+        if (baseRef.current !== null) return;
+        baseRef.current = { csId, y, m, stamp: stampFromLoaded(s) };
+      } catch {
+        // 못 읽었으면 '모른다'로 둔다(검사 생략). 여기서 null 로 단정하면 가짜 충돌이 난다.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedChildId, genY, genM]);
+
   // 불러오기·삭제 실패 안내. 401(다른 기기에서 로그인돼 세션이 지워짐)은 일반 실패와 뜻이
   // 완전히 달라서 — 다시 눌러도 영영 안 된다 — 자동저장과 같은 배너로 재로그인을 안내한다.
   // status 0 = 요청 자체가 못 나감(네트워크 끊김).
@@ -484,6 +538,9 @@ export default function ScheduleClient({
     setGenM(m);
     setWriteDate(defaultWriteDate(y, m));
     setLoadedScheduleId(null);
+    // 기준시각은 여기서 추정하지 않는다 — 대상 달이 바뀌면 위 동기화 effect 가 서버에서 읽고,
+    // 같은 달이면 이미 들고 있는(더 최신인) 값을 그대로 쓴다.
+    clearConflict();
     setSavedMsg(`✓ ${s.year}년 ${s.month}월 일정을 패턴으로 가져와 ${y}년 ${m}월에 적용했어요. 새 일정표로 자동 저장됩니다.`);
     requestAnimationFrame(() => {
       document.getElementById("schedCard")?.scrollIntoView({ behavior: "smooth" });
@@ -523,10 +580,34 @@ export default function ScheduleClient({
     setWriteDate(s.writeDate ?? defaultWriteDate(s.year, s.month));
     if (s.formId) setOutFormId(s.formId); // 저장 시 기억한 출력 양식 복원
     setLoadedScheduleId(id);
+    // 저장본을 읽은 시점 = 이 창의 기준시각(서버 응답이 유일한 출처). 이 위에서만 덮어쓴다.
+    if (typeof selectedChildId === "number") {
+      baseRef.current = { csId: selectedChildId, y: s.year, m: s.month, stamp: stampFromLoaded(s) };
+    }
+    clearConflict();
     setSavedMsg(`✓ ${s.year}년 ${s.month}월 일정표를 불러왔어요.`);
     requestAnimationFrame(() => {
       document.getElementById("schedCard")?.scrollIntoView({ behavior: "smooth" });
     });
+  }
+
+  // 두 탭 충돌에서 '최신 내용 불러오기'를 고른 경우 — 지금 편집 중인 (아동, 연·월) 의
+  // 서버 저장본을 다시 읽어 화면을 통째로 갈아끼운다(이 창에서 고친 내용은 버린다).
+  // 저장본 id 를 따로 들고 있지 않아도 되도록 (아동, 연, 월) 로 찾는다.
+  async function reloadFromServer() {
+    if (typeof selectedChildId !== "number" || !genY || !genM) return;
+    let res: Response;
+    try { res = await fetch(`/api/schedule/load?childServiceId=${selectedChildId}&year=${genY}&month=${genM}`); }
+    catch { alertRequestFailure(0, "불러오기 실패"); return; }
+    if (!res.ok) { alertRequestFailure(res.status, "불러오기 실패"); return; }
+    const s = await res.json();
+    if (!s || typeof s.id !== "number") {
+      // 그 사이 다른 창이 지운 경우 — 불러올 게 없으니 이 창 내용을 살릴 수 있게 안내만 한다.
+      alert("서버에 저장된 이 달 일정표를 찾지 못했어요. ‘이 창 내용으로 저장’을 고르면 지금 화면 그대로 저장됩니다.");
+      return;
+    }
+    await loadSavedSchedule(String(s.id));
+    await refreshSavedList(selectedChildId);
   }
 
   async function deleteSaved(id: number) {
@@ -547,6 +628,9 @@ export default function ScheduleClient({
     if (loadedScheduleId === id) {
       setLoadedScheduleId(null);
       setSavedMsg("");
+      // 지운 저장본의 시각을 계속 들고 있으면 다음 저장이 헛대조된다.
+      baseRef.current = null;
+      clearConflict();
     }
     if (typeof selectedChildId === "number") await refreshSavedList(selectedChildId);
   }
@@ -576,6 +660,9 @@ export default function ScheduleClient({
     setSessions(next);
     setGenY(y);
     setGenM(m);
+    // 기준시각은 여기서 손대지 않는다 — 방금 자동저장한 값(메모리)이 가장 최신이므로 되돌리면
+    // '생성 → 저장 → 요일 고쳐 다시 생성'만 해도 혼자서 409 가 났다. 달이 바뀌었으면 동기화 effect 가 읽는다.
+    clearConflict();
     setPvCharge(therapist);
     setPvType(serviceType);
     setWriteDate(defaultWriteDate(y, m));
@@ -641,6 +728,8 @@ export default function ScheduleClient({
     setWriteDate("");
     setSavedMsg("");
     setLoadedScheduleId(null);
+    baseRef.current = null;
+    clearConflict();
     window.scrollTo(0, 0);
   }
 
@@ -681,6 +770,8 @@ export default function ScheduleClient({
   const autoSave = useCallback(async () => {
     if (!sessions || typeof selectedChildId !== "number" || days.length === 0 || !schedTouched.current) return;
     if (authFailedRef.current) return; // 로그아웃 상태 — 다시 로그인 후 사용자가 눌러야 재개
+    // 다른 창이 먼저 저장해 충돌한 상태 — 사용자가 어느 쪽을 남길지 고를 때까지 저장을 멈춘다.
+    if (conflictRef.current && !forceOverwriteRef.current) return;
     if (savingRef.current) { savePendingRef.current = true; return; }
     savingRef.current = true;
     setAutoStatus("saving");
@@ -691,13 +782,31 @@ export default function ScheduleClient({
         pvOrg, pvTel, pvCharge, pvType, costUnit, costSelf, writeDate,
         formId: outFormId || undefined,
         sessions: days.map((d) => ({ day: d, time: sessions[d].time, makeup: sessions[d].makeup })),
+        // 두 탭 덮어쓰기 방지 — 이 창이 불러온 시점의 저장본 시각. 그 사이 다른 창이 저장했으면
+        // 서버가 409 로 거절한다(한 달치 일정을 조용히 지우지 않는다).
+        // 기준시각을 '모르는' 상태면 키 자체가 빠져 예전처럼 그냥 저장된다(가짜 충돌 방지).
+        ...baseField(baseRef.current, selectedChildId, genY, genM),
+        ...(forceOverwriteRef.current ? { overwrite: true } : {}),
       };
       const res = await fetch("/api/schedule/save", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       if (res.ok) {
         const j = await res.json();
         setLoadedScheduleId(j.scheduleId);
+        // ⚠ 새 기준시각으로 갱신 — 이걸 빼먹으면 두 번째 저장부터 자기 자신과 충돌해 저장이 멈춘다.
+        baseRef.current = { csId: selectedChildId, y: genY, m: genM, stamp: stampFromSaveResponse(j) };
+        forceOverwriteRef.current = false;
+        conflictRef.current = false;
         setAutoStatus("saved");
         saveFailRef.current = 0;
+      } else if (res.status === SAVE_CONFLICT_STATUS) {
+        // 같은 아동·같은 달이 이 창 밖(=다른 탭, 또는 이 화면의 일괄 생성)에서 먼저 저장됐다.
+        // 1계정 1기기(lib/auth.ts)라 '다른 기기'는 401 로 갈리므로 여기로 오지 않는다.
+        // 어느 쪽을 남길지는 한 달치 일정이 걸린 결정이므로 반드시 사용자가 고른다.
+        conflictRef.current = true;
+        forceOverwriteRef.current = false;
+        savePendingRef.current = false;
+        saveFailRef.current = 0;
+        setAutoStatus("conflict");
       } else if (res.status === 401) {
         // 이 계정은 단일 세션(lib/auth.ts createSession 이 기존 세션을 지운다)이라
         // 집에서 로그인하면 센터 PC 창은 쿠키만 남아 화면은 멀쩡한데 저장만 401 이 된다.
@@ -825,9 +934,50 @@ export default function ScheduleClient({
 
       {/* 자동저장 실패 경고 — 데이터 소실 경고라 화면 아래가 아니라 상단에 고정해 둔다.
           (달력을 스크롤하며 한 달치를 짜는 동안에도 눈에 들어와야 한다) */}
-      {(autoStatus === "error" || autoStatus === "authError") && (
+      {(autoStatus === "error" || autoStatus === "authError" || autoStatus === "conflict") && (
         <div className="save-alert-sticky">
-          {autoStatus === "error" ? (
+          {autoStatus === "conflict" ? (
+            /* 같은 아동·같은 달이 이 창 밖에서 바뀐 상태. 저장은 '병합'이 아니라 '전면 교체'라
+               어느 쪽이든 한쪽 내용은 사라진다 → 무엇을 잃는지 밝히고 사용자가 고르게 한다.
+               고를 때까지 자동저장은 멈춘다(conflictRef). 기록지와 같은 문구·같은 배너. */
+            <div className="flash warn" style={{ margin: 0, fontWeight: 700, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", boxShadow: "0 2px 8px rgba(0,0,0,.08)" }}>
+              <span>
+                ⚠ 이 달 일정표가 <b>이 창 밖에서 바뀌었어요</b>(같은 아동·같은 달을 열어 둔 다른 탭, 또는 이번 달 일괄 생성) — 지금 이 창의 내용은 아직 저장되지 않았습니다.
+                <br />
+                저장은 덧붙이기가 아니라 통째로 바꾸는 것이라 <b>나중에 저장한 쪽이 앞서 저장한 내용을 통째로 지웁니다.</b> 어느 쪽을 남길지 골라주세요.
+                <br />
+                <span style={{ fontWeight: 500 }}>
+                  고르기 전에 <b>한글파일(.hwpx) 다운로드</b>로 지금 화면 내용을 받아두면 안전해요.
+                </span>
+              </span>
+              <button
+                type="button"
+                className="btn btn-sm"
+                style={{ fontWeight: 700 }}
+                onClick={() => {
+                  if (!confirm("서버에 저장된 최신 내용을 불러옵니다.\n지금 이 창에서 고친 내용(회기·시간·보강 등)은 사라집니다. 계속할까요?")) return;
+                  void reloadFromServer();
+                }}
+              >
+                최신 내용 불러오기 (이 창에서 고친 내용은 사라짐)
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm btn-primary"
+                style={{ fontWeight: 700 }}
+                onClick={() => {
+                  if (!confirm("이 창의 내용으로 저장합니다.\n다른 곳에서 저장한 내용은 사라집니다. 계속할까요?")) return;
+                  forceOverwriteRef.current = true;
+                  conflictRef.current = false;
+                  schedTouched.current = true;
+                  setAutoStatus("saving");
+                  void autoSave();
+                }}
+              >
+                이 창 내용으로 저장 (다른 곳의 내용을 덮어씀)
+              </button>
+            </div>
+          ) : autoStatus === "error" ? (
             <div className="flash warn" style={{ margin: 0, fontWeight: 700, boxShadow: "0 2px 8px rgba(0,0,0,.08)" }}>
               ⚠ 저장에 실패했어요 — 다시 시도하고 있어요. 계속 이 표시가 남으면 인터넷 연결을 확인하고,
               창을 닫기 전에 <b>한글파일(.hwpx) 다운로드</b>로 작성 내용을 먼저 받아두세요.
@@ -1248,6 +1398,7 @@ export default function ScheduleClient({
               다른 컴퓨터(집·센터 등)에서도 위에서 <b>같은 아동·월</b>을 고르면 이어서 작성할 수 있어요.
               {autoStatus === "error" && <b style={{ color: "var(--danger)" }}> ⚠ 지금은 저장 실패 — 화면 위 안내를 확인하세요.</b>}
               {autoStatus === "authError" && <b style={{ color: "var(--danger)" }}> ⚠ 로그아웃되어 저장되지 않았어요 — 화면 위 안내를 확인하세요.</b>}
+              {autoStatus === "conflict" && <b style={{ color: "var(--danger)" }}> ⚠ 이 창 밖에서 바뀌어 지금은 저장이 멈춰 있어요 — 화면 위 안내에서 골라주세요.</b>}
             </div>
           </div>
         </div>
