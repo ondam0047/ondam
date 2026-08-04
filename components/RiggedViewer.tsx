@@ -22,6 +22,7 @@ import {
   TONGUE_ADVANCE_X,
   TONGUE_RAISE_Y,
   LIP_PLACEMENT,
+  TONGUE_PLACEMENT,
   IDLE_POSE,
   mannerOf,
   fullPose,
@@ -744,12 +745,30 @@ function RiggedModel({
         // 평행이동으로 만든다. advance 1.0 ≈ retract −1.0 (실측 변위), raise는 동일 크기의 +Y.
         const adv = (eff["tongue_advance"] ?? 0) * TONGUE_ADVANCE_X;
         const rise = (eff["tongue_raise"] ?? 0) * TONGUE_RAISE_Y;
+        // 휴지 tuck 복원(2026-08-04): 네이티브 rest 혀는 구강 안에서 크게 떠 보인다 →
+        // centroid 기준 축소(tf.scale)로 치아 뒤에 넣는다. ⚠️ 리거는 전방 상승 모프
+        // (tip→치조, front→경구개)의 도달점을 **네이티브 rest 기준**으로 캘리브했으므로,
+        // 그 모프가 걸리면 축소를 네이티브(1.0)로 되돌려야 접촉점에 정확히 닿는다.
+        // (feca74c에서 통째로 사라졌던 로직 — 그때 휴지의 tuck도 같이 없어졌다.)
+        // ⚠️ 옛 코드와 다른 점: fwd/up 오프셋은 **페이드하지 않는다**. 그건 rest 보정이
+        // 아니라 사지탈 단면과의 정합 보정(TONGUE_PLACEMENT)이라 전 구간 유지해야 하고,
+        // 사용자가 맞춘 음소 자세도 이 오프셋이 걸린 상태에서 튜닝됐다.
+        const raise = Math.min(
+          1,
+          Math.max(
+            eff["tongue_tip_up"] ?? 0,
+            eff["tongue_front_up"] ?? 0,
+            eff["tongue_lateral_channel"] ?? 0,
+          ) / 0.3,
+        );
+        const s = tf.scale + (1 - tf.scale) * raise;
+        const C = b.centroid;
         for (let i = 0; i < arr.length; i += 3) {
           const lx = base[i]; // 로컬 X: +전방(치조) / −후방(연구개쪽)
           const post = Math.min(1, Math.max(0, (-0.02 - lx) / 0.21));
-          arr[i] = base[i] + tf.fwd + adv;
-          arr[i + 1] = base[i + 1] + tf.up + rise + post * dlift;
-          arr[i + 2] = base[i + 2];
+          arr[i] = C.x + (base[i] - C.x) * s + tf.fwd + adv;
+          arr[i + 1] = C.y + (base[i + 1] - C.y) * s + tf.up + rise + post * dlift;
+          arr[i + 2] = C.z + (base[i + 2] - C.z) * s;
         }
         posAttr.needsUpdate = true;
         b.mesh.scale.setScalar(1);
@@ -873,7 +892,13 @@ export default function RiggedViewer({ dev = false }: { dev?: boolean } = {}) {
   // the teeth while pulling the root FORWARD (away from the pharynx) — a back
   // offset would do the opposite and block the pharynx. Morph deltas are added
   // unscaled, so gestures still reach the ridge/velum.
-  const tfit = useRef<TongueFit>({ fwd: 0, up: 0, scale: 1.0 });
+  // 2026-08-03: 사용자가 맞춘 혀 rest 배치를 기본값으로 승격(TONGUE_PLACEMENT).
+  // 리거 GLB의 혀 기본 위치가 사지탈 단면과 어긋나 휴지에서 혀가 떠 보이므로,
+  // 음소별이 아니라 전 자세 공통으로 이 오프셋이 필요하다.
+  // ⚠️ scale 기본값은 1.0(네이티브) — 지금까지의 거동과 동일하게 유지한다. 다만 위 정점
+  // 루프가 tf.scale을 다시 쓰므로 검증 UI의 "크기" 슬라이더가 되살아났다(feca74c 이후
+  // 값이 무시돼 죽어 있었음). 휴지 tuck을 원하면 이 값을 0.85 근처로 내리면 된다.
+  const tfit = useRef<TongueFit>({ ...TONGUE_PLACEMENT, scale: 1.0 });
   const seq = useRef<Seq>({
     segs: [],
     loop: false,
@@ -1493,10 +1518,9 @@ export default function RiggedViewer({ dev = false }: { dev?: boolean } = {}) {
               <div className="mt-1 text-[11px] font-semibold text-slate-600">혀 (치아 뒤로)</div>
               <Slider label="앞뒤(X)" min={-0.3} max={0.08} step={0.002} value={tf.fwd} onChange={(v) => setTfit({ fwd: v })} />
               <Slider label="상하(Y)" min={-0.12} max={0.12} step={0.002} value={tf.up} onChange={(v) => setTfit({ up: v })} />
-              <div className="flex items-center justify-between text-[11px] text-slate-500">
-                <span>크기</span>
-                <span className="font-mono">1.000 (고정 · 네이티브)</span>
-              </div>
+              {/* 크기(tuck): centroid 기준 축소. 전방 상승 모프(tip/front/lateral)가 걸리면
+                  네이티브 1.0으로 자동 복원되므로 접촉점은 그대로고 휴지에서만 tuck된다. */}
+              <Slider label="크기 (휴지 tuck)" min={0.7} max={1.2} step={0.01} value={tf.scale} onChange={(v) => setTfit({ scale: v })} />
               <p className="text-[11px] text-slate-500">
                 새 입술·혀가 사지철 머리의 그려진 부위/치아와 겹치지 않게 맞춥니다.
                 혀가 치아를 뚫으면 앞뒤(X)를 음수로 당겨 구강 안으로 넣으세요.

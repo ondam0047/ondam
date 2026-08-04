@@ -64,10 +64,14 @@ export function mannerOf(s: string): Manner {
 export const TONGUE_ADVANCE_X = 0.0294;
 export const TONGUE_RAISE_Y = 0.0294;
 
-// 입술 메시 전역 배치 오프셋(모든 음소 공통). 입술은 혀와 달리 음소별 이동 모프가 없어서
-// 검증 UI의 "입술 맞춤" 슬라이더로 맞춘 값을 기본값으로 굽는다. 세 탭(음소산출·비교·훈련)이
-// 같은 값을 쓰도록 여기서 한 번만 정의. (사용자 튜닝값 2026-08-03)
+// 조음기관 메시 전역 배치 오프셋(모든 자세 공통 — 휴지 포함). 검증 UI의 "입술·혀 맞춤"
+// 슬라이더로 맞춘 값을 기본값으로 굽는다. 세 탭(음소산출·비교·훈련)이 같은 값을 쓰도록
+// 여기서 한 번만 정의. (사용자 튜닝값 2026-08-03)
+// ⚠️ 이건 음소별 조정이 아니라 **rest 배치 보정**이다 — 리거 GLB의 혀·입술 기본 위치가
+// 사지탈 단면과 어긋나 있어(혀가 떠 보이고 입술이 어긋남) 전 자세에 동일하게 필요하다.
+// 한때 이 값을 ㅅ 포즈에만 흡수했더니 휴지·나머지 음소가 보정 없는 원위치로 돌아갔다.
 export const LIP_PLACEMENT = { fwd: 0.004, up: 0.026 };
+export const TONGUE_PLACEMENT = { fwd: -0.03, up: -0.015 };
 
 // All controllable morph targets (for zeroing / iteration).
 // ⚠️ tongue_advance·tongue_raise는 GLB에 없는 가상 모프 — morphTargetDictionary 조회에서
@@ -140,11 +144,13 @@ export const CONSONANTS: Consonant[] = [
     // ⚠️ 외삽·음수 주의: three.js는 morph influence를 클램프하지 않으므로 1.0 초과(tip_up 1.33,
     // groove 1.44)와 음수(front_up −0.33 = 앞날 내림, lateral_channel −0.92, lips_closed −0.21,
     // jaw_open −1.0 = 휴지보다 더 다묾)가 모두 의도된 값이다.
-    // ⚠️ tongue_advance/raise는 GLB에 없는 가상 모프(정점 평행이동). 사용자가 튜닝할 때 쓰던
-    // 전역 "혀 맞춤" 슬라이더(앞뒤 0.058·상하 0.026)를 이 포즈에 흡수한 값 —
-    // advance −1.020 + 0.058/0.0294 = 0.953, raise −1.380 + 0.026/0.0294 = −0.496.
-    // 덕분에 전역 슬라이더는 0으로 되돌려 다른 음소는 영향을 받지 않고, 비교/훈련 탭
-    // (renderCore, 전역 혀 오프셋 없음)에서도 같은 자세가 재현된다.
+    // ⚠️ tongue_advance/raise는 GLB에 없는 가상 모프(정점 평행이동). 화면에서 맞추실 때의
+    // 최종 혀 위치를 그대로 재현하도록 **전역 rest 배치가 바뀐 만큼 환산한 값**이다.
+    //   튜닝 세션 합 = 전역(앞뒤 0.058·상하 0.026) + 포즈(advance −1.020·raise −1.380)
+    //               = 앞 +0.028012 / 위 −0.014572
+    //   새 전역 rest = TONGUE_PLACEMENT(−0.03, −0.015)
+    //   → advance = (0.028012 −(−0.03))/0.0294 = 1.973,  raise = (−0.014572 −(−0.015))/0.0294 = 0.015
+    // 전역값을 바꾸면 이 두 값도 같은 식으로 다시 계산해야 ㅅ 자세가 유지된다.
     // velum_open은 스크린샷의 1.0(휴지 잔여값) 대신 구강음 규칙대로 0.1(닫힘) 유지.
     pose: {
       tongue_tip_up: 1.33,
@@ -154,8 +160,8 @@ export const CONSONANTS: Consonant[] = [
       tongue_retract: 0.38,
       tongue_groove: 1.44,
       tongue_lateral_channel: -0.92,
-      tongue_advance: 0.953,
-      tongue_raise: -0.496,
+      tongue_advance: 1.973,
+      tongue_raise: 0.015,
       lips_closed: -0.21,
       lips_spread: 0.88,
       lips_jaw_open: -0.09,
@@ -209,10 +215,18 @@ export const VOWELS: Record<string, Vowel> = {
   // 외삽(three.js는 morph influence를 1.0에서 자르지 않고 델타를 그만큼 더 밀어붙임).
   // 턱이 조금 열리므로(ㅜ도 소량) 그대로면 입이 벌어져 → lips_closed 0.3으로 위아래
   // 입술을 다시 모아 "작게 오므린 원순" 구멍을 만든다(라운드+클로즈드 동시 조합).
-  o: { id: "o", label: "ㅗ", feature: "중·후 원순", pose: { jaw_open: 0.3, lips_round: 1.5, lips_closed: 0.3, tongue_back_up: 0.4 }, opacity: LIP_OPACITY.rounded },
+  // ⚠️ 후설 성분(2026-08-04): ㅗ·ㅜ는 후설모음인데 혀 값이 tongue_back_up 하나뿐이라
+  // 후설성을 상승 하나로 대신하고 있었다. GLB 실측상 tongue_back_up w=1은 후방 134정점을
+  // 평균 ΔY +0.0156으로 **거의 순수 수직 상승**시킬 뿐 후방 이동 성분이 없다 → 혀 뒤·뿌리가
+  // 위로만 솟는 부자연스러운 자세가 됐다(사용자 지적). 실제 /o/·/u/는 설배가 연구개 쪽으로
+  // 오르면서 혀 몸통이 **뒤로 물러나** 인두강이 좁아진다. → back_up을 낮추고 tongue_retract
+  // (혀 전체 −X 평행이동 ≈0.029)를 넣어 상승과 후퇴를 분담시킨다. 연구개음 ㄱ·ㅇ이 이미
+  // back_up + retract 1.0을 함께 쓰는 것과 같은 구성. ㅡ는 후설이 아니라 고·중설이므로 제외.
+  o: { id: "o", label: "ㅗ", feature: "중·후 원순", pose: { jaw_open: 0.3, lips_round: 1.5, lips_closed: 0.3, tongue_back_up: 0.3, tongue_retract: 0.35 }, opacity: LIP_OPACITY.rounded },
   // ㅜ는 고모음이라 ㅗ(중모음)보다 아랫입술이 더 위로 올라와 아주 작은 원순 구멍이
   // 돼야 함 → lips_closed 0.7(ㅗ 0.3보다 훨씬 높게)로 아랫입술을 더 끌어올림.
-  u: { id: "u", label: "ㅜ", feature: "고·후 원순", pose: { jaw_open: 0.15, lips_round: 1.5, lips_closed: 0.7, tongue_back_up: 0.6 }, opacity: LIP_OPACITY.rounded },
+  // 후설·고모음이라 ㅗ보다 더 높고(back_up 0.4 > 0.3) 더 뒤로(retract 0.5 > 0.35).
+  u: { id: "u", label: "ㅜ", feature: "고·후 원순", pose: { jaw_open: 0.15, lips_round: 1.5, lips_closed: 0.7, tongue_back_up: 0.4, tongue_retract: 0.5 }, opacity: LIP_OPACITY.rounded },
   // 고모음 ㅡ·ㅣ: 입을 거의 다문 자세라 lips_closed 0.5로 위아래 입술을 더 모음(벌어짐 감소).
   eu: { id: "eu", label: "ㅡ", feature: "고·후 평순", pose: { tongue_back_up: 0.5, lips_closed: 0.5 }, opacity: LIP_OPACITY.openVowel },
   i: { id: "i", label: "ㅣ", feature: "고·전 평순", pose: { tongue_front_up: 0.8, lips_spread: 0.6, lips_closed: 0.5 }, opacity: LIP_OPACITY.spread },
