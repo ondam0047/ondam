@@ -67,11 +67,12 @@ export const TONGUE_RAISE_Y = 0.0294;
 // 조음기관 메시 전역 배치 오프셋(모든 자세 공통 — 휴지 포함). 검증 UI의 "입술·혀 맞춤"
 // 슬라이더로 맞춘 값을 기본값으로 굽는다. 세 탭(음소산출·비교·훈련)이 같은 값을 쓰도록
 // 여기서 한 번만 정의. (사용자 튜닝값 2026-08-03)
-// ⚠️ 이건 음소별 조정이 아니라 **rest 배치 보정**이다 — 리거 GLB의 혀·입술 기본 위치가
-// 사지탈 단면과 어긋나 있어(혀가 떠 보이고 입술이 어긋남) 전 자세에 동일하게 필요하다.
-// 한때 이 값을 ㅅ 포즈에만 흡수했더니 휴지·나머지 음소가 보정 없는 원위치로 돌아갔다.
+// ⚠️ 혀는 0 — 휴지 혀 위치는 리거 원본 그대로 두는 것이 확정(2026-08-04). rest를 옮겨
+// 봤으나(−0.03/−0.015) 사용자가 "휴지 위치가 달라졌다"고 확인해 되돌렸다. 음소별로 혀를
+// 옮겨야 하면 전역이 아니라 포즈의 tongue_advance/tongue_raise로 넣을 것.
+// 입술 0.004/0.026은 사용자 지시로 유지(전 자세 공통).
 export const LIP_PLACEMENT = { fwd: 0.004, up: 0.026 };
-export const TONGUE_PLACEMENT = { fwd: -0.03, up: -0.015 };
+export const TONGUE_PLACEMENT = { fwd: 0, up: 0 };
 
 // All controllable morph targets (for zeroing / iteration).
 // ⚠️ tongue_advance·tongue_raise는 GLB에 없는 가상 모프 — morphTargetDictionary 조회에서
@@ -148,8 +149,9 @@ export const CONSONANTS: Consonant[] = [
     // 최종 혀 위치를 그대로 재현하도록 **전역 rest 배치가 바뀐 만큼 환산한 값**이다.
     //   튜닝 세션 합 = 전역(앞뒤 0.058·상하 0.026) + 포즈(advance −1.020·raise −1.380)
     //               = 앞 +0.028012 / 위 −0.014572
-    //   새 전역 rest = TONGUE_PLACEMENT(−0.03, −0.015)
-    //   → advance = (0.028012 −(−0.03))/0.0294 = 1.973,  raise = (−0.014572 −(−0.015))/0.0294 = 0.015
+    //   전역 rest = TONGUE_PLACEMENT(0, 0) — 휴지 혀는 원본 그대로 둔다(사용자 확인 2026-08-04:
+    //   rest를 −0.03/−0.015로 옮겼더니 "휴지 위치가 달라졌다" → 되돌림).
+    //   → advance = 0.028012/0.0294 = 0.953,  raise = −0.014572/0.0294 = −0.496
     // 전역값을 바꾸면 이 두 값도 같은 식으로 다시 계산해야 ㅅ 자세가 유지된다.
     // velum_open은 스크린샷의 1.0(휴지 잔여값) 대신 구강음 규칙대로 0.1(닫힘) 유지.
     pose: {
@@ -160,8 +162,8 @@ export const CONSONANTS: Consonant[] = [
       tongue_retract: 0.38,
       tongue_groove: 1.44,
       tongue_lateral_channel: -0.92,
-      tongue_advance: 1.973,
-      tongue_raise: 0.015,
+      tongue_advance: 0.953,
+      tongue_raise: -0.496,
       lips_closed: -0.21,
       lips_spread: 0.88,
       lips_jaw_open: -0.09,
