@@ -153,6 +153,9 @@ export const CONSONANTS: Consonant[] = [
     //   rest를 −0.03/−0.015로 옮겼더니 "휴지 위치가 달라졌다" → 되돌림).
     //   → advance = 0.028012/0.0294 = 0.953,  raise = −0.014572/0.0294 = −0.496
     // 전역값을 바꾸면 이 두 값도 같은 식으로 다시 계산해야 ㅅ 자세가 유지된다.
+    // 2026-08-05 사용자 요청 "ㅅ를 뒤로 좀 더" → advance 0.953 → 0.6 (혀 전체가 0.0104
+    // 후방으로, 혀 길이의 약 2.4%). 전역 TONGUE_PLACEMENT는 건드리지 않으므로 휴지·다른
+    // 음소는 그대로다. 더/덜 필요하면 이 값만 조정(1.0 = 0.0294).
     // velum_open은 스크린샷의 1.0(휴지 잔여값) 대신 구강음 규칙대로 0.1(닫힘) 유지.
     pose: {
       tongue_tip_up: 1.33,
@@ -162,7 +165,7 @@ export const CONSONANTS: Consonant[] = [
       tongue_retract: 0.38,
       tongue_groove: 1.44,
       tongue_lateral_channel: -0.92,
-      tongue_advance: 0.953,
+      tongue_advance: 0.6,
       tongue_raise: -0.496,
       lips_closed: -0.21,
       lips_spread: 0.88,
