@@ -88,6 +88,9 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
   const [formName, setFormName] = useState("");
   const [kind, setKind] = useState<"record" | "schedule">("record");
   const [savingForm, setSavingForm] = useState(false);
+  // 저장된 양식 매핑 수정 모드 — 저장 시 새로 만들지 않고 이 id 를 덮어쓴다.
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editLoading, setEditLoading] = useState<number | null>(null);
   // 셀프 보정: 칸 클릭으로 역할 지정/해제. key="t,r,c" → 역할(빈문자열=해제)
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [picker, setPicker] = useState<{ t: number; r: number; c: number; text: string; x: number; y: number } | null>(null);
@@ -112,7 +115,8 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
   useEffect(() => { loadSaved(); }, [loadSaved]);
 
   // 파일 선택 즉시 자동 분석(규칙 기반·무료·즉시). f 를 직접 받음 — setFile 은 비동기라 state 의존 X.
-  async function analyze(f?: File) {
+  // presetOverrides: 저장된 양식 수정 모드 — 저장본의 매핑을 그대로 적용(캐시·AI 자동매핑 건너뜀).
+  async function analyze(f?: File, presetOverrides?: Record<string, string>) {
     const target = f ?? file;
     if (!target) return;
     setLoading(true); setError(null); setWarning(null); setResult(null); setOverrides({}); setLowConf(new Set()); setPicker(null);
@@ -136,6 +140,11 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
         setWarning(d.warning ?? null);
       }
       if (!formName) setFormName(target.name.replace(/\.hwpx$/i, ""));
+      if (presetOverrides) {
+        // 수정 모드 — 저장본에 이미 확정된 매핑이 있으므로 그걸 보여준다.
+        setOverrides(presetOverrides);
+        return;
+      }
       // 학습 캐시 적중(같은 구조 양식을 전에 매핑) → 그 매핑 자동 적용. 아니면 베타계정은 AI 자동.
       const cached = d.cached?.overrides;
       if (cached && Object.keys(cached).length) {
@@ -243,16 +252,48 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
       fd.append("file", file);
       fd.append("name", formName.trim());
       fd.append("kind", kind);
+      if (editingId != null) fd.append("id", String(editingId)); // 수정 모드 — 기존 양식 덮어쓰기
       if (overridesArray.length) fd.append("overrides", JSON.stringify(overridesArray));
       const r = await fetch("/api/forms/saved", { method: "POST", body: fd });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || "저장 실패");
       setFormName("");
+      setEditingId(null);
       loadSaved();
     } catch (e) {
       setError(e instanceof Error ? e.message : "저장 중 문제가 생겼어요.");
     } finally {
       setSavingForm(false);
+    }
+  }
+
+  // 저장된 양식 매핑 수정 — 파일을 다시 올리지 않고 저장본(템플릿+매핑)으로 보정 화면을 연다.
+  async function editForm(id: number) {
+    setEditLoading(id); setError(null);
+    try {
+      const r = await fetch(`/api/forms/saved?id=${id}`);
+      const d = await r.json() as {
+        id: number; kind: "record" | "schedule"; name: string; template: string;
+        manual?: Array<{ role: string; table: number; row: number; col: number }>;
+        error?: string;
+      };
+      if (!r.ok) throw new Error(d.error || "양식을 불러오지 못했어요.");
+      const bytes = Uint8Array.from(atob(d.template), (ch) => ch.charCodeAt(0));
+      const f = new File([bytes], `${d.name}.hwpx`, { type: "application/hwp+zip" });
+      // 슬롯을 저장본 종류로 맞추고 진행 중이던 업로드는 초기화(수정 모드로 전환).
+      setKind(d.kind);
+      setFile(f); setResult(null); setWarning(null); setPicker(null); setLowConf(new Set());
+      setEditingId(d.id);
+      setFormName(d.name);
+      const preset: Record<string, string> = {};
+      for (const m of d.manual ?? []) preset[trcKey(m.table, m.row, m.col)] = m.role;
+      await analyze(f, preset);
+      // 보정 화면으로 스크롤 — 목록 아래에 있어 수정 모드로 들어간 걸 놓치기 쉽다.
+      document.getElementById("mapper-upload")?.scrollIntoView({ behavior: "smooth" });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "양식을 불러오는 중 문제가 생겼어요.");
+    } finally {
+      setEditLoading(null);
     }
   }
 
@@ -280,6 +321,7 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
     setKind(k);
     setFile(null); setResult(null); setError(null); setWarning(null);
     setOverrides({}); setLowConf(new Set()); setPicker(null); setFormName("");
+    setEditingId(null);
   }
 
   // 셀프 보정 — 지정 가능 역할(양식 종류별). 같은 역할을 여러 칸에 지정 가능.
@@ -394,7 +436,14 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
                     {list.map((f) => (
                       <div key={f.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface-2)", padding: "8px 12px" }}>
                         <span style={{ fontSize: 14, fontWeight: 600 }}>{f.name}</span>
-                        <button onClick={() => deleteForm(f.id, f.name)} style={{ background: "none", border: "none", fontSize: 12, color: "var(--danger, #8A2F1C)", cursor: "pointer" }}>삭제</button>
+                        <span style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                          <button onClick={() => editForm(f.id)} disabled={editLoading != null}
+                            title="저장된 매핑을 불러와 확인·수정합니다 (파일을 다시 올릴 필요 없음)"
+                            style={{ background: "none", border: "none", fontSize: 12, color: "var(--primary)", cursor: "pointer", fontWeight: 700 }}>
+                            {editLoading === f.id ? "불러오는 중…" : "수정"}
+                          </button>
+                          <button onClick={() => deleteForm(f.id, f.name)} style={{ background: "none", border: "none", fontSize: 12, color: "var(--danger, #8A2F1C)", cursor: "pointer" }}>삭제</button>
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -405,7 +454,7 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
         </div>
       </div>
 
-      <div className="card">
+      <div className="card" id="mapper-upload">
         <div className="card-body" style={{ display: "grid", gap: 14 }}>
           {/* 슬롯 선택 — 기록지 양식과 일정표 양식을 각각 따로 올린다(치료사가 헷갈리지 않게 먼저 고름) */}
           <div style={{ display: "grid", gap: 8 }}>
@@ -460,6 +509,7 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
                     return;
                   }
                   setFile(f); setResult(null); setError(null); setWarning(null);
+                  setEditingId(null); // 새 파일 선택 = 수정 모드 해제(새 양식 저장)
                   if (f) void analyze(f);
                 }} />
             </label>
@@ -535,24 +585,35 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
         <>
           <div className="card">
             <div className="card-body" style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-              <span style={{ fontSize: 14, fontWeight: 700 }}>이 양식 저장:</span>
+              <span style={{ fontSize: 14, fontWeight: 700 }}>{editingId != null ? "매핑 수정 저장:" : "이 양식 저장:"}</span>
               <span className="badge" style={{ fontSize: 13, fontWeight: 800, padding: "6px 12px", borderColor: "transparent", background: "var(--primary-soft)", color: "var(--primary)" }}>
                 {kind === "record" ? "📝 기록지" : "📅 일정표"} 양식
               </span>
+              {editingId != null && (
+                <span className="badge badge-warn" style={{ fontSize: 12 }}>
+                  ✏️ 저장하면 기존 양식을 덮어써요
+                </span>
+              )}
               <input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder={`양식 이름 (예: A센터 ${KIND_LABEL[kind]})`}
                 style={{ flex: 1, minWidth: 180, padding: "8px 12px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface)", fontSize: 14, color: "var(--text)" }} />
               {(() => {
                 const used = (kind === "record" ? recordForms : scheduleForms).length;
-                const atLimit = used >= maxPerKind;
+                // 수정 모드는 새 슬롯을 안 만드므로 한도와 무관.
+                const atLimit = editingId == null && used >= maxPerKind;
                 return (
                   <button className="btn btn-primary" onClick={saveForm} disabled={savingForm || !formName.trim() || atLimit}
                     title={atLimit ? `${KIND_LABEL[kind]} 양식은 ${maxPerKind}개까지 저장할 수 있어요. 기존 양식을 삭제 후 저장하세요.` : undefined}>
-                    {savingForm ? "저장 중…" : atLimit ? `저장 (한도 ${used}/${maxPerKind})` : "저장"}
+                    {savingForm ? "저장 중…" : editingId != null ? "수정 저장" : atLimit ? `저장 (한도 ${used}/${maxPerKind})` : "저장"}
                   </button>
                 );
               })()}
+              {editingId != null && (
+                <button className="btn btn-ghost" onClick={() => { setEditingId(null); setFile(null); setResult(null); setFormName(""); setOverrides({}); }}>
+                  수정 취소
+                </button>
+              )}
             </div>
-            {(kind === "record" ? recordForms : scheduleForms).length >= maxPerKind && (
+            {editingId == null && (kind === "record" ? recordForms : scheduleForms).length >= maxPerKind && (
               <p style={{ margin: "8px 16px 0", fontSize: 12.5, color: "#8A2F1C", lineHeight: 1.55 }}>
                 {KIND_LABEL[kind]} 양식이 한도({maxPerKind}개)에 찼어요. 기존 양식을 삭제하면 새로 저장할 수 있어요{planName.includes("Solo") ? " (Pro로 올리면 5개까지)" : ""}.
               </p>

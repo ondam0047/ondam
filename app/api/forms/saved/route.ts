@@ -10,10 +10,28 @@ import { maxCenterForms, planLabel } from "@/lib/plan";
 const KINDS = new Set(["record", "schedule"]);
 const KIND_LABEL: Record<string, string> = { record: "기록지", schedule: "일정표" };
 
-// 내 저장 양식 목록(기록지/일정표 각각 다수)
-export async function GET() {
+// 내 저장 양식 목록(기록지/일정표 각각 다수). ?id= 를 주면 그 양식의 템플릿·매핑을
+// 돌려준다(매핑 수정 화면용 — 파일을 다시 올리지 않아도 저장본으로 보정 재개).
+export async function GET(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const idParam = new URL(req.url).searchParams.get("id");
+  if (idParam) {
+    const rf = await prisma.recordForm.findFirst({
+      where: { id: Number(idParam), ownerUserId: user.id },
+      select: { id: true, kind: true, name: true, template: true, spec: true },
+    });
+    if (!rf) return Response.json({ error: "양식을 찾을 수 없어요." }, { status: 404 });
+    let manual: unknown[] = [];
+    try { manual = JSON.parse(rf.spec)?.manual ?? []; } catch { /* noop */ }
+    return Response.json({
+      id: rf.id,
+      kind: rf.kind,
+      name: rf.name,
+      template: Buffer.from(rf.template).toString("base64"),
+      manual,
+    });
+  }
   const forms = await prisma.recordForm.findMany({
     where: { ownerUserId: user.id },
     orderBy: [{ kind: "asc" }, { createdAt: "asc" }],
@@ -33,20 +51,30 @@ export async function POST(req: NextRequest) {
   const file = form.get("file");
   const name = String(form.get("name") ?? "").trim();
   const kind = String(form.get("kind") ?? "");
+  // id 가 있으면 기존 양식 덮어쓰기(매핑 수정) — 새 슬롯을 만들지 않으므로 개수 상한 미적용.
+  const editIdRaw = String(form.get("id") ?? "").trim();
+  const editId = editIdRaw ? Number(editIdRaw) : null;
   if (!(file instanceof Blob)) return Response.json({ error: "no file" }, { status: 400 });
   if (!name) return Response.json({ error: "이름을 입력하세요." }, { status: 400 });
   if (!KINDS.has(kind)) return Response.json({ error: "종류(기록지/일정표)를 선택하세요." }, { status: 400 });
-
-  // 요금제별 종류당 저장 개수 상한(Solo 2 / Pro 5 / 체험·베타 5) — 초과 시 거부.
-  const planRow = await prisma.user.findUnique({ where: { id: user.id }, select: { plan: true, trialEndsAt: true } });
-  const planUser = { plan: planRow?.plan ?? "trial", trialEndsAt: planRow?.trialEndsAt ?? null };
-  const max = maxCenterForms(planUser);
-  const used = await prisma.recordForm.count({ where: { ownerUserId: user.id, kind } });
-  if (used >= max) {
-    return Response.json(
-      { error: `${planLabel(planUser)} 요금제에서는 ${KIND_LABEL[kind]} 양식을 ${max}개까지 저장할 수 있어요. 기존 양식을 삭제하고 다시 시도하거나 요금제를 올려주세요.` },
-      { status: 403 },
-    );
+  if (editId != null) {
+    const exists = await prisma.recordForm.findFirst({
+      where: { id: editId, ownerUserId: user.id, kind },
+      select: { id: true },
+    });
+    if (!exists) return Response.json({ error: "수정할 양식을 찾을 수 없어요." }, { status: 404 });
+  } else {
+    // 요금제별 종류당 저장 개수 상한(Solo 2 / Pro 5 / 체험·베타 5) — 초과 시 거부.
+    const planRow = await prisma.user.findUnique({ where: { id: user.id }, select: { plan: true, trialEndsAt: true } });
+    const planUser = { plan: planRow?.plan ?? "trial", trialEndsAt: planRow?.trialEndsAt ?? null };
+    const max = maxCenterForms(planUser);
+    const used = await prisma.recordForm.count({ where: { ownerUserId: user.id, kind } });
+    if (used >= max) {
+      return Response.json(
+        { error: `${planLabel(planUser)} 요금제에서는 ${KIND_LABEL[kind]} 양식을 ${max}개까지 저장할 수 있어요. 기존 양식을 삭제하고 다시 시도하거나 요금제를 올려주세요.` },
+        { status: 403 },
+      );
+    }
   }
 
   let buf = Buffer.from(await file.arrayBuffer());
@@ -85,6 +113,14 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "편집 가능한 .hwpx 가 아니에요." }, { status: 422 });
   }
 
+  if (editId != null) {
+    // 덮어쓰기 — id 가 유지되므로 이 양식을 참조하는 저장 기록지(Record.formId)도 그대로 동작.
+    await prisma.recordForm.update({
+      where: { id: editId },
+      data: { name: name.slice(0, 80), template: buf, spec: specJson },
+    });
+    return Response.json({ ok: true, id: editId });
+  }
   const row = await prisma.recordForm.create({
     data: { ownerUserId: user.id, kind, name: name.slice(0, 80), template: buf, spec: specJson },
     select: { id: true },
