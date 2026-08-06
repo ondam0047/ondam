@@ -61,6 +61,14 @@ function findParagraph(cellXml: string, pIndex: number): [number, number] | null
   return null;
 }
 
+function findLastParagraph(cellXml: string): [number, number] | null {
+  const re = /<hp:p\b[\s\S]*?<\/hp:p>/g;
+  let m: RegExpExecArray | null;
+  let last: [number, number] | null = null;
+  while ((m = re.exec(cellXml))) last = [m.index, m.index + m[0].length];
+  return last;
+}
+
 // 한 단락(<hp:p>)의 글자를 value 로 교체. 기존 <hp:t> 는 모두 지우고
 // 첫 <hp:run> 에 새 글자를 넣는다. value 가 빈 문자열이면 셀을 비운다.
 // linesegarray(줄 위치 캐시)는 제거해서 한글이 새로 계산하도록 한다.
@@ -103,7 +111,9 @@ function applyEdit(xml: string, e: CellEdit): string {
   const c = findCell(tbl, e.row, e.col);
   if (!c) return xml;
   let cell = tbl.slice(c[0], c[1]);
-  const pr = findParagraph(cell, e.p ?? 0);
+  // 지정 문단이 없으면 마지막 문단으로 폴백 — 예전 매핑 화면이 문단 '개수'를 p 로 저장해
+  // (1문단 칸이 p=1) 채움이 조용히 무시되던 저장 spec 을 재수정 없이 살린다.
+  const pr = findParagraph(cell, e.p ?? 0) ?? findLastParagraph(cell);
   if (!pr) return xml;
   // 값에 줄바꿈(\n)이 있으면 줄마다 별도 <hp:p> 단락으로 만든다(셀 안 엔터).
   // 한 줄이면 예전과 동일하게 단락 하나만 채운다.

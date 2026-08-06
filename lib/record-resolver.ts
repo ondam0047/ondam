@@ -197,8 +197,10 @@ export function parseTables(xml: string): Grid {
       // 문단(<hp:p>)별 텍스트 — 한 칸에 여러 줄이 든 양식의 문단 단위 매핑용
       const paras = c.split(/<hp:p\b/).slice(1).map((pb) => dec([...pb.matchAll(/<hp:t>([\s\S]*?)<\/hp:t>/g)].map((m) => m[1]).join("")));
       const text = dec([...c.matchAll(/<hp:t>([\s\S]*?)<\/hp:t>/g)].map((m) => m[1]).join(""));
-      const pc = paras.length || 1;
-      if (ad) cells.push({ r: +ad[2], c: +ad[1], cs: sp ? +sp[1] : 1, rs: sp ? +sp[2] : 1, p: pc, paras, text, norm: text.replace(/\s/g, "") });
+      // p = 채움 문단 인덱스(0-based) — 다문단 칸(라벨 줄 + 빈 줄)은 마지막 문단에 채운다.
+      // (예전엔 문단 '개수'가 들어가 1문단 칸 매핑이 존재하지 않는 문단을 가리켜 조용히 무시됐다.)
+      const fillP = Math.max(0, (paras.length || 1) - 1);
+      if (ad) cells.push({ r: +ad[2], c: +ad[1], cs: sp ? +sp[1] : 1, rs: sp ? +sp[2] : 1, p: fillP, paras, text, norm: text.replace(/\s/g, "") });
     }
     tbls.push(cells);
   }
