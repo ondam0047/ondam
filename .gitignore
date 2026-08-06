@@ -55,3 +55,8 @@ deploy.config.json
 
 # hwp→hwpx 변환기 jar(서버에 별도 배치)
 bin/*.jar
+
+# hwp .hwp 출력 로컬 작업물(PoC 참조·검증 덤프 — 정본은 옵시디언 볼트)
+/hwp-poc/
+tools/hwp2hwpx-cli/target/
+tools/hwp2hwpx-cli/dependency-reduced-pom.xml

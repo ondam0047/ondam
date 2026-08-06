@@ -15,6 +15,8 @@
 // charPr/paraPr 를 header 에 복제 추가(기존 정의 복제 + 값만 교체 + 새 id)하고 run/단락이
 // 그 id 를 참조하게 한다. 셀/표 높이·표 사이 문단·뒤 표 위치 캐시는 건드리지 않는다.
 
+import { chooseFontHeight, MIN_FONT_HEIGHT, TIGHT_LINE_SPACING } from "@/lib/record-autofit-core";
+
 const TBL_OPEN = "<hp:tbl";
 const TBL_CLOSE = "</hp:tbl>";
 const TC_OPEN = "<hp:tc";
@@ -32,36 +34,6 @@ function findNthTable(xml: string, n: number): [number, number] | null {
     idx = end;
   }
   return null;
-}
-
-// 텍스트의 표시 폭(한글·전각 1.0, 그 외 0.55)을 글자 수 환산값으로 추정.
-function displayUnits(text: string): number {
-  let u = 0;
-  for (const ch of text) {
-    const code = ch.codePointAt(0)!;
-    const wide =
-      (code >= 0x1100 && code <= 0x11ff) ||
-      (code >= 0x3000 && code <= 0x303f) ||
-      (code >= 0x3130 && code <= 0x318f) ||
-      (code >= 0xac00 && code <= 0xd7a3) ||
-      (code >= 0x4e00 && code <= 0x9fff) ||
-      (code >= 0xff00 && code <= 0xffef);
-    u += wide ? 1 : 0.55;
-  }
-  return u;
-}
-
-// 글자 폭 charWidth(≈ fontHeight) 에서, 가용 폭 textWidth 안에 paraText 가 차지할 줄 수.
-function estimateLines(paraText: string, textWidth: number, charWidth: number): number {
-  if (textWidth <= 0 || charWidth <= 0) return 1;
-  const perLine = Math.max(1, Math.floor(textWidth / charWidth));
-  const segments = paraText.split(/\r?\n/);
-  let lines = 0;
-  for (const seg of segments) {
-    const units = displayUnits(seg);
-    lines += Math.max(1, Math.ceil(units / perLine));
-  }
-  return Math.max(1, lines);
 }
 
 function unescapeXml(s: string): string {
@@ -305,9 +277,8 @@ export function autoFitRecordFont(
   opts: AutoFitOptions
 ): AutoFitResult {
   const headerRows = opts.headerRows ?? 1;
-  const minFont = opts.minFontHeight ?? 450;
-  const tightPct = opts.tightLineSpacing ?? 110;
-  const SAFETY_LINES = 0.5;
+  const minFont = opts.minFontHeight ?? MIN_FONT_HEIGHT;
+  const tightPct = opts.tightLineSpacing ?? TIGHT_LINE_SPACING;
   const t = findNthTable(section, opts.resultTable);
   if (!t) return { section, header };
   const tbl = section.slice(t[0], t[1]);
@@ -346,25 +317,17 @@ export function autoFitRecordFont(
     const baseSpacingPct = paraLineSpacingPercent(header, c.narrParaPr ?? -1) ?? 135;
     const usePct = Math.min(baseSpacingPct, tightPct); // 원래가 더 좁으면 그대로.
 
-    const lineHeight = (font: number, pct: number) => Math.round((font * pct) / 100);
-    const fits = (font: number): boolean => {
-      const pitch = lineHeight(font, usePct);
-      const cap = Math.max(1, Math.floor(usable / pitch));
-      const need = estimateLines(txt, c.textWidth, font) + SAFETY_LINES; // 빈단락 제거됨
-      return need <= cap;
-    };
-
     // baseFont 부터 위로는 안 키우고(원본 크기 상한), 아래로 50씩 내리며 맞는 최대 폰트.
     // 단, 빈단락 제거 + 줄간격 축소로 baseFont 가 그대로 맞을 수도 있다(그래도 줄간격은
     // 좁히는 게 안전마진↑ 이므로 paraPr 는 항상 좁힌 값으로 바꾼다).
-    let chosen = baseFont;
-    if (!fits(baseFont)) {
-      chosen = minFont;
-      for (let f = baseFont - 50; f >= minFont; f -= 50) {
-        chosen = f;
-        if (fits(f)) break;
-      }
-    }
+    const chosen = chooseFontHeight({
+      text: txt, // 빈단락 제거됨
+      textWidth: c.textWidth,
+      usableHeight: usable,
+      baseFont,
+      spacingPct: usePct,
+      minFont,
+    });
 
     // 적용: 글자크기(필요 시 축소) + 줄간격(좁힘). 둘 중 하나라도 바뀌면 패치.
     const toCharId = chosen < baseFont ? patcher.shrunkCharPr(baseId, chosen) : baseId;

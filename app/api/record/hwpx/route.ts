@@ -11,6 +11,9 @@ import {
 } from "@/lib/record-hwpx";
 import { generateRecordFromForm } from "@/lib/record-fill-spec";
 import { buildSchedExtra } from "@/lib/record-sched-enrich";
+import { buildRecordSheetsHwp, RECORD_TEMPLATE_HWP_PATH } from "@/lib/record-hwp";
+import { acquireConvertSlot, releaseConvertSlot, GateBusyError } from "@/lib/convert-gate";
+import { readFile } from "node:fs/promises";
 
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser();
@@ -20,9 +23,70 @@ export async function POST(req: NextRequest) {
     therapist?: string;
     childServiceId?: number;
     year?: number;
+    format?: "hwpx" | "hwp"; // hwp = 한글 2002+ 호환 바이너리(구버전 센터용)
   };
 
   const baseName = `${safeFileName(p.childName)}_${String(p.month).padStart(2, "0")}월_기록지`;
+
+  // .hwp 다운로드 — 1단계: 내장 표준(발달바우처) 서식만. 업로드 양식은 원본 .hwp 보관(2단계) 후 지원.
+  if (p.format === "hwp") {
+    if (p.formId) {
+      return Response.json(
+        { error: "저장한 센터 양식은 아직 .hwp 다운로드를 지원하지 않아요. 기본 서식으로 받아주세요." },
+        { status: 400 },
+      );
+    }
+    // 지역 변형 서식(동탄·남양주)은 .hwp 템플릿 판이 아직 없어 표준형만 지원.
+    const center = user.centerId
+      ? await prisma.center.findUnique({ where: { id: user.centerId }, select: { recordForm: true } })
+      : null;
+    if (isRecordFormKey(center?.recordForm) && center!.recordForm !== "standard") {
+      return Response.json(
+        { error: "이 센터의 기록지 서식은 아직 .hwp 다운로드를 지원하지 않아요." },
+        { status: 400 },
+      );
+    }
+    let templateHwp: Buffer;
+    try {
+      templateHwp = await readFile(RECORD_TEMPLATE_HWP_PATH);
+    } catch {
+      return Response.json({ error: "기록지 .hwp 템플릿 파일을 찾을 수 없어요." }, { status: 500 });
+    }
+    // JVM 1개/요청(셀 채우기) — .hwp 변환과 같은 동시 실행 게이트를 공유.
+    try {
+      await acquireConvertSlot();
+    } catch (e) {
+      if (e instanceof GateBusyError) return Response.json({ error: e.message }, { status: 429 });
+      throw e;
+    }
+    let hwpSheets: Buffer[];
+    try {
+      hwpSheets = await buildRecordSheetsHwp(templateHwp, p);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : ".hwp 생성 중 문제가 생겼어요.";
+      return Response.json({ error: msg }, { status: 500 });
+    } finally {
+      releaseConvertSlot();
+    }
+    if (hwpSheets.length === 1) {
+      const filename = encodeURIComponent(`${baseName}.hwp`);
+      return new Response(new Uint8Array(hwpSheets[0]), {
+        headers: {
+          "Content-Type": "application/x-hwp",
+          "Content-Disposition": `attachment; filename*=UTF-8''${filename}`,
+        },
+      });
+    }
+    const zip = bundleAsZip(hwpSheets.map((data, idx) => ({ name: `${baseName}_${idx + 1}.hwp`, data })));
+    const filename = encodeURIComponent(`${baseName}.zip`);
+    return new Response(new Uint8Array(zip), {
+      headers: {
+        "Content-Type": "application/zip",
+        "Content-Disposition": `attachment; filename*=UTF-8''${filename}`,
+      },
+    });
+  }
+
   let sheets: Buffer[];
 
   if (p.formId) {

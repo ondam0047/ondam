@@ -50,7 +50,7 @@ export const RECORD_TEMPLATE_PATH = path.join(process.cwd(), "samples", "기록�
 // 빈 원본 양식을 셀 좌표로 채운다. 회기 칸은 표준형과 동일하게 5칸 고정
 // (6회기부터 분할). 양식마다 결과표 칸 구성이 달라 result 매핑이 다르다.
 
-type CoordSpec = {
+export type CoordSpec = {
   org?: Coord;
   name?: Coord;
   birth?: Coord;
@@ -138,7 +138,7 @@ const COORD_SPECS: Record<Exclude<RecordFormKey, "standard">, CoordSpec> = {
 
 // 결과(narrative) 표의 위치·결과 칸 열 — 긴 결과 글자크기 자동축소용.
 // 세 양식 모두 결과표는 table index 2, 데이터 행은 1~5(머리행 1개).
-const AUTOFIT: Record<RecordFormKey, { resultTable: number; narrativeCols: number[] }> = {
+export const AUTOFIT: Record<RecordFormKey, { resultTable: number; narrativeCols: number[] }> = {
   standard: { resultTable: 2, narrativeCols: [3] }, // 이용자 상태 및 서비스 결과
   dongtan: { resultTable: 2, narrativeCols: [4] }, // 서비스 결과
   namyangju: { resultTable: 2, narrativeCols: [3] }, // 기타사항(결과 narrative)
@@ -186,7 +186,7 @@ function splitAmount(
   return { voucher: fmt(voucherWon), copay: fmt(total - voucherWon) };
 }
 
-function buildCoordEdits(spec: CoordSpec, p: RecordPayload): CellEdit[] {
+export function buildCoordEdits(spec: CoordSpec, p: RecordPayload): CellEdit[] {
   const sessions = p.sessions.slice(0, MAX_SESSIONS);
   const edits: CellEdit[] = [];
   push(edits, spec.org, p.org);
@@ -260,7 +260,7 @@ export async function readRecordTemplate(form: RecordFormKey = "standard"): Prom
 
 // 표준형도 좌표 기반으로 채운다(정리본 빈 양식 사용). 날짜 칸 열은 3~7.
 const STD_COL = [3, 4, 5, 6, 7];
-const STANDARD_SPEC: CoordSpec = {
+export const STANDARD_SPEC: CoordSpec = {
   org: [0, 0, 2],
   name: [0, 1, 2],
   birth: [0, 2, 2],
@@ -282,7 +282,7 @@ const STANDARD_SPEC: CoordSpec = {
 // 표준형 결과칸은 한 칸이므로 보강/불일치 사유(resultExtra)와 소급결제 사유(retroReason)를
 // 결과 본문 아래에 보존한다. 베타 요청: 사유는 결과 다음 줄에서 '별표(*)'로 시작하도록
 // 줄바꿈(\n)으로 구분 — record-fill.ts 가 \n 을 셀 안 별도 단락(엔터)으로 렌더한다.
-function foldStandardExtra(p: RecordPayload): RecordPayload {
+export function foldStandardExtra(p: RecordPayload): RecordPayload {
   return {
     ...p,
     sessions: p.sessions.map((s) => {
