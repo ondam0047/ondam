@@ -15,19 +15,12 @@ const SCHEDULE_ONLY_ROLES = new Set<string>(
   ROLE_DEFS.filter((r) => r.forms?.length === 1 && r.forms[0] === "schedule").map((r) => r.role),
 );
 
-// 통합 양식(기록지+일정표 한 파일, 예: 성심)을 두 슬롯에 같은 파일로 올릴 때, 슬롯(kind) 영역만
-// 채우도록 spec 을 좁힌다. 기록지: 일정표 영역(라벨·달력) 제거 → 기록지 출력이 일정표 칸을 안 건드림.
-// 일정표: 기록지 회기/결과 채움 필드 제거 → 일정표 출력은 라벨·달력만(이미 무시하지만 명시적 분리).
+// 통합 양식(기록지+일정표 한 파일, 예: 성심)을 두 슬롯에 같은 파일로 올릴 때의 spec 정리.
+// 기록지: 그대로 둔다 — 통합 양식은 기록지 출력 한 방에 일정표 영역(라벨·달력)까지 같이
+//   채우는 것이 정책(2026-08-06 결정). 라벨 값은 저장된 일정표에서 보강(buildSchedExtra).
+// 일정표: 기록지 회기/결과 채움 필드 제거 → 일정표 출력은 라벨·달력만.
 export function scopeSpecToKind(spec: ResolvedSpec, kind: "record" | "schedule"): ResolvedSpec {
-  if (kind === "record") {
-    return {
-      ...spec,
-      schedule: undefined,
-      scheduleCalendar: undefined,
-      noSchedule: true, // 출력기 달력 재탐지 차단 — 통합 양식의 일정표 영역을 건드리지 않음
-      manual: spec.manual?.filter((m) => !SCHEDULE_ONLY_ROLES.has(m.role)),
-    };
-  }
+  if (kind === "record") return spec;
   return {
     ...spec,
     date: [], start: [], end: [], voucher: [], extra: [], amount: [],

@@ -9,7 +9,7 @@ import {
   safeFileName,
   type RecordPayload,
 } from "@/lib/record-hwpx";
-import { generateRecordFromForm } from "@/lib/record-fill-spec";
+import { generateRecordFromForm, repairScheduleSpec } from "@/lib/record-fill-spec";
 import { buildSchedExtra } from "@/lib/record-sched-enrich";
 import { buildRecordSheetsHwp, RECORD_TEMPLATE_HWP_PATH } from "@/lib/record-hwp";
 import { acquireConvertSlot, releaseConvertSlot, GateBusyError } from "@/lib/convert-gate";
@@ -97,10 +97,13 @@ export async function POST(req: NextRequest) {
     });
     if (!rf) return Response.json({ error: "저장된 양식을 찾을 수 없어요." }, { status: 404 });
     // 통합 양식(일정표+기록지 한 장)이면 일정표 라벨 데이터를 서버에서 보강.
+    // legacy spec(일정표 매핑이 깎여 저장된 것)은 템플릿에서 재인식해 복구.
+    const specJson = repairScheduleSpec(rf.spec, Buffer.from(rf.template));
     let schedExtra: Record<string, string> | undefined;
     let hasSchedule = false;
     try {
-      hasSchedule = Array.isArray(JSON.parse(rf.spec)?.schedule) && JSON.parse(rf.spec).schedule.length > 0;
+      const sp = JSON.parse(specJson);
+      hasSchedule = Array.isArray(sp?.schedule) && sp.schedule.length > 0;
     } catch { hasSchedule = false; }
     if (hasSchedule) {
       schedExtra = await buildSchedExtra({
@@ -112,7 +115,7 @@ export async function POST(req: NextRequest) {
       });
     }
     try {
-      sheets = generateRecordFromForm(Buffer.from(rf.template), rf.spec, p, p.therapist ?? "", schedExtra, p.year);
+      sheets = generateRecordFromForm(Buffer.from(rf.template), specJson, p, p.therapist ?? "", schedExtra, p.year);
     } catch {
       return Response.json({ error: "양식에 데이터를 채우는 중 문제가 생겼어요." }, { status: 500 });
     }

@@ -4,7 +4,7 @@
 import { readSection0, readHeader, patchFiles, fixHwpxLineSpacing } from "@/lib/hwpx";
 import { fillCells, fillTitleParenMonth, type CellEdit, type Coord } from "@/lib/record-fill";
 import { removeTableColumns, removeTableRows } from "@/lib/record-trim";
-import { detectCalendarFromXml, detectOpinionFromXml, type ResolvedSpec } from "@/lib/record-resolver";
+import { detectCalendarFromXml, detectOpinionFromXml, resolveForm, type ResolvedSpec } from "@/lib/record-resolver";
 import { buildCalendarEdits, type CalSession } from "@/lib/schedule-calendar";
 import { getCellRunCharPr, addClonedCharPr } from "@/lib/hwpx-charpr";
 import { autoFitRecordFont } from "@/lib/record-autofit";
@@ -211,6 +211,25 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
   return d.normCharPr != null
     ? edits.map((e) => (keepNative.has(e) ? e : { ...e, charPr: d.normCharPr }))
     : edits;
+}
+
+// 통합 양식(일정표+기록지 한 장) legacy spec 복구 — 예전에는 기록지 슬롯 저장 시
+// 일정표 영역 매핑을 제거했다(noSchedule). 지금은 "한 방 출력"이 정책이라, 깎여 저장된
+// spec 은 템플릿에서 일정표 영역을 재인식해 되살린다(재업로드 불필요).
+// 순수 기록지 양식(일정표 라벨·달력이 아예 없는 것)은 그대로 둔다.
+export function repairScheduleSpec(specJson: string, template: Buffer): string {
+  try {
+    const spec = JSON.parse(specJson) as ResolvedSpec;
+    if (!spec.noSchedule) return specJson; // 스코핑 이전 구버전 또는 이미 복구됨
+    const fresh = resolveForm(readSection0(template)).spec;
+    if (!fresh.schedule?.length && !fresh.scheduleCalendar) return specJson; // 통합 양식 아님
+    spec.schedule = fresh.schedule;
+    spec.scheduleCalendar = fresh.scheduleCalendar;
+    delete spec.noSchedule;
+    return JSON.stringify(spec);
+  } catch {
+    return specJson;
+  }
 }
 
 // 저장 양식으로 기록지 .hwpx 생성. 회기 5개 초과면 5개씩 나눠 여러 장.

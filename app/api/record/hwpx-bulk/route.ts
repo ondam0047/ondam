@@ -10,7 +10,7 @@ import {
   safeFileName,
   type RecordPayload,
 } from "@/lib/record-hwpx";
-import { generateRecordFromForm } from "@/lib/record-fill-spec";
+import { generateRecordFromForm, repairScheduleSpec } from "@/lib/record-fill-spec";
 import { buildSchedExtra } from "@/lib/record-sched-enrich";
 
 // 한 사용자의 (연·월) 저장된 모든 기록지를 한 번에 .hwpx 생성 → ZIP 으로.
@@ -110,17 +110,18 @@ export async function GET(req: NextRequest) {
     const savedForm = r.formId ? formMap.get(r.formId) : undefined;
     let sheets: Buffer[];
     if (savedForm) {
-      // 통합 양식이면 일정표 라벨 데이터 보강
+      // 통합 양식이면 일정표 라벨 데이터 보강 (legacy spec 은 일정표 매핑 복구)
+      const specJson = repairScheduleSpec(savedForm.spec, savedForm.template);
       let schedExtra: Record<string, string> | undefined;
       let hasSchedule = false;
-      try { const sp = JSON.parse(savedForm.spec); hasSchedule = Array.isArray(sp?.schedule) && sp.schedule.length > 0; } catch {}
+      try { const sp = JSON.parse(specJson); hasSchedule = Array.isArray(sp?.schedule) && sp.schedule.length > 0; } catch {}
       if (hasSchedule) {
         schedExtra = await buildSchedExtra({
           user, childServiceId: r.childServiceId, year, month: r.month,
           sessionDates: payload.sessions.map((s) => s.date ?? ""),
         });
       }
-      sheets = generateRecordFromForm(savedForm.template, savedForm.spec, payload, therapistName, schedExtra, year);
+      sheets = generateRecordFromForm(savedForm.template, specJson, payload, therapistName, schedExtra, year);
     } else {
       sheets = buildRecordSheets(templateBuf, payload, form);
     }

@@ -15,7 +15,7 @@ import {
   readRecordTemplate,
   type RecordPayload,
 } from "@/lib/record-hwpx";
-import { generateRecordFromForm } from "@/lib/record-fill-spec";
+import { generateRecordFromForm, repairScheduleSpec } from "@/lib/record-fill-spec";
 import { buildSchedExtra } from "@/lib/record-sched-enrich";
 import { isRecordFormKey } from "@/lib/record-forms";
 
@@ -193,10 +193,12 @@ export async function GET(_req: NextRequest, { params }: Params) {
       const savedForm = r.formId ? formMap.get(r.formId) : undefined;
       let sheets: Buffer[];
       if (savedForm) {
+        // 통합 양식이면 일정표 라벨 데이터 보강 (legacy spec 은 일정표 매핑 복구)
+        const specJson = repairScheduleSpec(savedForm.spec, savedForm.template);
         let schedExtra: Record<string, string> | undefined;
         let hasSchedule = false;
         try {
-          const sp = JSON.parse(savedForm.spec);
+          const sp = JSON.parse(specJson);
           hasSchedule = Array.isArray(sp?.schedule) && sp.schedule.length > 0;
         } catch {}
         if (hasSchedule) {
@@ -208,7 +210,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
             sessionDates: payload.sessions.map((s) => s.date ?? ""),
           });
         }
-        sheets = generateRecordFromForm(savedForm.template, savedForm.spec, payload, therapistName, schedExtra, r.year);
+        sheets = generateRecordFromForm(savedForm.template, specJson, payload, therapistName, schedExtra, r.year);
       } else {
         sheets = buildRecordSheets(templateBuf, payload, form);
       }
