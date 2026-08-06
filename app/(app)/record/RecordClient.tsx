@@ -1057,7 +1057,12 @@ function RecordSheet({
           const s = sm.get(i + 1);
           if (!s?.date) return v;
           if (!s.apprNumber && rows[i]?.appr) return v; // 예정일 저장본 < 엑셀 확정일
-          dateFixedByUser.current.add(i);
+          // 엑셀 없이 저장된 날짜는 일정표 예정일(또는 자리표시 날짜)의 사본일 수 있다.
+          // 임상가 의도가 확인될 때만(승인번호 확정 저장 또는 일정변경 사유 기재) 확정으로
+          // 잠근다. 안 잠긴 날짜는 아래 재시드 effect 가 현재 일정표 예정일로 맞춘다
+          // (일정표 저장 전에 기록지가 먼저 자동저장되면 1·8·15…일이 영영 남던 문제).
+          const reason = (s as { resultExtra?: string | null }).resultExtra ?? "";
+          if (s.apprNumber || reason.trim()) dateFixedByUser.current.add(i);
           return s.date;
         }));
         setVouchers((prev) => prev.map((v, i) => sm.get(i + 1)?.voucher ?? v));
@@ -1298,6 +1303,21 @@ function RecordSheet({
     setRestoreDone(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recordLoaded, scheduleLoaded, savedSig]);
+
+  // (1-b) 제공일자 재시드 — 엑셀이 없는 작업본은 일정표 예정일이 시드다. 일정표가 나중에
+  //       저장되거나 예정일이 바뀌면, 잠기지 않은 날짜 칸을 현재 예정일로 다시 채운다.
+  //       (임상가가 직접 고친 칸·일정변경 사유를 적은 칸은 그대로. 엑셀이 오면 이 경로 비활성.)
+  useEffect(() => {
+    if (!restoreDone) return;
+    if (rows.some((s) => s.appr)) return; // 엑셀 있으면 확정일(서비스이용일자) 체계
+    if (!monthNumForLoad || !scheduleDays.some((d) => d != null)) return;
+    setDates((prev) => prev.map((v, i) => {
+      if (dateFixedByUser.current.has(i)) return v;
+      const d = scheduleDays[i];
+      return d != null ? `${monthNumForLoad}/${d}` : v;
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restoreDone, scheduleDays]);
 
   // (2) 시드 재적용 — 엑셀이 나중에 붙거나 일정표 시간이 바뀌면 잠기지 않은 칸을 다시 채운다.
   //     일정표로 먼저 열어 둔 뒤 회기 수가 같은 엑셀을 올리면 리마운트가 없어(key = 아동+회기수+연월)
