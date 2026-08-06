@@ -16,7 +16,7 @@ import {
   type RecordPayload,
 } from "@/lib/record-hwpx";
 import { generateRecordFromForm, repairScheduleSpec } from "@/lib/record-fill-spec";
-import { buildSchedExtra } from "@/lib/record-sched-enrich";
+import { buildSchedExtra, buildSchedCalSessions } from "@/lib/record-sched-enrich";
 import { isRecordFormKey } from "@/lib/record-forms";
 
 type Params = { params: Promise<{ id: string }> };
@@ -201,6 +201,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
           const sp = JSON.parse(specJson);
           hasSchedule = Array.isArray(sp?.schedule) && sp.schedule.length > 0;
         } catch {}
+        let schedCal: { day: number; time: string }[] | undefined;
         if (hasSchedule) {
           schedExtra = await buildSchedExtra({
             user,
@@ -209,8 +210,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
             month: r.month,
             sessionDates: payload.sessions.map((s) => s.date ?? ""),
           });
+          schedCal = await buildSchedCalSessions({ user, childServiceId: r.childServiceId, year: r.year, month: r.month });
         }
-        sheets = generateRecordFromForm(savedForm.template, specJson, payload, therapistName, schedExtra, r.year);
+        sheets = generateRecordFromForm(savedForm.template, specJson, payload, therapistName, schedExtra, r.year, schedCal);
       } else {
         sheets = buildRecordSheets(templateBuf, payload, form);
       }

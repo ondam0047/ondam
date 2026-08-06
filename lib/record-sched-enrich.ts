@@ -21,6 +21,31 @@ function weekdaysFromDates(year: number, dates: string[]): string[] {
   return [...idx].sort((a, b) => a - b).map((i) => WEEK[i]);
 }
 
+// 통합 양식 달력용 — 저장된 일정표(Schedule)의 회기(일·시간). 없으면 undefined.
+// 기록지 출력 달력은 "일정표에 저장한 계획"을 우선 보여준다(없으면 기록지 회기 날짜로 폴백).
+export async function buildSchedCalSessions(opts: {
+  user: SessionUser;
+  childServiceId?: number;
+  year?: number;
+  month: number;
+}): Promise<{ day: number; time: string }[] | undefined> {
+  const { user, childServiceId, year, month } = opts;
+  if (!childServiceId || !Number.isInteger(childServiceId)) return undefined;
+  const cs = await prisma.childService.findUnique({
+    where: { id: Number(childServiceId) },
+    include: { child: true },
+  });
+  if (!cs) return undefined;
+  if (cs.child.centerId !== user.centerId || !canAccessService(user, cs)) return undefined;
+  const yr = year ?? new Date().getFullYear();
+  const sched = await prisma.schedule.findUnique({
+    where: { childServiceId_year_month: { childServiceId: Number(childServiceId), year: yr, month } },
+    include: { sessions: { orderBy: { day: "asc" } } },
+  });
+  if (!sched?.sessions.length) return undefined;
+  return sched.sessions.map((s) => ({ day: s.day, time: s.time ?? "" }));
+}
+
 // 통합 양식 일정표 라벨 보강값(역할→값). 권한 없거나 자료 없으면 부분/빈 맵.
 export async function buildSchedExtra(opts: {
   user: SessionUser;

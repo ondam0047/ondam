@@ -10,7 +10,7 @@ import {
   type RecordPayload,
 } from "@/lib/record-hwpx";
 import { generateRecordFromForm, repairScheduleSpec } from "@/lib/record-fill-spec";
-import { buildSchedExtra } from "@/lib/record-sched-enrich";
+import { buildSchedExtra, buildSchedCalSessions } from "@/lib/record-sched-enrich";
 import { buildRecordSheetsHwp, RECORD_TEMPLATE_HWP_PATH } from "@/lib/record-hwp";
 import { acquireConvertSlot, releaseConvertSlot, GateBusyError } from "@/lib/convert-gate";
 import { readFile } from "node:fs/promises";
@@ -105,17 +105,20 @@ export async function POST(req: NextRequest) {
       const sp = JSON.parse(specJson);
       hasSchedule = Array.isArray(sp?.schedule) && sp.schedule.length > 0;
     } catch { hasSchedule = false; }
+    let schedCal: { day: number; time: string }[] | undefined;
     if (hasSchedule) {
+      const month = Number(p.month) || new Date().getMonth() + 1;
       schedExtra = await buildSchedExtra({
         user,
         childServiceId: p.childServiceId,
         year: p.year,
-        month: Number(p.month) || new Date().getMonth() + 1,
+        month,
         sessionDates: (p.sessions ?? []).map((s) => s.date ?? ""),
       });
+      schedCal = await buildSchedCalSessions({ user, childServiceId: p.childServiceId, year: p.year, month });
     }
     try {
-      sheets = generateRecordFromForm(Buffer.from(rf.template), specJson, p, p.therapist ?? "", schedExtra, p.year);
+      sheets = generateRecordFromForm(Buffer.from(rf.template), specJson, p, p.therapist ?? "", schedExtra, p.year, schedCal);
     } catch {
       return Response.json({ error: "양식에 데이터를 채우는 중 문제가 생겼어요." }, { status: 500 });
     }

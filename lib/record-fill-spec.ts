@@ -240,6 +240,8 @@ export function generateRecordFromForm(
   therapistName: string,
   schedExtra?: Record<string, string>,
   year?: number,
+  // 통합 양식 달력용 — 저장된 일정표 회기(일·시간). 있으면 기록지 회기 날짜 대신 이걸 쓴다.
+  schedCalSessions?: { day: number; time: string }[],
 ): Buffer[] {
   const spec = JSON.parse(specJson) as ResolvedSpec;
   const baseXml = readSection0(template);
@@ -250,12 +252,17 @@ export function generateRecordFromForm(
   for (let i = 0; i < Math.max(1, all.length); i += 5) chunks.push(all.slice(i, i + 5));
 
   const yr = year ?? new Date().getFullYear();
-  const calSessions: CalSession[] = all.map((s) => {
-    const m = /(\d+)\s*[/.\-]\s*(\d+)/.exec(s.date ?? "");
-    const day = m ? Number(m[2]) : 0;
-    const time = [s.startTime, s.endTime].filter(Boolean).join("~");
-    return { day, time };
-  }).filter((s) => s.day > 0);
+  // 달력 회기: 일정표 저장분(계획) 우선 — "일정표에 저장한 내용이 기록지에 남는다".
+  // 없으면 기록지 회기 날짜·시간으로 폴백.
+  const fromSched = (schedCalSessions ?? []).filter((s) => s.day > 0);
+  const calSessions: CalSession[] = fromSched.length
+    ? fromSched
+    : all.map((s) => {
+        const m = /(\d+)\s*[/.\-]\s*(\d+)/.exec(s.date ?? "");
+        const day = m ? Number(m[2]) : 0;
+        const time = [s.startTime, s.endTime].filter(Boolean).join("~");
+        return { day, time };
+      }).filter((s) => s.day > 0);
   // 저장 spec 에 달력이 없으면(구버전) 템플릿에서 재탐지. 단, 기록지 슬롯으로 좁힌 통합 양식
   // (noSchedule)은 재탐지하지 않음 — 일정표 영역(달력)을 기록지 출력이 건드리지 않게 한다.
   const cal = spec.noSchedule ? null : (spec.scheduleCalendar ?? detectCalendarFromXml(baseXml));
