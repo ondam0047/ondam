@@ -5,6 +5,7 @@
 import { prisma } from "@/lib/db";
 import { canAccessService } from "@/lib/auth";
 import type { SessionUser } from "@/lib/auth";
+import { serviceTypeAbbrev } from "@/lib/constants";
 
 const WEEK = ["일", "월", "화", "수", "목", "금", "토"];
 const won = (n: number) => (Number(n) || 0).toLocaleString("ko-KR");
@@ -43,7 +44,12 @@ export async function buildSchedCalSessions(opts: {
     include: { sessions: { orderBy: { day: "asc" } } },
   });
   if (!sched?.sessions.length) return undefined;
-  return sched.sessions.map((s) => ({ day: s.day, time: s.time ?? "" }));
+  // 서비스 종류 표기 옵션(showTypeInCal) — 시간 위 줄에 축약(언어/놀이/감통)을 얹는다.
+  const label = sched.showTypeInCal ? serviceTypeAbbrev(sched.serviceType) : "";
+  return sched.sessions.map((s) => ({
+    day: s.day,
+    time: label ? `${label}\n${s.time ?? ""}` : s.time ?? "",
+  }));
 }
 
 // 통합 양식 일정표 라벨 보강값(역할→값). 권한 없거나 자료 없으면 부분/빈 맵.
@@ -75,6 +81,7 @@ export async function buildSchedExtra(opts: {
 
   if (sched) {
     const wds = [...new Set(sched.sessions.map((s) => WEEK[new Date(yr, month - 1, s.day).getDay()]))];
+    const days = sched.sessions.map((s) => s.day).sort((a, b) => a - b);
     const cnt = sched.sessions.length || sched.target || 0;
     if (sched.mgmtNumber || cs.child.mgmtNumber) out.관리번호 = sched.mgmtNumber || cs.child.mgmtNumber || "";
     if (sched.pvOrg) { out.제공자 = sched.pvOrg; out.제공자명 = sched.pvOrg; }
@@ -83,7 +90,9 @@ export async function buildSchedExtra(opts: {
     if (sched.costUnit) out.단가 = sched.costUnit;
     if (sched.costSelf) out.본인부담금 = sched.costSelf;
     if (cnt) out.횟수 = String(cnt);
-    if (wds.length) { out.제공일 = wds.join("·"); out.주기 = `주 ${wds.length}회`; }
+    // 제공일 = 실제 날짜 목록(요일 아님 — 성심 요청), 주기 = 요일 수 기준 "주 N회".
+    if (days.length) out.제공일 = `${days.join("·")}일`;
+    if (wds.length) out.주기 = `주 ${wds.length}회`;
     const unitNum = Number(String(sched.costUnit ?? "").replace(/[^0-9]/g, "")) || cs.defaultUnit;
     if (unitNum && cnt) out.총금액 = won(unitNum * cnt);
     return out;
@@ -92,12 +101,17 @@ export async function buildSchedExtra(opts: {
   // 2) 폴백 — ChildService 기본값 + 회기 날짜로부터 제공일/횟수.
   const cnt = sessionDates.filter(Boolean).length || cs.defaultTarget || 0;
   const wds = weekdaysFromDates(yr, sessionDates);
+  const days = sessionDates
+    .map((d) => { const m = /(\d+)\s*[/.\-]\s*(\d+)/.exec(d || ""); return m ? Number(m[2]) : 0; })
+    .filter((d) => d > 0)
+    .sort((a, b) => a - b);
   if (cs.child.mgmtNumber) out.관리번호 = cs.child.mgmtNumber;
   if (cs.org) { out.제공자 = cs.org; out.제공자명 = cs.org; }
   if (cs.defaultUnit) out.단가 = won(cs.defaultUnit);
   if (cs.monthlyCopay != null) out.본인부담금 = won(cs.monthlyCopay);
   if (cnt) out.횟수 = String(cnt);
-  if (wds.length) { out.제공일 = wds.join("·"); out.주기 = `주 ${wds.length}회`; }
+  if (days.length) out.제공일 = `${days.join("·")}일`;
+  if (wds.length) out.주기 = `주 ${wds.length}회`;
   if (cs.defaultUnit && cnt) out.총금액 = won(cs.defaultUnit * cnt);
   return out;
 }

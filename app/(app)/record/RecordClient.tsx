@@ -816,8 +816,6 @@ function RecordSheet({
   onReloadFromServer?: () => void;
 }) {
   const betaUx = useBetaUx();
-  // 서식B(동탄)는 '이용자 상태'와 '서비스 결과'가 별도 칸 → 상태 입력칸을 따로 보여준다.
-  const splitStatus = recordForm === "dongtan";
   // 연·월은 '회기가 가장 많은 달' 기준(sheetKey 와 동일). 첫 행만 보면 소급결제 한 건에
   // 시트 전체가 지난달로 잡혀 이번 달 작업이 지난달 레코드로 저장된다.
   const period = sheetPeriod(rows);
@@ -942,7 +940,7 @@ function RecordSheet({
     return () => window.clearTimeout(t);
   }, [timeNotice]);
   // 저장한 우리 센터 양식 — 있으면 출력 양식 선택
-  const [savedForms, setSavedForms] = useState<Array<{ id: number; name: string }>>([]);
+  const [savedForms, setSavedForms] = useState<Array<{ id: number; name: string; hasStatus?: boolean }>>([]);
   const [outFormId, setOutFormId] = useState<number | "">("");
   useEffect(() => {
     fetch("/api/forms/saved")
@@ -955,6 +953,11 @@ function RecordSheet({
       })
       .catch(() => {});
   }, []);
+  // 상태·결과 분리 양식이면 회기별 '이용자 상태' 입력칸을 따로 보여준다 —
+  // 내장 서식B(동탄) 또는 상태 전용 칸(예: 성심 '건강상태 및 부모상담')이 있는 저장 양식.
+  const splitStatus =
+    recordForm === "dongtan" ||
+    (savedForms.find((f) => f.id === outFormId)?.hasStatus ?? false);
 
   const monthNumForLoad = typeof month === "number" ? month : parseInt(String(month)) || 0;
 
@@ -1813,13 +1816,13 @@ function RecordSheet({
               {splitStatus && (
                 <div style={{ marginBottom: 8 }}>
                   <label style={{ display: "block", fontSize: 12.5, fontWeight: 600, color: "var(--text-soft)", marginBottom: 4 }}>
-                    이용자 상태
+                    이용자 상태 · 부모상담
                   </label>
                   <textarea
                     className="textarea"
                     rows={2}
                     value={statuses[i]}
-                    placeholder="그날 이용자 상태 (이 서식은 상태·결과 칸이 나뉘어 있어요)"
+                    placeholder="그날 이용자 상태·부모상담 내용 (이 서식은 결과와 별도 칸이 있어요)"
                     onChange={(e) => setStatuses((p) => { const n = [...p]; n[i] = e.target.value; return n; })}
                   />
                   <label style={{ display: "block", fontSize: 12.5, fontWeight: 600, color: "var(--text-soft)", margin: "8px 0 4px" }}>

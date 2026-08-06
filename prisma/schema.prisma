@@ -305,6 +305,7 @@ model Schedule {
   costUnit       String
   costSelf       String
   writeDate      String?
+  showTypeInCal  Boolean  @default(false) // 달력 회기 칸에 서비스 종류(언어·놀이·감통) 표기
   formId         Int?     // 저장 시 선택한 업로드 양식(RecordForm.id) — 일괄 출력에 사용
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

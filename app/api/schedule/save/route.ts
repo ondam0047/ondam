@@ -18,6 +18,7 @@ type SaveBody = {
   costUnit: string;
   costSelf: string;
   writeDate?: string;
+  showTypeInCal?: boolean; // 달력 회기 칸에 서비스 종류(언어·놀이·감통) 표기
   formId?: number; // 출력에 쓸 업로드 양식
   sessions: { day: number; time: string; makeup: boolean }[];
   // 낙관적 잠금(lib/save-conflict.ts) — 이 창이 불러온 시점의 Schedule.updatedAt.
@@ -70,6 +71,7 @@ export async function POST(req: NextRequest) {
     costUnit: body.costUnit,
     costSelf: body.costSelf,
     writeDate: body.writeDate || null,
+    showTypeInCal: body.showTypeInCal === true,
     formId,
   };
 

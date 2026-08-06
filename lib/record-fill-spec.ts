@@ -39,9 +39,9 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
   const edits: CellEdit[] = [];
   // 글자통일(normCharPr)에서 제외할 칸 — 칸 고유 글자크기 유지(헤더 칸 넘침 방지).
   const keepNative = new Set<CellEdit>();
-  const put = (coord: Coord | undefined, value: string, native = false) => {
+  const put = (coord: Coord | undefined, value: string, native = false, clearRest = false) => {
     if (!coord || value === undefined || value === null) return;
-    const e: CellEdit = { table: coord[0], row: coord[1], col: coord[2], p: coord[3], value: String(value) };
+    const e: CellEdit = { table: coord[0], row: coord[1], col: coord[2], p: coord[3], value: String(value), clearRest: clearRest || undefined };
     edits.push(e);
     if (native) keepNative.add(e);
   };
@@ -153,7 +153,8 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
     서비스종류: d.serviceType, 작성일자: todayStr,
     ...(d.schedExtra ?? {}), // 단가·본인부담·관리번호·제공일·횟수·전화 등(통합 양식 보강)
   };
-  spec.schedule?.forEach((s) => { if (schedVal[s.role] !== undefined) put(s.coord, schedVal[s.role]); });
+  // clearRest: 센터가 값칸에 미리 적어둔 옛 값(여러 문단)을 지우고 새 값만 남긴다.
+  spec.schedule?.forEach((s) => { if (schedVal[s.role] !== undefined) put(s.coord, schedVal[s.role], false, true); });
 
   // 셀프 보정/AI 자동매핑 칸 — 역할별 실데이터.
   // 날짜축(가로 회기표) 역할은 dCols 에 걸쳐 채우고, 결과/비고/회차 등 칸별 역할은

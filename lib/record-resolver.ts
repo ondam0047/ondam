@@ -346,10 +346,17 @@ export function resolveForm(xml: string): ResolveOutput {
       const hits = rc.filter((c) => RES.some((re) => re.test(c.norm)) && !isNote(c.text));
       if (hits.length >= 2) {
         const colOf = (re: RegExp) => { const h = rc.find((c) => re.test(c.norm)); return h ? h.c : null; };
+        // 상태 칸은 '결과'가 같이 적힌 통합 칸(예: "이용자의 상태 및 서비스 결과")을 제외한
+        // 별도 칸만 잡는다 — 성심형 "건강상태 및 부모상담"·동탄형 "이용자의 상태" 대응.
+        // (예전엔 통합 칸이 status·result 둘 다로 잡혀 상태가 결과 칸에 덮여 들어갔다.)
+        const statusCol = (() => {
+          const h = rc.find((c) => /이용자.?상태|건강상태|부모상담/.test(c.norm) && !/결과/.test(c.norm));
+          return h ? h.c : null;
+        })();
         const map: Record<string, number | null> = {
           date: colOf(/제공일자|서비스일자|서비스제공일자|^일자$|^날짜$/), apprDate: colOf(/승인일자/),
           apprNum: colOf(/승인번호/), time: colOf(/^시간$/),
-          status: colOf(/이용자.?상태/), result: colOf(/서비스결과|기타사항|상태및서비스결과|상태\s*및/),
+          status: statusCol, result: colOf(/서비스결과|기타사항|상태및서비스결과|상태\s*및/),
         };
         // 데이터 행 — 헤더 다음 행들. 단, 표 전체폭으로 병합된 한 칸짜리 행(섹션 제목·※footer)은 제외.
         const dataRows = rows.filter((rr) => {

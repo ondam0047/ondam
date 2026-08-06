@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  WEEK, holiday, pad, parseDaySlots,
+  WEEK, holiday, pad, parseDaySlots, serviceTypeAbbrev,
 } from "@/lib/constants";
 import {
   SAVE_CONFLICT_STATUS, baseField, baseMatches, stampFromLoaded, stampFromSaveResponse,
@@ -120,6 +120,8 @@ export default function ScheduleClient({
   const [childCopay, setChildCopay] = useState<number | null>(null);
   const [copaySelfTouched, setCopaySelfTouched] = useState(false);
   const [writeDate, setWriteDate] = useState("");
+  // 달력 회기 칸에 서비스 종류(언어·놀이·감통) 표기 — 치료사별 선택(성심 요청), 저장본에 기억.
+  const [showTypeInCal, setShowTypeInCal] = useState(false);
   const [downloadingHwpx, setDownloadingHwpx] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
   const [autoStatus, setAutoStatus] = useState<"" | "saving" | "saved" | "error" | "authError" | "conflict">("");
@@ -258,6 +260,7 @@ export default function ScheduleClient({
         if (typeof d.costUnit === "string") setCostUnit(d.costUnit);
         if (typeof d.costSelf === "string") setCostSelf(d.costSelf);
         if (typeof d.writeDate === "string") setWriteDate(d.writeDate);
+        if (typeof d.showTypeInCal === "boolean") setShowTypeInCal(d.showTypeInCal);
         if (d.sessions && typeof d.sessions === "object" && typeof d.genY === "number" && typeof d.genM === "number") {
           setSessions(d.sessions as SessionMap);
           setGenY(d.genY);
@@ -287,7 +290,7 @@ export default function ScheduleClient({
         csId: typeof selectedChildId === "number" ? selectedChildId : null,
         ym,
         name, therapist, serviceType, target, defaultSlot, pattern, slotByDow, childBirth,
-        mgmt, pvOrg, pvTel, pvCharge, pvType, costUnit, costSelf, writeDate,
+        mgmt, pvOrg, pvTel, pvCharge, pvType, costUnit, costSelf, writeDate, showTypeInCal,
         sessions, genY, genM,
         loadedScheduleId,
       };
@@ -300,7 +303,7 @@ export default function ScheduleClient({
   }, [
     hydrated, selectedChildId, ym,
     name, therapist, serviceType, target, defaultSlot, pattern, slotByDow, childBirth,
-    mgmt, pvOrg, pvTel, pvCharge, pvType, costUnit, costSelf, writeDate,
+    mgmt, pvOrg, pvTel, pvCharge, pvType, costUnit, costSelf, writeDate, showTypeInCal,
     sessions, genY, genM, loadedScheduleId,
   ]);
 
@@ -578,6 +581,7 @@ export default function ScheduleClient({
     setGenY(s.year);
     setGenM(s.month);
     setWriteDate(s.writeDate ?? defaultWriteDate(s.year, s.month));
+    setShowTypeInCal((s as { showTypeInCal?: boolean }).showTypeInCal === true);
     if (s.formId) setOutFormId(s.formId); // 저장 시 기억한 출력 양식 복원
     setLoadedScheduleId(id);
     // 저장본을 읽은 시점 = 이 창의 기준시각(서버 응답이 유일한 출처). 이 위에서만 덮어쓴다.
@@ -779,7 +783,7 @@ export default function ScheduleClient({
       const payload = {
         childServiceId: selectedChildId, year: genY, month: genM,
         therapist, serviceType, target, mgmtNumber: mgmt,
-        pvOrg, pvTel, pvCharge, pvType, costUnit, costSelf, writeDate,
+        pvOrg, pvTel, pvCharge, pvType, costUnit, costSelf, writeDate, showTypeInCal,
         formId: outFormId || undefined,
         sessions: days.map((d) => ({ day: d, time: sessions[d].time, makeup: sessions[d].makeup })),
         // 두 탭 덮어쓰기 방지 — 이 창이 불러온 시점의 저장본 시각. 그 사이 다른 창이 저장했으면
@@ -828,7 +832,7 @@ export default function ScheduleClient({
       // 밀린 저장은 최신 값으로 다시 예약한다(옛 payload 를 그대로 재전송하지 않는다).
       if (savePendingRef.current) { savePendingRef.current = false; setSaveTick((t) => t + 1); }
     }
-  }, [sessions, selectedChildId, genY, genM, therapist, serviceType, target, mgmt, pvOrg, pvTel, pvCharge, pvType, costUnit, costSelf, writeDate, outFormId, days]);
+  }, [sessions, selectedChildId, genY, genM, therapist, serviceType, target, mgmt, pvOrg, pvTel, pvCharge, pvType, costUnit, costSelf, writeDate, showTypeInCal, outFormId, days]);
 
   useEffect(() => {
     if (!hydrated || !sessions || typeof selectedChildId !== "number" || days.length === 0 || !schedTouched.current) return;
@@ -889,6 +893,7 @@ export default function ScheduleClient({
         cycle,
         target,
         formId: outFormId || undefined,
+        calTypeLabel: showTypeInCal ? serviceTypeAbbrev(serviceType) : undefined,
         sessions: days.map((d) => ({
           day: d,
           weekday: WEEK[new Date(genY, genM - 1, d).getDay()],
@@ -1328,6 +1333,12 @@ export default function ScheduleClient({
               <span><b>초록</b>=정규 · <b style={{ color: "#8A6422" }}>주황</b>=보강 · <b style={{ color: "var(--danger)" }}>빨강</b>=공휴일.</span>
               <span style={{ marginLeft: 12 }}>날짜를 탭하면 회기 추가·시간 변경·제거 가능</span>
             </div>
+
+            <label style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, fontSize: 13, color: "var(--text-soft)", cursor: "pointer" }}
+              onChangeCapture={() => { schedTouched.current = true; }}>
+              <input type="checkbox" checked={showTypeInCal} onChange={(e) => setShowTypeInCal(e.target.checked)} />
+              출력 달력의 회기 칸에 서비스 종류 표시 (예: {serviceTypeAbbrev(serviceType) || "언어"} + 시간)
+            </label>
 
             <div className="label-block" style={{ marginTop: 22 }}>서비스 제공현황</div>
             <div className="scroll">

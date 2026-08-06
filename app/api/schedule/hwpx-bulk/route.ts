@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
 import { getCurrentUser, getEffectiveTherapistId } from "@/lib/auth";
-import { holiday, pad } from "@/lib/constants";
+import { holiday, pad, serviceTypeAbbrev } from "@/lib/constants";
 import {
   buildScheduleHwpx,
   readScheduleTemplate,
@@ -115,6 +115,7 @@ export async function GET(req: NextRequest) {
       costTotal,
       cycle,
       target: s.target,
+      calTypeLabel: s.showTypeInCal ? serviceTypeAbbrev(s.serviceType) : undefined,
       sessions,
       holidays: monthHolidays,
     };

@@ -20,6 +20,8 @@ export function generateScheduleFromForm(
   let xml = readSection0(template);
 
   const weekdays = [...new Set((p.sessions ?? []).map((s) => s.weekday).filter(Boolean))].join("·");
+  // 제공일 = 실제 날짜 목록(요일 아님 — 성심 요청. 예: "6·13·20·27일")
+  const provideDays = (p.sessions ?? []).map((s) => s.day).filter((d) => d > 0).sort((a, b) => a - b);
   // 일정표 라벨 역할 → 실데이터. (서비스 제공자명 = 기관명, 담당 = 치료사)
   const roleVal: Record<string, string> = {
     관리번호: p.mgmtNumber ?? "",
@@ -35,7 +37,7 @@ export function generateScheduleFromForm(
     총금액: p.costTotal ? won(p.costTotal) : "",
     본인부담금: p.costSelf ?? "",
     주기: p.cycle ?? "",
-    제공일: weekdays,
+    제공일: provideDays.length ? `${provideDays.join("·")}일` : weekdays,
   };
   // 셀프 보정(스칼라) 역할 → 실데이터
   const scalarVal: Record<string, string> = {
@@ -68,13 +70,14 @@ export function generateScheduleFromForm(
     : undefined;
 
   const edits: CellEdit[] = [];
-  const put = (coord: Coord, value: string) => {
+  const put = (coord: Coord, value: string, clearRest = false) => {
     if (value === undefined || value === null) return;
-    edits.push({ table: coord[0], row: coord[1], col: coord[2], p: coord[3], value, charPr: labelNormCharPr });
+    edits.push({ table: coord[0], row: coord[1], col: coord[2], p: coord[3], value, charPr: labelNormCharPr, clearRest: clearRest || undefined });
   };
 
+  // clearRest: 센터가 값칸에 미리 적어둔 옛 값(여러 문단)을 지우고 새 값만 남긴다.
   spec.schedule?.forEach((s) => {
-    if (roleVal[s.role] !== undefined) put(s.coord, roleVal[s.role]);
+    if (roleVal[s.role] !== undefined) put(s.coord, roleVal[s.role], true);
   });
   // 셀프 보정/AI 자동매핑 칸 — 일정표 라벨 역할(관리번호·단가·횟수 등)·스칼라 역할 모두 채움.
   spec.manual?.forEach((m) => {
@@ -93,9 +96,11 @@ export function generateScheduleFromForm(
     const conH = isCombined ? { height: 600 } : {};                                  // 통합양식이면 시간 6pt 한 줄
     const timeCharPr = mk(conBase, { normalize: true, textColor: "#000000", ...conH }); // 회기 시간(통일)
     const holidayCharPr = mk(conBase, { normalize: true, textColor: "#FF0000", ...conH }); // 공휴일 이름(빨강 통일)
+    // 서비스 종류 표기 옵션 — 시간 위 줄에 축약(언어/놀이/감통)을 얹는다.
+    const withLabel = (t: string) => (p.calTypeLabel ? `${p.calTypeLabel}\n${t}` : t);
     edits.push(...buildCalendarEdits(
       cal, p.year, p.month,
-      (p.sessions ?? []).map((s) => ({ day: s.day, time: s.time })),
+      (p.sessions ?? []).map((s) => ({ day: s.day, time: withLabel(s.time) })),
       { numCharPr, redCharPr, timeCharPr, holidayCharPr, holidays: p.holidays ?? [] },
     ));
   }

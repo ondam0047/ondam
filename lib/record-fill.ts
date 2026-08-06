@@ -14,7 +14,9 @@ import { xmlEscape } from "@/lib/hwpx";
 export type Coord = [table: number, row: number, col: number, p?: number];
 
 // charPr: 지정 시 해당 단락 run 의 charPrIDRef 를 교체(빨간날 색·시간 글자크기용).
-export type CellEdit = { table: number; row: number; col: number; p?: number; value: string; charPr?: number };
+// clearRest: 대상 문단 외 나머지 문단을 지운다 — 센터가 값을 미리 적어둔 라벨 값칸
+// (여러 문단에 걸친 옛 값)을 채울 때 잔여 줄이 남지 않게("성심언어심리센터"+"심리센터" 중복).
+export type CellEdit = { table: number; row: number; col: number; p?: number; value: string; charPr?: number; clearRest?: boolean };
 
 const TBL_OPEN = "<hp:tbl";
 const TBL_CLOSE = "</hp:tbl>";
@@ -125,7 +127,20 @@ function applyEdit(xml: string, e: CellEdit): string {
       return i === 0 ? p : reassignParaId(p);
     })
     .join("");
-  cell = cell.slice(0, pr[0]) + newPara + cell.slice(pr[1]);
+  if (e.clearRest) {
+    // 대상 문단만 새 값으로 남기고 나머지 문단은 제거.
+    const re = /<hp:p\b[\s\S]*?<\/hp:p>/g;
+    let m: RegExpExecArray | null;
+    let out = "";
+    let last = 0;
+    while ((m = re.exec(cell))) {
+      out += cell.slice(last, m.index) + (m.index === pr[0] ? newPara : "");
+      last = m.index + m[0].length;
+    }
+    cell = out + cell.slice(last);
+  } else {
+    cell = cell.slice(0, pr[0]) + newPara + cell.slice(pr[1]);
+  }
   tbl = tbl.slice(0, c[0]) + cell + tbl.slice(c[1]);
   return xml.slice(0, t[0]) + tbl + xml.slice(t[1]);
 }

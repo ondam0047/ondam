@@ -32,10 +32,22 @@ export async function GET(req: NextRequest) {
       manual,
     });
   }
-  const forms = await prisma.recordForm.findMany({
+  const rows = await prisma.recordForm.findMany({
     where: { ownerUserId: user.id },
     orderBy: [{ kind: "asc" }, { createdAt: "asc" }],
-    select: { id: true, kind: true, name: true, createdAt: true },
+    select: { id: true, kind: true, name: true, createdAt: true, spec: true },
+  });
+  // hasStatus: 결과표에 '이용자 상태(건강상태·부모상담)' 전용 칸이 있는 양식 —
+  // 기록지 화면이 회기별 상태 입력칸을 보여줄지 판단하는 데 쓴다.
+  const forms = rows.map(({ spec, ...f }) => {
+    let hasStatus = false;
+    try {
+      const s = JSON.parse(spec) as { result?: Array<{ status?: number[]; result?: number[] }> };
+      hasStatus = (s.result ?? []).some(
+        (r) => !!r.status && (!r.result || r.status.join(",") !== r.result.join(",")),
+      );
+    } catch { /* noop */ }
+    return { ...f, hasStatus };
   });
   const planRow = await prisma.user.findUnique({ where: { id: user.id }, select: { plan: true, trialEndsAt: true } });
   const planUser = { plan: planRow?.plan ?? "trial", trialEndsAt: planRow?.trialEndsAt ?? null };

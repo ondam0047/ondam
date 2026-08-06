@@ -13,6 +13,20 @@ export const SLOTS = [
 
 // 기본 서비스 종류 — 센터마다 다를 수 있고 Center.serviceTypes 가 우선.
 export const DEFAULT_SERVICE_TYPES = ["언어재활", "놀이치료", "감각통합치료"] as const;
+
+// 달력 회기 칸에 넣는 서비스 종류 축약(성심 요청: 언어/놀이/감통 …). 없으면 앞 두 글자.
+export function serviceTypeAbbrev(serviceType: string | null | undefined): string {
+  const s = String(serviceType ?? "").trim();
+  if (!s) return "";
+  if (s.includes("감각")) return "감통";
+  if (s.includes("언어")) return "언어";
+  if (s.includes("놀이")) return "놀이";
+  if (s.includes("미술")) return "미술";
+  if (s.includes("음악")) return "음악";
+  if (s.includes("인지")) return "인지";
+  if (s.includes("심리운동")) return "심운";
+  return s.slice(0, 2);
+}
 export type ServiceType = string;
 
 // 1인 모드에서 내 설정 드롭다운에 노출할 주력 서비스 종류 후보.

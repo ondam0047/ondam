@@ -25,6 +25,8 @@ export type SchedulePayload = {
   target: number;
   sessions: { day: number; weekday: string; time: string; makeup: boolean }[];
   holidays?: { day: number; name: string }[];
+  // 달력 회기 칸에 시간 위에 표기할 서비스 종류 축약(예: "언어") — 치료사별 선택(showTypeInCal).
+  calTypeLabel?: string;
 };
 
 export const SCHEDULE_TEMPLATE_PATH = path.join(process.cwd(), "samples", "일정표_template.hwpx");
