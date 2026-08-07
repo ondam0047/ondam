@@ -176,7 +176,8 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
   // clearRest: 센터가 값칸에 미리 적어둔 옛 값(여러 문단)을 지우고 새 값만 남긴다.
   // (서비스종류는 라벨이 있는 표마다 한 칸씩 — 제공현황·비용표 첫 행. 여분 행은 manual 차단으로 방어.)
   spec.schedule?.forEach((s) => {
-    if (schedVal[s.role] !== undefined) put(s.coord, schedVal[s.role], false, true);
+    // 서비스종류/제공영역은 칸 고유 글자크기 유지(native) — manual 경로와 동일 기준.
+    if (schedVal[s.role] !== undefined) put(s.coord, schedVal[s.role], SERVICE_ROLES.has(s.role), true);
   });
   // 일정표 라벨 값칸 좌표 — AI 매핑(manual)이 이 칸들을 날짜 등으로 오인해 덮지 못하게 한다.
   const schedCoordKeys = new Set((spec.schedule ?? []).map((s) => `${s.coord[0]},${s.coord[1]},${s.coord[2]}`));

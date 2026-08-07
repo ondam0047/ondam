@@ -90,6 +90,8 @@ export async function buildSchedExtra(opts: {
     // (담당은 기본값=치료사 이름이 항상 채우므로 그대로.)
     out.전화 = sched.pvTel ?? "";
     if (sched.pvCharge) out.담당 = sched.pvCharge;
+    // 작성일자 = 일정표에 저장한 값 — 일정표 출력과 동일 표기(없으면 기본값=오늘 날짜 유지).
+    if (sched.writeDate) out.작성일자 = sched.writeDate;
     if (sched.costUnit) out.단가 = sched.costUnit;
     if (sched.costSelf) out.본인부담금 = sched.costSelf;
     if (cnt) out.횟수 = String(cnt);

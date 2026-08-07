@@ -539,7 +539,9 @@ export function buildSampleEdits(spec: ResolvedSpec, normCharPr?: number, calOpt
   spec.start.forEach((co) => put(co, "10:00"));
   spec.end.forEach((co) => put(co, "10:50"));
   // 담당재활사 행은 수기(손글씨/도장) 칸 — 실출력(record-fill-spec.ts)과 동일하게 미리보기도 빈칸으로 둔다.
-  // (spec.therapist ?? []).forEach((co) => put(co, "김치료"));
+  // 담당재활사(회기별 서명 행)는 미리보기도 출력과 동일하게 '빈칸'으로 — 센터가 템플릿에
+  // 이름을 미리 적어둔 경우 지워진 모습으로 보여준다(실제 출력과 일치).
+  (spec.therapist ?? []).forEach((co) => put(co, ""));
   spec.serviceBlocks?.forEach((blk) => { blk.start.forEach((co) => put(co, "10:00")); blk.end.forEach((co) => put(co, "10:50")); });
   spec.voucher.forEach((co) => put(co, "50"));
   spec.extra.forEach((co) => put(co, "0"));

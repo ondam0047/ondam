@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { readSection0, patchSection0 } from "@/lib/hwpx";
 import { resolveForm, applyOverrides, scopeSpecToKind } from "@/lib/record-resolver";
 import { removeTableColumns, removeTableRows } from "@/lib/record-trim";
+import { repairScheduleSpec } from "@/lib/record-fill-spec";
 import { classifyDevVoucherForm } from "@/lib/form-gate";
 import { maxCenterForms, planLabel } from "@/lib/plan";
 
@@ -35,14 +36,17 @@ export async function GET(req: NextRequest) {
   const rows = await prisma.recordForm.findMany({
     where: { ownerUserId: user.id },
     orderBy: [{ kind: "asc" }, { createdAt: "asc" }],
-    select: { id: true, kind: true, name: true, createdAt: true, spec: true },
+    select: { id: true, kind: true, name: true, createdAt: true, spec: true, template: true },
   });
   // hasStatus: 결과표에 '이용자 상태(건강상태·부모상담)' 전용 칸이 있는 양식 —
   // 기록지 화면이 회기별 상태 입력칸을 보여줄지 판단하는 데 쓴다.
-  const forms = rows.map(({ spec, ...f }) => {
+  // ⚠ 출력과 같은 기준으로 판단해야 한다: 출력은 legacy spec 을 복구(repair)해 상태 칸을
+  // 살리므로, 저장 spec 그대로 보면 옛 양식에서 토글이 안 떠 UI↔출력이 어긋난다.
+  const forms = rows.map(({ spec, template, ...f }) => {
     let hasStatus = false;
     try {
-      const s = JSON.parse(spec) as { result?: Array<{ status?: number[]; result?: number[] }> };
+      const repaired = f.kind === "record" ? repairScheduleSpec(spec, Buffer.from(template)) : spec;
+      const s = JSON.parse(repaired) as { result?: Array<{ status?: number[]; result?: number[] }> };
       hasStatus = (s.result ?? []).some(
         (r) => !!r.status && (!r.result || r.status.join(",") !== r.result.join(",")),
       );
