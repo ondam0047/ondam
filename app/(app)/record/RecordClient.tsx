@@ -1945,7 +1945,7 @@ function RecordSheet({
         {/* 구버전 한글용 .hwp — 내장 기본 서식에서만 지원(저장 양식·지역 서식은 hwpx 로). */}
         {!outFormId && recordForm !== "dongtan" && recordForm !== "namyangju" && (
           <button
-            className="btn btn-ghost"
+            className="btn btn-primary"
             onClick={() => downloadHwpx("hwp")}
             disabled={downloading}
             title="한글 2002~2014 같은 구버전에서도 수정할 수 있는 형식이에요. hwpx가 읽기 전용으로 열리는 센터에 제출할 때 쓰세요."
