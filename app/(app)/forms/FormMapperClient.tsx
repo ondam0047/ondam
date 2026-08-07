@@ -6,7 +6,7 @@ import { rolesForForm, isFilledValue } from "@/lib/record-roles";
 
 type Cell = { r: number; c: number; cs: number; rs: number; text: string; role: string | null; p?: number };
 type Spec = {
-  schedule?: Array<{ role: string }>; detail?: unknown[]; extraSessionCols?: number[]; extraResultRows?: number[];
+  schedule?: Array<{ role: string; coord?: number[] }>; detail?: unknown[]; extraSessionCols?: number[]; extraResultRows?: number[];
   scheduleCalendar?: { table: number }; therapist?: number[][];
 };
 type AnalyzeResult = { coverage: Record<string, boolean>; grid: Cell[][]; spec?: Spec; cached?: { overrides: Record<string, string> } | null; warning?: string };
@@ -204,11 +204,14 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
       });
       const d = await r.json() as { suggestions?: Suggestion[]; error?: string };
       if (!r.ok) throw new Error(d.error || "AI 매핑 실패");
-      // AI 좌표 방어 — 달력 표(일정표 격자)와 담당재활사(수기 서명) 칸 제안은 버린다.
+      // AI 좌표 방어 — 달력 표(일정표 격자)·담당재활사(수기 서명)·일정표 라벨 값칸 제안은 버린다.
       // 달력 칸을 날짜·결과로, 서명 칸을 치료사이름으로 오인하는 사고가 실제로 있었다.
       const sp = specArg ?? result?.spec;
       const calT = sp?.scheduleCalendar?.table;
       const theraKeys = new Set((sp?.therapist ?? []).map((c) => trcKey(c[0], c[1], c[2])));
+      const schedKeys = new Set(
+        (sp?.schedule ?? []).flatMap((s) => (s.coord ? [trcKey(s.coord[0], s.coord[1], s.coord[2])] : [])),
+      );
       const low = new Set<string>();
       setOverrides((prev) => {
         const next = { ...prev };
@@ -216,6 +219,7 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
           if (calT != null && s.table === calT) continue;
           const key = trcKey(s.table, s.row, s.col);
           if (theraKeys.has(key)) continue;
+          if (schedKeys.has(key)) continue;
           next[key] = s.role;
           if ((s.confidence ?? 1) < 0.6) low.add(key);
         }
