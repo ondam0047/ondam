@@ -880,6 +880,8 @@ function RecordSheet({
   const [results, setResults] = useState(rows.map(() => ""));
   // 이용자 상태 (서식B 등 상태·결과 분리 양식에서 사용)
   const [statuses, setStatuses] = useState(rows.map(() => ""));
+  // 상태·부모상담 입력칸 토글(회기별) — 기본은 접혀서 이전 화면 그대로, 필요한 사람만 연다.
+  const [statusOpen, setStatusOpen] = useState<Set<number>>(new Set());
   // 제공일자(일정표) ≠ 승인일자(엑셀) 일 때 입력하는 사유. 저장 시 resultExtra 로 들어감.
   const [mismatchReasons, setMismatchReasons] = useState(rows.map(() => ""));
   // 소급결제 회기의 소급 사유. 저장 시 retroReason 으로 들어가고, 출력 결과 뒤 "* 소급 사유: …" 로 붙음.
@@ -1813,30 +1815,50 @@ function RecordSheet({
                 )}
                 {!schedMismatch && schedD !== null && <span className="okflag">✓ 일정표와 같음</span>}
               </div>
-              {splitStatus && (
-                <div style={{ marginBottom: 8 }}>
-                  <label style={{ display: "block", fontSize: 12.5, fontWeight: 600, color: "var(--text-soft)", marginBottom: 4 }}>
-                    이용자 상태 · 부모상담
-                  </label>
-                  <textarea
-                    className="textarea"
-                    rows={2}
-                    value={statuses[i]}
-                    placeholder="그날 이용자 상태·부모상담 내용 (이 서식은 결과와 별도 칸이 있어요)"
-                    onChange={(e) => setStatuses((p) => { const n = [...p]; n[i] = e.target.value; return n; })}
-                  />
-                  <label style={{ display: "block", fontSize: 12.5, fontWeight: 600, color: "var(--text-soft)", margin: "8px 0 4px" }}>
-                    서비스 결과
-                  </label>
-                </div>
-              )}
-              <textarea
-                className="textarea"
-                rows={betaUx ? 3 : 6}
-                value={results[i]}
-                placeholder=""
-                onChange={(e) => setResults((p) => { const n = [...p]; n[i] = e.target.value; return n; })}
-              />
+              {(() => {
+                // 결과가 기본(이전 화면 그대로). 상태·결과 분리 양식이면 오른쪽 위 토글로
+                // '이용자 상태·부모상담' 작은 칸을 결과 오른쪽에 연다. 내용이 있으면 항상 열림
+                // (숨겨진 채 출력되는 것 방지).
+                const hasStatusText = (statuses[i] ?? "").trim() !== "";
+                const stOpen = splitStatus && (statusOpen.has(i) || hasStatusText);
+                return (
+                  <>
+                    {splitStatus && (
+                      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 4 }}>
+                        <button
+                          type="button"
+                          disabled={stOpen && hasStatusText}
+                          title={stOpen && hasStatusText ? "내용이 있으면 닫히지 않아요(출력에 들어가요)" : "이 서식은 결과와 별도로 상태·부모상담 칸이 있어요"}
+                          onClick={() => setStatusOpen((p) => { const n = new Set(p); if (stOpen) n.delete(i); else n.add(i); return n; })}
+                          style={{ background: "none", border: "1px solid var(--border)", borderRadius: 8, padding: "3px 10px", fontSize: 12, color: "var(--primary)", cursor: stOpen && hasStatusText ? "default" : "pointer", fontWeight: 700 }}
+                        >
+                          {stOpen ? (hasStatusText ? "이용자 상태·부모상담 (작성 중)" : "이용자 상태·부모상담 닫기") : "+ 이용자 상태·부모상담"}
+                        </button>
+                      </div>
+                    )}
+                    <div style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
+                      <textarea
+                        className="textarea"
+                        rows={betaUx ? 3 : 6}
+                        value={results[i]}
+                        placeholder=""
+                        style={{ flex: 1, minWidth: 0 }}
+                        onChange={(e) => setResults((p) => { const n = [...p]; n[i] = e.target.value; return n; })}
+                      />
+                      {stOpen && (
+                        <textarea
+                          className="textarea"
+                          rows={betaUx ? 3 : 6}
+                          value={statuses[i]}
+                          placeholder="이용자 상태·부모상담"
+                          style={{ flex: "0 0 38%", minWidth: 0 }}
+                          onChange={(e) => setStatuses((p) => { const n = [...p]; n[i] = e.target.value; return n; })}
+                        />
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
               {needReason && (
                 <div style={{ marginTop: 8 }}>
                   <label style={{ display: "block", fontSize: 12.5, fontWeight: 600, color: "var(--danger)", marginBottom: 4 }}>

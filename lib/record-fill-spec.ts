@@ -59,15 +59,24 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
     narrSeen.add(key);
     put(coord, value);
   };
-  // 결과 칸 본문 — 결과 다음 줄부터 사유를 '별표(*)'로 한 줄씩(엔터로 칸 바꿈) 기재.
-  // (\n 은 record-fill.ts 가 셀 안 별도 단락으로 렌더)
-  const composeResult = (s: RecordSessionDetail): string => {
-    const base = (s.result ?? "").trim();
+  // 상태(건강상태·부모상담) 전용 칸이 따로 있는 양식(성심형)이고 아래 비고칸(opinion)이 있으면,
+  // 일정변경·소급 사유는 결과 본문 대신 비고칸에 모아 적는다("비고 칸에는 사유 작성" — 성심 요청).
+  const statusSeparate = (spec.result ?? []).some(
+    (r) => !!r.status && (!r.result || String(r.status) !== String(r.result)),
+  );
+  const reasonsToNote = statusSeparate && !!spec.opinion;
+  const sessionExtras = (s: RecordSessionDetail): string[] => {
     const extras: string[] = [];
     const mismatch = (s.resultExtra ?? "").trim();
     if (mismatch) extras.push(mismatch.startsWith("*") ? mismatch : `* ${mismatch}`);
     if (s.retroReason) extras.push(`* 소급 사유: ${s.retroReason}`);
-    return [base, ...extras].filter(Boolean).join("\n");
+    return extras;
+  };
+  // 결과 칸 본문 — 결과 다음 줄부터 사유를 '별표(*)'로 한 줄씩(엔터로 칸 바꿈) 기재.
+  // (\n 은 record-fill.ts 가 셀 안 별도 단락으로 렌더. 사유를 비고칸에 모으는 양식은 결과만.)
+  const composeResult = (s: RecordSessionDetail): string => {
+    const base = (s.result ?? "").trim();
+    return reasonsToNote ? base : [base, ...sessionExtras(s)].filter(Boolean).join("\n");
   };
 
   // 헤더
@@ -76,16 +85,19 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
   put(spec.birth, d.childBirth);
   put(spec.serviceArea, d.serviceType, true);
   put(spec.serviceName, d.serviceType, true);
-  // 담당재활사(회기별 서명 행)는 수기(손글씨/도장) 칸 — 자동 출력하지 않고 빈칸으로 남긴다.
-  // 근거: 발달재활 바우처 기록지의 담당재활사 칸은 회기별 제공 사실을 직접 서명·날인하는 칸이며,
-  // 내장 standard 양식(record-hwpx.ts)도 이 칸을 채우지 않는다(전역 일관). spec.therapist 좌표는
-  // 리졸버가 계속 감지하되(향후 재사용 대비) 여기서 이름을 채우지 않는다. 미리보기(buildSampleEdits)도 동일하게 빈칸.
+  // 담당재활사(회기별 서명 행)는 수기(손글씨/도장) 칸 — 이름을 채우지 않고 '빈칸'을 강제한다.
+  // 센터가 양식 파일에 이름을 미리 적어 올린 경우(성심)에도 다른 기록지와 동일하게 비운다.
   // 헤더성 치료사 이름 칸(schedVal '담당' / scalarVal '치료사이름')은 별개이며 그대로 채운다.
-  // (spec.therapist ?? []).forEach((co) => put(co, d.therapistName));
-  // 종합의견(부모상담 종합 의견란 등) — resolver 가 잡은 의견 칸에 채움.
-  if (spec.opinion) put(spec.opinion, d.opinion ?? "");
+  (spec.therapist ?? []).forEach((co) => put(co, ""));
 
   const S = d.sessions;
+  // 종합의견/비고 칸 — 부모상담 종합 의견 + (사유를 비고칸에 모으는 양식이면) 회기별 사유 목록.
+  if (spec.opinion) {
+    const noteLines = reasonsToNote
+      ? S.flatMap((s) => sessionExtras(s).map((x) => (s.date ? `${x.replace(/^\* /, `* ${s.date} `)}` : x)))
+      : [];
+    put(spec.opinion, [d.opinion ?? "", ...noteLines].filter(Boolean).join("\n"));
+  }
   // 회기 — 날짜축
   putArr(spec.date, (i) => S[i]?.date ?? "");
   // 다서비스(대구·파주): 라벨 매칭 정보가 spec 에 없어 첫 블록(주 서비스)에 채움.
@@ -154,7 +166,12 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
     ...(d.schedExtra ?? {}), // 단가·본인부담·관리번호·제공일·횟수·전화 등(통합 양식 보강)
   };
   // clearRest: 센터가 값칸에 미리 적어둔 옛 값(여러 문단)을 지우고 새 값만 남긴다.
-  spec.schedule?.forEach((s) => { if (schedVal[s.role] !== undefined) put(s.coord, schedVal[s.role], false, true); });
+  // 서비스종류는 첫 칸만(옛 저장 spec 에 두 칸 매핑돼 있어도) — 비용표 빈칸까지 채우지 않는다.
+  let svcFilled = false;
+  spec.schedule?.forEach((s) => {
+    if (s.role === "서비스종류") { if (svcFilled) return; svcFilled = true; }
+    if (schedVal[s.role] !== undefined) put(s.coord, schedVal[s.role], false, true);
+  });
 
   // 셀프 보정/AI 자동매핑 칸 — 역할별 실데이터.
   // 날짜축(가로 회기표) 역할은 dCols 에 걸쳐 채우고, 결과/비고/회차 등 칸별 역할은
@@ -186,7 +203,13 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
   // 역할별로 묶기: 같은 역할이 여러 칸이면(AI 매핑) 문서순 i번째 회기,
   // 한 칸뿐이고 날짜축 역할이면(레거시 수동 1칸) 날짜 칸들에 브로드캐스트.
   const manualRows: Record<string, Coord[]> = {};
+  const calT = spec.scheduleCalendar?.table;
   for (const m of spec.manual ?? []) {
+    // 일정표 달력 표에는 기록지 값을 쓰지 않는다 — AI 매핑이 달력 칸을 날짜·결과로
+    // 오인해 저장돼도 기록지 내용이 달력에 찍히지 않게 방어.
+    if (calT != null && m.table === calT) continue;
+    // 회기별 비고는 발달바우처에 데이터가 없다 — 빈 값으로 다른 칸(상태 등)을 덮지 않게 건너뜀.
+    if (m.role === "비고") continue;
     if (ROW.has(m.role)) {
       (manualRows[m.role] ??= []).push([m.table, m.row, m.col, m.p ?? 0] as Coord);
     } else if (scalarVal[m.role] !== undefined) {
@@ -226,6 +249,11 @@ export function repairScheduleSpec(specJson: string, template: Buffer): string {
     if (!fresh.schedule?.length && !fresh.scheduleCalendar) return specJson; // 통합 양식 아님
     spec.schedule = fresh.schedule;
     spec.scheduleCalendar = fresh.scheduleCalendar;
+    // 규칙 인식 필드도 최신 리졸버 결과로 갱신 — 옛 spec 은 상태·결과가 같은 칸으로 잡혀
+    // (통합 칸 오매핑) 부모상담 열이 비었고, 비고칸(opinion)·담당재활사 좌표도 없었다.
+    if (fresh.result?.length) spec.result = fresh.result;
+    if (!spec.opinion && fresh.opinion) spec.opinion = fresh.opinion;
+    if (!spec.therapist?.length && fresh.therapist?.length) spec.therapist = fresh.therapist;
     delete spec.noSchedule;
     return JSON.stringify(spec);
   } catch {

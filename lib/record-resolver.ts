@@ -231,11 +231,16 @@ export function resolveForm(xml: string): ResolveOutput {
   // 일정표 라벨 칸(1단계) — 라벨→오른쪽(헤더형) / 라벨→아래(열헤더형)
   const sched: Array<{ role: string; coord: Coord }> = [];
   const seenS = new Set<string>(); // 좌표 기준 중복제거 — 같은 역할이 여러 표(제공현황·비용)에 있어도 모두 잡음
+  const seenSRole = new Set<string>();
   const pushS = (role: string, coord: Coord | undefined) => {
     if (!coord) return;
+    // 서비스종류는 첫 칸만 — 제공현황·비용표 양쪽에 라벨이 있는 양식(성심)에서 비용표의
+    // "(  )재활" 빈칸까지 채우면 원본 서식 모양이 달라진다(원래 한 칸만 적히던 양식).
+    if (role === "서비스종류" && seenSRole.has(role)) return;
     const key = `${coord[0]},${coord[1]},${coord[2]}`;
     if (seenS.has(key)) return;
     seenS.add(key);
+    seenSRole.add(role);
     sched.push({ role, coord });
   };
   const S_RIGHT: Array<[string, RegExp]> = [["관리번호", /관리번호/], ["작성일자", /작성일자/], ["대상자명", /^성명$/], ["제공자", /서비스제공자$/]];
@@ -420,6 +425,13 @@ export function resolveForm(xml: string): ResolveOutput {
   // 종합의견(부모상담 종합 의견란·총평) 칸 — 라벨 아래(없으면 옆)의 빈 큰 칸.
   // (커스텀 양식은 이 칸이 매핑 안 돼 종합의견이 비어 나왔음.)
   spec.opinion = detectOpinionCell(tbls, recordStart);
+  // 폴백: 결과표 뒤의 라벨 없는 1×1 빈 표(성심형 '비고' 칸) — 종합의견·사유 기재란으로 쓴다.
+  if (!spec.opinion && spec.resultTable != null) {
+    for (let ti = spec.resultTable + 1; ti < tbls.length; ti++) {
+      const t = tbls[ti];
+      if (t.length === 1 && !t[0].norm) { spec.opinion = [ti, t[0].r, t[0].c] as Coord; break; }
+    }
+  }
 
   // 커버리지
   const coverage: Record<string, boolean> = {};

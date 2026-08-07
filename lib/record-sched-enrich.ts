@@ -85,7 +85,10 @@ export async function buildSchedExtra(opts: {
     const cnt = sched.sessions.length || sched.target || 0;
     if (sched.mgmtNumber || cs.child.mgmtNumber) out.관리번호 = sched.mgmtNumber || cs.child.mgmtNumber || "";
     if (sched.pvOrg) { out.제공자 = sched.pvOrg; out.제공자명 = sched.pvOrg; }
-    if (sched.pvTel) out.전화 = sched.pvTel;
+    // 전화는 값이 없어도 항상 쓴다(빈 값) — 센터가 양식 파일에 미리 적어둔 옛 값
+    // ("813- 8068" 등)이 채움을 건너뛰면 출력에 그대로 남는다(clearRest 로 지워짐).
+    // (담당은 기본값=치료사 이름이 항상 채우므로 그대로.)
+    out.전화 = sched.pvTel ?? "";
     if (sched.pvCharge) out.담당 = sched.pvCharge;
     if (sched.costUnit) out.단가 = sched.costUnit;
     if (sched.costSelf) out.본인부담금 = sched.costSelf;

@@ -5,7 +5,10 @@ import { useBetaUx } from "../BetaUxContext";
 import { rolesForForm, isFilledValue } from "@/lib/record-roles";
 
 type Cell = { r: number; c: number; cs: number; rs: number; text: string; role: string | null; p?: number };
-type Spec = { schedule?: Array<{ role: string }>; detail?: unknown[]; extraSessionCols?: number[]; extraResultRows?: number[] };
+type Spec = {
+  schedule?: Array<{ role: string }>; detail?: unknown[]; extraSessionCols?: number[]; extraResultRows?: number[];
+  scheduleCalendar?: { table: number }; therapist?: number[][];
+};
 type AnalyzeResult = { coverage: Record<string, boolean>; grid: Cell[][]; spec?: Spec; cached?: { overrides: Record<string, string> } | null; warning?: string };
 type Suggestion = { table: number; row: number; col: number; p?: number; role: string; confidence: number };
 
@@ -155,7 +158,7 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
         }
         setOverrides(norm);
       } else if (betaUx) {
-        await runAutoMap(d.grid, kind);
+        await runAutoMap(d.grid, kind, d.spec);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "분석 중 문제가 생겼어요.");
@@ -189,7 +192,7 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
 
   // AI 자동매핑 — 규칙 엔진이 못 잡은 칸까지 LLM 이 역할 제안(좌표 환각 차단·개인정보 마스킹은 서버에서).
   // 제안을 overrides 에 병합하고, 신뢰도<0.6 칸은 lowConf 로 표시(사람이 확인).
-  async function runAutoMap(grid?: Cell[][], formTypeArg?: "record" | "schedule") {
+  async function runAutoMap(grid?: Cell[][], formTypeArg?: "record" | "schedule", specArg?: Spec) {
     const g = grid ?? result?.grid;
     if (!g || !g.length) return;
     setAiLoading(true); setError(null);
@@ -201,11 +204,18 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
       });
       const d = await r.json() as { suggestions?: Suggestion[]; error?: string };
       if (!r.ok) throw new Error(d.error || "AI 매핑 실패");
+      // AI 좌표 방어 — 달력 표(일정표 격자)와 담당재활사(수기 서명) 칸 제안은 버린다.
+      // 달력 칸을 날짜·결과로, 서명 칸을 치료사이름으로 오인하는 사고가 실제로 있었다.
+      const sp = specArg ?? result?.spec;
+      const calT = sp?.scheduleCalendar?.table;
+      const theraKeys = new Set((sp?.therapist ?? []).map((c) => trcKey(c[0], c[1], c[2])));
       const low = new Set<string>();
       setOverrides((prev) => {
         const next = { ...prev };
         for (const s of d.suggestions ?? []) {
+          if (calT != null && s.table === calT) continue;
           const key = trcKey(s.table, s.row, s.col);
+          if (theraKeys.has(key)) continue;
           next[key] = s.role;
           if ((s.confidence ?? 1) < 0.6) low.add(key);
         }

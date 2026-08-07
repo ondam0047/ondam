@@ -76,7 +76,10 @@ export function generateScheduleFromForm(
   };
 
   // clearRest: 센터가 값칸에 미리 적어둔 옛 값(여러 문단)을 지우고 새 값만 남긴다.
+  // 서비스종류는 첫 칸만(옛 저장 spec 에 두 칸 매핑돼 있어도) — 비용표 빈칸까지 채우지 않는다.
+  let svcFilled = false;
   spec.schedule?.forEach((s) => {
+    if (s.role === "서비스종류") { if (svcFilled) return; svcFilled = true; }
     if (roleVal[s.role] !== undefined) put(s.coord, roleVal[s.role], true);
   });
   // 셀프 보정/AI 자동매핑 칸 — 일정표 라벨 역할(관리번호·단가·횟수 등)·스칼라 역할 모두 채움.
