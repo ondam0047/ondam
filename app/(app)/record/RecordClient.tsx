@@ -1140,7 +1140,8 @@ function RecordSheet({
     }
   }
 
-  async function downloadHwpx() {
+  // format "hwp" = 구버전 한글(2002~2014)용 HWP 5.0 바이너리 — 내장 기본 서식에서만 지원.
+  async function downloadHwpx(format?: "hwp") {
     setDownloading(true);
     try {
       const monthNum = typeof month === "number" ? month : parseInt(String(month)) || 0;
@@ -1178,15 +1179,17 @@ function RecordSheet({
         therapist,
         childServiceId: childServiceId || undefined, // 통합 양식 일정표 보강용
         year,
+        format,
       };
       const res = await fetch("/api/record/hwpx", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+      const ext = format === "hwp" ? "hwp" : "hwpx";
       if (!res.ok) {
         const e = await res.json().catch(() => ({}));
-        alert("한글파일(.hwpx) 생성 실패: " + (e.error ?? res.status));
+        alert(`한글파일(.${ext}) 생성 실패: ` + (e.error ?? res.status));
         return;
       }
       const blob = await res.blob();
@@ -1194,7 +1197,7 @@ function RecordSheet({
       const isZip = blob.type === "application/zip";
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = `${childName}_${monthNum}월_기록지.${isZip ? "zip" : "hwpx"}`;
+      a.download = `${childName}_${monthNum}월_기록지.${isZip ? "zip" : ext}`;
       a.click();
       URL.revokeObjectURL(a.href);
     } finally {
@@ -1936,9 +1939,20 @@ function RecordSheet({
             발달바우처 기본 서식 사용 중 · <b>우리 센터 양식 올리기 →</b>
           </Link>
         )}
-        <button className="btn btn-primary" onClick={downloadHwpx} disabled={downloading}>
+        <button className="btn btn-primary" onClick={() => downloadHwpx()} disabled={downloading}>
           {downloading ? "생성 중..." : "한글파일(.hwpx) 다운로드"}
         </button>
+        {/* 구버전 한글용 .hwp — 내장 기본 서식에서만 지원(저장 양식·지역 서식은 hwpx 로). */}
+        {!outFormId && recordForm !== "dongtan" && recordForm !== "namyangju" && (
+          <button
+            className="btn btn-ghost"
+            onClick={() => downloadHwpx("hwp")}
+            disabled={downloading}
+            title="한글 2002~2014 같은 구버전에서도 수정할 수 있는 형식이에요. hwpx가 읽기 전용으로 열리는 센터에 제출할 때 쓰세요."
+          >
+            구버전용(.hwp)
+          </button>
+        )}
       </div>
       <div className="sub-mute" style={{ fontSize: 12, marginTop: 8, lineHeight: 1.6 }}>
         💾 작성하면 <b>자동으로 저장</b>돼요{autoStatus === "saving" ? " (저장 중…)" : autoStatus === "saved" ? " ✓ 저장됨" : ""}.
