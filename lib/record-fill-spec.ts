@@ -83,8 +83,9 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
   put(spec.org, d.org);
   put(spec.name, d.childName);
   put(spec.birth, d.childBirth);
-  put(spec.serviceArea, d.serviceType, true);
-  put(spec.serviceName, d.serviceType, true);
+  // clearRest: 센터가 "언어/재활"처럼 여러 줄로 미리 적어둔 서비스 칸을 새 값 한 줄로 교체.
+  put(spec.serviceArea, d.serviceType, true, true);
+  put(spec.serviceName, d.serviceType, true, true);
   // 담당재활사(회기별 서명 행)는 수기(손글씨/도장) 칸 — 이름을 채우지 않고 '빈칸'을 강제한다.
   // 센터가 양식 파일에 이름을 미리 적어 올린 경우(성심)에도 다른 기록지와 동일하게 비운다.
   // 헤더성 치료사 이름 칸(schedVal '담당' / scalarVal '치료사이름')은 별개이며 그대로 채운다.
@@ -166,12 +167,14 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
     ...(d.schedExtra ?? {}), // 단가·본인부담·관리번호·제공일·횟수·전화 등(통합 양식 보강)
   };
   // clearRest: 센터가 값칸에 미리 적어둔 옛 값(여러 문단)을 지우고 새 값만 남긴다.
-  // 서비스종류는 첫 칸만(옛 저장 spec 에 두 칸 매핑돼 있어도) — 비용표 빈칸까지 채우지 않는다.
+  // 서비스종류는 전체에서 첫 칸만(옛 저장 spec·AI 매핑에 여러 칸 있어도) — 비용표 빈칸까지 채우지 않는다.
   let svcFilled = false;
   spec.schedule?.forEach((s) => {
     if (s.role === "서비스종류") { if (svcFilled) return; svcFilled = true; }
     if (schedVal[s.role] !== undefined) put(s.coord, schedVal[s.role], false, true);
   });
+  // 일정표 라벨 값칸 좌표 — AI 매핑(manual)이 이 칸들을 날짜 등으로 오인해 덮지 못하게 한다.
+  const schedCoordKeys = new Set((spec.schedule ?? []).map((s) => `${s.coord[0]},${s.coord[1]},${s.coord[2]}`));
 
   // 셀프 보정/AI 자동매핑 칸 — 역할별 실데이터.
   // 날짜축(가로 회기표) 역할은 dCols 에 걸쳐 채우고, 결과/비고/회차 등 칸별 역할은
@@ -210,9 +213,16 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
     if (calT != null && m.table === calT) continue;
     // 회기별 비고는 발달바우처에 데이터가 없다 — 빈 값으로 다른 칸(상태 등)을 덮지 않게 건너뜀.
     if (m.role === "비고") continue;
+    // 일정표 라벨 값칸(제공일·주기 등)은 schedVal 이 관리 — manual 이 덮지 않는다
+    // (AI 가 제공일 칸을 '날짜'로 오인 저장 → 회기 1·2가 제공일 칸에 찍히고 회기표가 밀리던 사고).
+    if (schedCoordKeys.has(`${m.table},${m.row},${m.col}`)) continue;
     if (ROW.has(m.role)) {
+      // 회기(날짜축) 역할은 회기표(dateTable)에만 — 다른 표(제공현황 등)의 오인 칸은 무시.
+      if (DATE_AXIS.has(m.role) && spec.dateTable != null && m.table !== spec.dateTable) continue;
       (manualRows[m.role] ??= []).push([m.table, m.row, m.col, m.p ?? 0] as Coord);
     } else if (scalarVal[m.role] !== undefined) {
+      // 서비스종류는 전체 첫 칸만(일정표 라벨에서 이미 채웠으면 건너뜀).
+      if (m.role === "서비스종류") { if (svcFilled) continue; svcFilled = true; }
       put([m.table, m.row, m.col, m.p ?? 0] as Coord, scalarVal[m.role], SERVICE_ROLES.has(m.role));
     }
   }
@@ -365,7 +375,11 @@ export function generateRecordFromForm(
     }
     xml = fillCells(xml, edits);
     // 제목의 "( N월 )" 채우기 (빈 양식은 "(  월)" 처럼 비어 있음; 제목 런 쪼개짐 허용)
-    if (payload.month) xml = fillTitleParenMonth(xml, "기록지", payload.month);
+    // 통합 양식(일정표+기록지 한 장)은 일정표 제목의 "( N월 )" 도 같이 채운다.
+    if (payload.month) {
+      xml = fillTitleParenMonth(xml, "기록지", payload.month);
+      xml = fillTitleParenMonth(xml, "일정표", payload.month);
+    }
     // 결과 칸 글자 자동축소 — 긴 결과가 칸을 넘쳐 아래 표와 겹치는 것 방지.
     let outHeader = header;
     if (narrByTable.size) {
