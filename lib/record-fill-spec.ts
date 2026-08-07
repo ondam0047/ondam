@@ -64,7 +64,14 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
   const statusSeparate = (spec.result ?? []).some(
     (r) => !!r.status && (!r.result || String(r.status) !== String(r.result)),
   );
-  const reasonsToNote = statusSeparate && !!spec.opinion;
+  // 종합의견은 문서 전체에서 '한 칸'에만 쓴다 — 직접/AI 지정(manual)이 있으면 그 첫 칸,
+  // 없으면 자동 탐지 칸(spec.opinion). 자동+manual 이 서로 다른 칸을 가리켜 의견이
+  // 두 칸에 중복 기재되던 문제 방지.
+  const manualOpinion = (spec.manual ?? []).find((m) => m.role === "종합의견");
+  const opinionCoord: Coord | undefined = manualOpinion
+    ? ([manualOpinion.table, manualOpinion.row, manualOpinion.col, manualOpinion.p ?? 0] as Coord)
+    : spec.opinion;
+  const reasonsToNote = statusSeparate && !!opinionCoord;
   const sessionExtras = (s: RecordSessionDetail): string[] => {
     const extras: string[] = [];
     const mismatch = (s.resultExtra ?? "").trim();
@@ -93,11 +100,11 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
 
   const S = d.sessions;
   // 종합의견/비고 칸 — 부모상담 종합 의견 + (사유를 비고칸에 모으는 양식이면) 회기별 사유 목록.
-  if (spec.opinion) {
+  if (opinionCoord) {
     const noteLines = reasonsToNote
       ? S.flatMap((s) => sessionExtras(s).map((x) => (s.date ? `${x.replace(/^\* /, `* ${s.date} `)}` : x)))
       : [];
-    put(spec.opinion, [d.opinion ?? "", ...noteLines].filter(Boolean).join("\n"));
+    put(opinionCoord, [d.opinion ?? "", ...noteLines].filter(Boolean).join("\n"));
   }
   // 회기 — 날짜축
   putArr(spec.date, (i) => S[i]?.date ?? "");
@@ -206,6 +213,7 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
   const manualRows: Record<string, Coord[]> = {};
   const svcManual: Coord[] = [];
   const calT = spec.scheduleCalendar?.table;
+  const theraKeys = new Set((spec.therapist ?? []).map((c) => `${c[0]},${c[1]},${c[2]}`));
   for (const m of spec.manual ?? []) {
     // 일정표 달력 표에는 기록지 값을 쓰지 않는다 — AI 매핑이 달력 칸을 날짜·결과로
     // 오인해 저장돼도 기록지 내용이 달력에 찍히지 않게 방어.
@@ -215,6 +223,10 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
     // 일정표 라벨 값칸(제공일·주기 등)은 schedVal 이 관리 — manual 이 덮지 않는다
     // (AI 가 제공일 칸을 '날짜'로 오인 저장 → 회기 1·2가 제공일 칸에 찍히고 회기표가 밀리던 사고).
     if (schedCoordKeys.has(`${m.table},${m.row},${m.col}`)) continue;
+    // 담당재활사(수기 서명) 칸은 빈칸 강제 — AI 가 '치료사이름'으로 지정해도 채우지 않는다.
+    if (theraKeys.has(`${m.table},${m.row},${m.col}`)) continue;
+    // 종합의견은 위에서 단일 칸(opinionCoord)에만 쓴다.
+    if (m.role === "종합의견") continue;
     if (ROW.has(m.role)) {
       // 회기(날짜축) 역할은 회기표(dateTable)에만 — 다른 표(제공현황 등)의 오인 칸은 무시.
       if (DATE_AXIS.has(m.role) && spec.dateTable != null && m.table !== spec.dateTable) continue;
@@ -373,7 +385,9 @@ export function generateRecordFromForm(
   spec.detail?.forEach((row) => addNarr(row.result));
   for (const m of spec.manual ?? []) if (m.role === "결과") addNarr([m.table, m.row, m.col, m.p ?? 0] as Coord);
   // 종합의견(부모상담 의견란)도 자동축소 대상 — 긴 의견이 칸을 넘쳐 2페이지로 밀리는 것 방지.
-  addNarr(spec.opinion);
+  // (실제 쓰는 칸과 동일하게: manual 종합의견이 있으면 그 첫 칸, 없으면 자동 탐지 칸)
+  const mo = (spec.manual ?? []).find((m) => m.role === "종합의견");
+  addNarr(mo ? ([mo.table, mo.row, mo.col, mo.p ?? 0] as Coord) : spec.opinion);
 
   return chunks.map((sessionChunk) => {
     let xml = baseXml;
