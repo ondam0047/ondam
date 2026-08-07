@@ -86,8 +86,14 @@ export function generateScheduleFromForm(
   // 다른 행은 여분 행으로 보고 버린다(AI 가 주기·제공일·단가·횟수를 아래 행까지 지정하던 사고).
   // 서비스종류는 추가로 (표·열)별 최상단 한 칸만.
   const schedRoleTC = new Set((spec.schedule ?? []).map((s) => `${s.role}:${s.coord[0]},${s.coord[2]}`));
+  // 통합 양식(기록지 영역이 있는 양식)의 일정표 출력은 일정표 영역 표에만 쓴다 —
+  // AI 매핑이 기록지 총이용금액 칸을 '총금액'으로 지정해 300,000 이 찍히던 사고 방어.
+  const schedTableSet = new Set((spec.schedule ?? []).map((s) => s.coord[0]));
+  if (spec.scheduleCalendar) schedTableSet.add(spec.scheduleCalendar.table);
   const svcManual: Coord[] = [];
   spec.manual?.forEach((m) => {
+    // isCombined(기록지 영역이 있는 통합 양식)면 일정표 라벨·달력이 있는 표 밖은 기록지 영역.
+    if (isCombined && !schedTableSet.has(m.table)) return;
     if (schedCoordKeys.has(`${m.table},${m.row},${m.col}`)) return;
     if (schedRoleTC.has(`${m.role}:${m.table},${m.col}`)) return;
     const coord = [m.table, m.row, m.col, m.p ?? 0] as Coord;
