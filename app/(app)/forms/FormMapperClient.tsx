@@ -118,6 +118,8 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
   const [mapPreview, setMapPreview] = useState(true);
   // 한글 .hwp 업로드 시 자동 변환(.hwp→.hwpx) 팝업 상태
   const [hwpConvert, setHwpConvert] = useState<{ name: string; status: "converting" | "error"; error?: string } | null>(null);
+  // .hwp 로 올린 경우 변환 전 원본 — 저장 시 함께 보내 보관(구버전용 .hwp 다운로드가 열린다).
+  const [hwpOriginal, setHwpOriginal] = useState<File | null>(null);
 
   // AI 매핑 동안 1초마다 경과 초 증가(끝나면 0으로 리셋).
   useEffect(() => {
@@ -201,6 +203,7 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
       const blob = await r.blob();
       const converted = new File([blob], f.name.replace(/\.hwp$/i, ".hwpx"), { type: "application/hwp+zip" });
       setHwpConvert(null);
+      setHwpOriginal(f); // 원본 .hwp — 저장 시 서버가 보관해 .hwp 다운로드를 연다
       setFile(converted);
       void analyze(converted);
     } catch (e) {
@@ -285,6 +288,7 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
       fd.append("name", formName.trim());
       fd.append("kind", kind);
       if (editingId != null) fd.append("id", String(editingId)); // 수정 모드 — 기존 양식 덮어쓰기
+      if (hwpOriginal) fd.append("hwpOriginal", hwpOriginal); // .hwp 원본 보관 → 구버전용 다운로드
       if (overridesArray.length) fd.append("overrides", JSON.stringify(overridesArray));
       const r = await fetch("/api/forms/saved", { method: "POST", body: fd });
       const d = await r.json().catch(() => ({}));
@@ -315,6 +319,7 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
       // 슬롯을 저장본 종류로 맞추고 진행 중이던 업로드는 초기화(수정 모드로 전환).
       setKind(d.kind);
       setFile(f); setResult(null); setWarning(null); setPicker(null); setLowConf(new Set());
+      setHwpOriginal(null); // 수정 모드 — 서버가 기존 .hwp 원본을 유지한다
       setEditingId(d.id);
       setFormName(d.name);
       const preset: Record<string, string> = {};
@@ -353,7 +358,7 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
     setKind(k);
     setFile(null); setResult(null); setError(null); setWarning(null);
     setOverrides({}); setLowConf(new Set()); setPicker(null); setFormName("");
-    setEditingId(null);
+    setEditingId(null); setHwpOriginal(null);
   }
 
   // 셀프 보정 — 지정 가능 역할(양식 종류별). 같은 역할을 여러 칸에 지정 가능.
@@ -542,6 +547,7 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
                   }
                   setFile(f); setResult(null); setError(null); setWarning(null);
                   setEditingId(null); // 새 파일 선택 = 수정 모드 해제(새 양식 저장)
+                  setHwpOriginal(null); // .hwpx 직접 선택 = 원본 .hwp 없음
                   if (f) void analyze(f);
                 }} />
             </label>

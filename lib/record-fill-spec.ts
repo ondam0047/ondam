@@ -308,6 +308,75 @@ export function repairScheduleSpec(specJson: string, template: Buffer): string {
   }
 }
 
+// .hwp 출력용 — 커스텀 양식 spec 으로 회기 5개 chunk 별 CellEdit 목록과 자동축소 대상
+// (표·서술열)을 만든다. hwpx 경로와 같은 데이터 규칙(buildRecordEdits)을 쓰되 글자속성
+// 주입(charPr 정규화·달력 6pt)은 없다 — .hwp 는 DocInfo 직접 수술로 자동축소만 적용.
+export function buildHwpEditChunks(
+  specJson: string,
+  payload: RecordPayload,
+  therapistName: string,
+  schedExtra?: Record<string, string>,
+  year?: number,
+  schedCalSessions?: { day: number; time: string }[],
+): { chunks: CellEdit[][]; narrative: Array<{ table: number; cols: number[] }> } {
+  const spec = JSON.parse(specJson) as ResolvedSpec;
+  const all = payload.sessions ?? [];
+  const sessionChunks: RecordSessionDetail[][] = [];
+  for (let i = 0; i < Math.max(1, all.length); i += 5) sessionChunks.push(all.slice(i, i + 5));
+
+  const yr = year ?? new Date().getFullYear();
+  const fromSched = (schedCalSessions ?? []).filter((s) => s.day > 0);
+  const calSessions: CalSession[] = fromSched.length
+    ? fromSched
+    : all.map((s) => {
+        const m = /(\d+)\s*[/.\-]\s*(\d+)/.exec(s.date ?? "");
+        const day = m ? Number(m[2]) : 0;
+        const time = [s.startTime, s.endTime].filter(Boolean).join("~");
+        return { day, time };
+      }).filter((s) => s.day > 0);
+  const cal = spec.noSchedule ? null : spec.scheduleCalendar; // .hwp 는 XML 재탐지 불가 — spec 것만
+  const monthHolidays: { day: number; name: string }[] = [];
+  if (cal && payload.month) {
+    const dim = new Date(yr, payload.month, 0).getDate();
+    for (let d = 1; d <= dim; d++) { const hn = holiday(yr, payload.month, d); if (hn) monthHolidays.push({ day: d, name: hn }); }
+  }
+
+  const data = {
+    org: payload.org ?? "",
+    childName: payload.childName ?? "",
+    childBirth: payload.childBirth ?? "",
+    serviceType: payload.serviceType ?? "",
+    therapistName: therapistName ?? "",
+    month: payload.month,
+    year: yr,
+    opinion: payload.opinion ?? "",
+    schedExtra,
+  };
+
+  const chunks = sessionChunks.map((sessions) => {
+    const edits = buildRecordEdits(spec, { ...data, sessions });
+    if (cal && payload.month) {
+      edits.push(...buildCalendarEdits(cal, yr, payload.month, calSessions, { holidays: monthHolidays }));
+    }
+    return edits;
+  });
+
+  // 자동축소 대상 — hwpx 경로(narrByTable)와 동일 규칙.
+  const narrMap = new Map<number, Set<number>>();
+  const addNarr = (co?: Coord) => {
+    if (!co) return;
+    (narrMap.get(co[0]) ?? narrMap.set(co[0], new Set()).get(co[0])!).add(co[2]);
+  };
+  spec.result?.forEach((row) => addNarr(row.result));
+  spec.detail?.forEach((row) => addNarr(row.result));
+  for (const m of spec.manual ?? []) if (m.role === "결과") addNarr([m.table, m.row, m.col, m.p ?? 0] as Coord);
+  const mo = (spec.manual ?? []).find((m) => m.role === "종합의견");
+  addNarr(mo ? ([mo.table, mo.row, mo.col, mo.p ?? 0] as Coord) : spec.opinion);
+  const narrative = [...narrMap.entries()].map(([table, cols]) => ({ table, cols: [...cols] }));
+
+  return { chunks, narrative };
+}
+
 // 저장 양식으로 기록지 .hwpx 생성. 회기 5개 초과면 5개씩 나눠 여러 장.
 export function generateRecordFromForm(
   template: Buffer,

@@ -36,6 +36,7 @@ import {
   foldStandardExtra,
   type RecordPayload,
 } from "@/lib/record-hwpx";
+import { buildHwpEditChunks } from "@/lib/record-fill-spec";
 import type { CellEdit } from "@/lib/record-fill";
 
 const JAR = process.env.HWP2HWPX_JAR || "/opt/baroilji/bin/hwp2hwpx-cli.jar";
@@ -205,6 +206,42 @@ export async function generateOneRecordSheetHwp(
   orig.data.set(findStream(orig, "DocInfo"), deflateRawSync(serializeRecords(dinfo)));
   orig.data.set(findStream(orig, "Section0"), deflateRawSync(serializeRecords(sec)));
   return writeContainer(orig);
+}
+
+// ── 커스텀 양식(.hwp 로 올린 원본 보관분) — 2단계 ──
+// hwpx 경로와 같은 편집 규칙(buildHwpEditChunks)으로 채우고, 컨테이너 조립은 표준형과 동일.
+// 좌표 재사용 근거: 변환본 hwpx 와 원본 hwp 는 표·셀 주소 체계가 완전히 일치(PoC 실증).
+export async function buildRecordSheetsHwpFromForm(
+  templateHwp: Buffer,
+  specJson: string, // repairScheduleSpec 을 거친 spec
+  p: RecordPayload,
+  therapistName: string,
+  schedExtra?: Record<string, string>,
+  year?: number,
+  schedCal?: { day: number; time: string }[],
+): Promise<Buffer[]> {
+  const { chunks, narrative } = buildHwpEditChunks(specJson, p, therapistName, schedExtra, year, schedCal);
+  const out: Buffer[] = [];
+  for (const edits of chunks) {
+    const fillEdits: FillEdit[] = [...edits];
+    if (p.month) {
+      // 제목 "( N월 )" — 기록지·일정표 라벨 모두 시도(없는 쪽은 MISS 로 무해하게 지나감).
+      fillEdits.push({ titleLabel: "기록지", value: String(p.month) });
+      fillEdits.push({ titleLabel: "일정표", value: String(p.month) });
+    }
+    const filledHwp = await runFill(templateHwp, fillEdits);
+    const orig = readContainer(templateHwp);
+    const filled = readContainer(filledHwp);
+    let sec = dropEmptyLineSegs(readStreamRecords(filled, "Section0"));
+    const dinfo = readStreamRecords(orig, "DocInfo");
+    for (const n of narrative) {
+      sec = autoFitHwp(dinfo, sec, { resultTable: n.table, narrativeCols: n.cols }).sec;
+    }
+    orig.data.set(findStream(orig, "DocInfo"), deflateRawSync(serializeRecords(dinfo)));
+    orig.data.set(findStream(orig, "Section0"), deflateRawSync(serializeRecords(sec)));
+    out.push(writeContainer(orig));
+  }
+  return out;
 }
 
 // 회기 수에 따라 1장 또는 N장으로 분할 — hwpx buildRecordSheets 와 동일 규칙.

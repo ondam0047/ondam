@@ -185,6 +185,7 @@ model RecordForm {
   kind        String
   name        String
   template    Bytes
+  templateHwp    Bytes?   // .hwp 로 올린 양식의 원본(HWP 5.0) — .hwp 다운로드용. 5칸 정리된 양식은 좌표가 어긋나 저장 안 함
   spec        String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

@@ -52,7 +52,8 @@ public class Fill {
       } else {
         int ti = num(e.get("table")), r = num(e.get("row")), c = num(e.get("col"));
         int pi = e.containsKey("p") ? num(e.get("p")) : 0;
-        res = apply(ti, r, c, pi, value);
+        boolean clearRest = "true".equals(String.valueOf(e.get("clearRest")));
+        res = apply(ti, r, c, pi, value, clearRest);
         System.out.println("  [" + ti + "," + r + "," + c + "," + pi + "] " + res);
       }
       if (res.startsWith("OK")) ok++; else miss++;
@@ -88,6 +89,12 @@ public class Fill {
   }
 
   static String apply(int ti, int row, int col, int pi, String value) throws Exception {
+    return apply(ti, row, col, pi, value, false);
+  }
+
+  // clearRest: 대상 문단만 남기고 나머지 문단 제거 — 센터가 값칸에 미리 적어둔
+  // 여러 문단 옛 값이 출력에 남지 않게(hwpx 경로의 clearRest 와 동일 의도).
+  static String apply(int ti, int row, int col, int pi, String value, boolean clearRest) throws Exception {
     if (ti < 0 || ti >= tables.size()) return "MISS: 표 없음(총 " + tables.size() + ")";
     ControlTable t = tables.get(ti);
     Cell target = null;
@@ -109,9 +116,15 @@ public class Fill {
     if (p.getCharShape() != null && !p.getCharShape().getPositonShapeIdPairList().isEmpty())
       keepShape = (int) p.getCharShape().getPositonShapeIdPairList().get(0).getShapeId();
 
-    if (p.getText() == null) p.createText();
-    p.getText().getCharList().clear();
-    if (!value.isEmpty()) p.getText().addString(value);
+    if (value.isEmpty()) {
+      // 빈 값으로 지우기 — charList 를 비운 채 두면 hwplib writer 가 표 직렬화에서 죽는다.
+      // 텍스트 객체 자체를 제거해 '텍스트 없는 단락'(템플릿 빈칸과 동일 형태)으로 만든다.
+      p.deleteText();
+    } else {
+      if (p.getText() == null) p.createText();
+      p.getText().getCharList().clear();
+      p.getText().addString(value);
+    }
 
     if (p.getCharShape() == null) p.createCharShape();
     p.getCharShape().getPositonShapeIdPairList().clear();
@@ -119,6 +132,13 @@ public class Fill {
 
     // 줄 위치 캐시 제거 → 한글이 새로 계산 (hwpx 파이프라인의 linesegarray 삭제와 동일 의도)
     if (clearLineSeg && p.getLineSeg() != null) p.getLineSeg().getLineSegItemList().clear();
+
+    // clearRest — 대상(pi) 외 문단 제거. 뒤에서 앞으로 지워 인덱스 보존.
+    if (clearRest && target.getParagraphList().getParagraphCount() > 1) {
+      for (int k = target.getParagraphList().getParagraphCount() - 1; k >= 0; k--) {
+        if (k != pi) target.getParagraphList().deleteParagraph(k);
+      }
+    }
 
     return "OK: \"" + before.replace("\n", "\\n") + "\" -> \"" + value.replace("\n", "\\n") + "\" (charShape=" + keepShape + ")";
   }
@@ -233,8 +253,9 @@ public class Fill {
       return b.toString();
     }
     String numTok() {
+      // 숫자 + true/false/null 리터럴 — clearRest 같은 boolean 필드 지원
       int st = i;
-      while (i < s.length() && "-+.eE0123456789".indexOf(s.charAt(i)) >= 0) i++;
+      while (i < s.length() && "-+.eEtruefalsn0123456789".indexOf(s.charAt(i)) >= 0) i++;
       return s.substring(st, i);
     }
     void ws() { while (i < s.length() && Character.isWhitespace(s.charAt(i))) i++; }

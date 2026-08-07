@@ -36,13 +36,13 @@ export async function GET(req: NextRequest) {
   const rows = await prisma.recordForm.findMany({
     where: { ownerUserId: user.id },
     orderBy: [{ kind: "asc" }, { createdAt: "asc" }],
-    select: { id: true, kind: true, name: true, createdAt: true, spec: true, template: true },
+    select: { id: true, kind: true, name: true, createdAt: true, spec: true, template: true, templateHwp: true },
   });
   // hasStatus: 결과표에 '이용자 상태(건강상태·부모상담)' 전용 칸이 있는 양식 —
   // 기록지 화면이 회기별 상태 입력칸을 보여줄지 판단하는 데 쓴다.
   // ⚠ 출력과 같은 기준으로 판단해야 한다: 출력은 legacy spec 을 복구(repair)해 상태 칸을
   // 살리므로, 저장 spec 그대로 보면 옛 양식에서 토글이 안 떠 UI↔출력이 어긋난다.
-  const forms = rows.map(({ spec, template, ...f }) => {
+  const forms = rows.map(({ spec, template, templateHwp, ...f }) => {
     let hasStatus = false;
     try {
       const repaired = f.kind === "record" ? repairScheduleSpec(spec, Buffer.from(template)) : spec;
@@ -51,7 +51,8 @@ export async function GET(req: NextRequest) {
         (r) => !!r.status && (!r.result || r.status.join(",") !== r.result.join(",")),
       );
     } catch { /* noop */ }
-    return { ...f, hasStatus };
+    // hasHwp: .hwp 원본 보관 양식 — 기록지 화면이 "구버전용(.hwp)" 버튼을 열지 판단.
+    return { ...f, hasStatus, hasHwp: templateHwp != null };
   });
   const planRow = await prisma.user.findUnique({ where: { id: user.id }, select: { plan: true, trialEndsAt: true } });
   const planUser = { plan: planRow?.plan ?? "trial", trialEndsAt: planRow?.trialEndsAt ?? null };
@@ -93,8 +94,18 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // .hwp 로 올린 양식의 원본(변환 전) — 있으면 보관해 "올린 형식 그대로(.hwp) 다운로드"를 연다.
+  const hwpBlob = form.get("hwpOriginal");
+  let hwpBuf: Buffer | null = null;
+  if (hwpBlob instanceof Blob) {
+    const b = Buffer.from(await hwpBlob.arrayBuffer());
+    // HWP 5.x = OLE2 복합문서 — 매직바이트 검증(엉뚱한 파일 저장 방지)
+    if (b.length > 8 && b.readUInt32LE(0) === 0xe011cfd0 && b.readUInt32LE(4) === 0xe11ab1a1) hwpBuf = b;
+  }
+
   let buf = Buffer.from(await file.arrayBuffer());
   let specJson: string;
+  let trimmed = false;
   try {
     let xml = readSection0(buf);
     const resolved = resolveForm(xml);
@@ -106,7 +117,6 @@ export async function POST(req: NextRequest) {
     }
     // 회기 칸·결과표 행이 5개를 넘으면 저장 시 자동으로 5칸/5행으로 정리.
     // → 출력이 항상 5회기 기준이 되고, 6회기 이상이면 자동으로 두 장으로 나뉜다.
-    let trimmed = false;
     if (spec.dateTable != null && spec.extraSessionCols?.length) {
       // 남은 회기열에 지운 폭을 재분배 → 표 너비 유지로 우측이 다른 표와 정렬됨.
       xml = removeTableColumns(xml, spec.dateTable, spec.extraSessionCols, { redistributeTo: spec.date.map((d) => d[2]) }); trimmed = true;
@@ -129,16 +139,23 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "편집 가능한 .hwpx 가 아니에요." }, { status: 422 });
   }
 
+  // .hwp 원본은 5칸 정리가 없었을 때만 보관 — 정리되면 hwpx 좌표와 .hwp 좌표가 어긋난다.
+  const storeHwp = hwpBuf != null && !trimmed ? hwpBuf : null;
+
   if (editId != null) {
     // 덮어쓰기 — id 가 유지되므로 이 양식을 참조하는 저장 기록지(Record.formId)도 그대로 동작.
+    // 새 .hwp 원본이 오면 갱신, 없으면 기존 보관분 유지(매핑만 수정하는 경우).
     await prisma.recordForm.update({
       where: { id: editId },
-      data: { name: name.slice(0, 80), template: buf, spec: specJson },
+      data: {
+        name: name.slice(0, 80), template: buf, spec: specJson,
+        ...(storeHwp ? { templateHwp: new Uint8Array(storeHwp) } : {}),
+      },
     });
     return Response.json({ ok: true, id: editId });
   }
   const row = await prisma.recordForm.create({
-    data: { ownerUserId: user.id, kind, name: name.slice(0, 80), template: buf, spec: specJson },
+    data: { ownerUserId: user.id, kind, name: name.slice(0, 80), template: buf, spec: specJson, templateHwp: storeHwp ? new Uint8Array(storeHwp) : null },
     select: { id: true },
   });
   return Response.json({ ok: true, id: row.id });

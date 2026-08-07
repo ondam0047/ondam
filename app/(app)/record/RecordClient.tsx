@@ -942,7 +942,7 @@ function RecordSheet({
     return () => window.clearTimeout(t);
   }, [timeNotice]);
   // 저장한 우리 센터 양식 — 있으면 출력 양식 선택
-  const [savedForms, setSavedForms] = useState<Array<{ id: number; name: string; hasStatus?: boolean }>>([]);
+  const [savedForms, setSavedForms] = useState<Array<{ id: number; name: string; hasStatus?: boolean; hasHwp?: boolean }>>([]);
   const [outFormId, setOutFormId] = useState<number | "">("");
   useEffect(() => {
     fetch("/api/forms/saved")
@@ -1942,8 +1942,9 @@ function RecordSheet({
         <button className="btn btn-primary" onClick={() => downloadHwpx()} disabled={downloading}>
           {downloading ? "생성 중..." : "한글파일(.hwpx) 다운로드"}
         </button>
-        {/* 구버전 한글용 .hwp — 내장 기본 서식에서만 지원(저장 양식·지역 서식은 hwpx 로). */}
-        {!outFormId && recordForm !== "dongtan" && recordForm !== "namyangju" && (
+        {/* 구버전 한글용 .hwp — 내장 기본 서식, 또는 .hwp 원본을 보관 중인 저장 양식에서 지원. */}
+        {((!outFormId && recordForm !== "dongtan" && recordForm !== "namyangju") ||
+          (savedForms.find((f) => f.id === outFormId)?.hasHwp ?? false)) && (
           <button
             className="btn btn-primary"
             onClick={() => downloadHwpx("hwp")}
