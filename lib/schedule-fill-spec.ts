@@ -82,11 +82,14 @@ export function generateScheduleFromForm(
     if (roleVal[s.role] !== undefined) put(s.coord, roleVal[s.role], true);
   });
   // 셀프 보정/AI 자동매핑 칸 — 일정표 라벨 역할(관리번호·단가·횟수 등)·스칼라 역할 모두 채움.
-  // 단 라벨 인식 좌표와 겹치는 칸은 manual 로 덮지 않고, 서비스종류는 (표·열)별 최상단
-  // 한 칸만(AI 가 비용표 여분 행까지 지정해 중복 기재되던 사고 방지).
+  // 단 라벨 인식 좌표와 겹치는 칸은 manual 로 덮지 않고, 라벨 인식이 이미 채우는 (역할, 표·열)의
+  // 다른 행은 여분 행으로 보고 버린다(AI 가 주기·제공일·단가·횟수를 아래 행까지 지정하던 사고).
+  // 서비스종류는 추가로 (표·열)별 최상단 한 칸만.
+  const schedRoleTC = new Set((spec.schedule ?? []).map((s) => `${s.role}:${s.coord[0]},${s.coord[2]}`));
   const svcManual: Coord[] = [];
   spec.manual?.forEach((m) => {
     if (schedCoordKeys.has(`${m.table},${m.row},${m.col}`)) return;
+    if (schedRoleTC.has(`${m.role}:${m.table},${m.col}`)) return;
     const coord = [m.table, m.row, m.col, m.p ?? 0] as Coord;
     if (m.role === "서비스종류") { svcManual.push(coord); return; }
     if (roleVal[m.role] !== undefined) put(coord, roleVal[m.role]);
