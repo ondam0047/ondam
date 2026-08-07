@@ -93,9 +93,9 @@ export async function buildSchedExtra(opts: {
     if (sched.costUnit) out.단가 = sched.costUnit;
     if (sched.costSelf) out.본인부담금 = sched.costSelf;
     if (cnt) out.횟수 = String(cnt);
-    // 제공일 = 실제 날짜 목록(요일 아님 — 성심 요청), 주기 = 요일 수 기준 "주 N회".
+    // 제공일 = 실제 날짜 목록, 주기 = 요일 목록 — 일정표 출력과 동일 표기(성심 확정).
     if (days.length) out.제공일 = `${days.join("·")}일`;
-    if (wds.length) out.주기 = `주 ${wds.length}회`;
+    if (wds.length) out.주기 = wds.join(" ");
     const unitNum = Number(String(sched.costUnit ?? "").replace(/[^0-9]/g, "")) || cs.defaultUnit;
     if (unitNum && cnt) out.총금액 = won(unitNum * cnt);
     return out;
@@ -114,7 +114,7 @@ export async function buildSchedExtra(opts: {
   if (cs.monthlyCopay != null) out.본인부담금 = won(cs.monthlyCopay);
   if (cnt) out.횟수 = String(cnt);
   if (days.length) out.제공일 = `${days.join("·")}일`;
-  if (wds.length) out.주기 = `주 ${wds.length}회`;
+  if (wds.length) out.주기 = wds.join(" ");
   if (cs.defaultUnit && cnt) out.총금액 = won(cs.defaultUnit * cnt);
   return out;
 }
