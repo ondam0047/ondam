@@ -76,18 +76,37 @@ export function generateScheduleFromForm(
   };
 
   // clearRest: 센터가 값칸에 미리 적어둔 옛 값(여러 문단)을 지우고 새 값만 남긴다.
-  // 서비스종류는 첫 칸만(옛 저장 spec 에 두 칸 매핑돼 있어도) — 비용표 빈칸까지 채우지 않는다.
-  let svcFilled = false;
+  // (서비스종류는 라벨이 있는 표마다 한 칸씩 — 제공현황·비용표 첫 행.)
+  const schedCoordKeys = new Set((spec.schedule ?? []).map((s) => `${s.coord[0]},${s.coord[1]},${s.coord[2]}`));
   spec.schedule?.forEach((s) => {
-    if (s.role === "서비스종류") { if (svcFilled) return; svcFilled = true; }
     if (roleVal[s.role] !== undefined) put(s.coord, roleVal[s.role], true);
   });
   // 셀프 보정/AI 자동매핑 칸 — 일정표 라벨 역할(관리번호·단가·횟수 등)·스칼라 역할 모두 채움.
+  // 단 라벨 인식 좌표와 겹치는 칸은 manual 로 덮지 않고, 서비스종류는 (표·열)별 최상단
+  // 한 칸만(AI 가 비용표 여분 행까지 지정해 중복 기재되던 사고 방지).
+  const svcManual: Coord[] = [];
   spec.manual?.forEach((m) => {
+    if (schedCoordKeys.has(`${m.table},${m.row},${m.col}`)) return;
     const coord = [m.table, m.row, m.col, m.p ?? 0] as Coord;
+    if (m.role === "서비스종류") { svcManual.push(coord); return; }
     if (roleVal[m.role] !== undefined) put(coord, roleVal[m.role]);
     else if (scalarVal[m.role] !== undefined) put(coord, scalarVal[m.role]);
   });
+  {
+    // 일정표 라벨(schedule 서비스종류)이 이미 채우는 (표·열)은 manual 그룹째 버린다.
+    const svcSchedTC = new Set(
+      (spec.schedule ?? []).filter((s) => s.role === "서비스종류").map((s) => `${s.coord[0]},${s.coord[2]}`),
+    );
+    const topByTC = new Map<string, Coord>();
+    for (const co of svcManual) {
+      const k = `${co[0]},${co[2]}`;
+      if (svcSchedTC.has(k)) continue;
+      const cur = topByTC.get(k);
+      if (!cur || co[1] < cur[1]) topByTC.set(k, co);
+    }
+    const svcVal = roleVal["서비스종류"] ?? scalarVal["서비스종류"] ?? "";
+    for (const co of topByTC.values()) if (svcVal) put(co, svcVal, true);
+  }
 
   // 월 달력 격자 — 날짜 숫자·시간·공휴일 이름을 모두 통일(검정·동일크기·굵게/기울임/밑줄 제거).
   if (cal && p.year && p.month) {

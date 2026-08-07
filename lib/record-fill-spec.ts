@@ -167,10 +167,8 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
     ...(d.schedExtra ?? {}), // 단가·본인부담·관리번호·제공일·횟수·전화 등(통합 양식 보강)
   };
   // clearRest: 센터가 값칸에 미리 적어둔 옛 값(여러 문단)을 지우고 새 값만 남긴다.
-  // 서비스종류는 전체에서 첫 칸만(옛 저장 spec·AI 매핑에 여러 칸 있어도) — 비용표 빈칸까지 채우지 않는다.
-  let svcFilled = false;
+  // (서비스종류는 라벨이 있는 표마다 한 칸씩 — 제공현황·비용표 첫 행. 여분 행은 manual 차단으로 방어.)
   spec.schedule?.forEach((s) => {
-    if (s.role === "서비스종류") { if (svcFilled) return; svcFilled = true; }
     if (schedVal[s.role] !== undefined) put(s.coord, schedVal[s.role], false, true);
   });
   // 일정표 라벨 값칸 좌표 — AI 매핑(manual)이 이 칸들을 날짜 등으로 오인해 덮지 못하게 한다.
@@ -206,6 +204,7 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
   // 역할별로 묶기: 같은 역할이 여러 칸이면(AI 매핑) 문서순 i번째 회기,
   // 한 칸뿐이고 날짜축 역할이면(레거시 수동 1칸) 날짜 칸들에 브로드캐스트.
   const manualRows: Record<string, Coord[]> = {};
+  const svcManual: Coord[] = [];
   const calT = spec.scheduleCalendar?.table;
   for (const m of spec.manual ?? []) {
     // 일정표 달력 표에는 기록지 값을 쓰지 않는다 — AI 매핑이 달력 칸을 날짜·결과로
@@ -221,10 +220,26 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
       if (DATE_AXIS.has(m.role) && spec.dateTable != null && m.table !== spec.dateTable) continue;
       (manualRows[m.role] ??= []).push([m.table, m.row, m.col, m.p ?? 0] as Coord);
     } else if (scalarVal[m.role] !== undefined) {
-      // 서비스종류는 전체 첫 칸만(일정표 라벨에서 이미 채웠으면 건너뜀).
-      if (m.role === "서비스종류") { if (svcFilled) continue; svcFilled = true; }
+      // 서비스종류 manual 은 아래에서 (표·열)별 최상단 한 칸만 채운다 — AI 가 비용표
+      // 여분 행(2·3행)까지 지정해 중복 기재되던 사고 방지.
+      if (m.role === "서비스종류") { svcManual.push([m.table, m.row, m.col, m.p ?? 0] as Coord); continue; }
       put([m.table, m.row, m.col, m.p ?? 0] as Coord, scalarVal[m.role], SERVICE_ROLES.has(m.role));
     }
+  }
+  {
+    // 일정표 라벨(schedule 서비스종류)이 이미 채우는 (표·열)은 manual 그룹째 버린다 —
+    // 같은 열의 여분 행(2행 이하)에 중복 기재되지 않게.
+    const svcSchedTC = new Set(
+      (spec.schedule ?? []).filter((s) => s.role === "서비스종류").map((s) => `${s.coord[0]},${s.coord[2]}`),
+    );
+    const topByTC = new Map<string, Coord>();
+    for (const co of svcManual) {
+      const k = `${co[0]},${co[2]}`;
+      if (svcSchedTC.has(k)) continue;
+      const cur = topByTC.get(k);
+      if (!cur || co[1] < cur[1]) topByTC.set(k, co);
+    }
+    for (const co of topByTC.values()) put(co, d.serviceType, true, true);
   }
   for (const role of Object.keys(manualRows)) {
     const cells = manualRows[role].sort((a, b) =>
