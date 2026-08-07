@@ -145,7 +145,13 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
   //  승인내역엔 없는 옛 일정 날짜가 찍혀 표준형과도 어긋났음 — 표준형과 동일하게 원본 날짜 사용.)
   spec.result.forEach((row, i) => {
     const s = S[i];
-    if (!s) return;
+    if (!s) {
+      // 회기가 없는 행 — 센터가 템플릿에 미리 적어둔 옛 서술이 출력에 남지 않게
+      // 서술 칸(결과·상태)만 비운다. 날짜/승인 칸의 "/" 같은 서식 표기는 보존.
+      putNarr(row.result, "");
+      put(row.status, "");
+      return;
+    }
     put(row.date, s.date || "");
     put(row.apprDate, monthDayOnly(s.payDay || s.date || ""));
     put(row.apprNum, s.apprNumber || "");
@@ -158,7 +164,10 @@ function buildRecordEdits(spec: ResolvedSpec, d: FillData): CellEdit[] {
   // 별지(상세 결과)
   spec.detail?.forEach((row, i) => {
     const s = S[i];
-    if (!s) return;
+    if (!s) {
+      putNarr(row.result, ""); // 미사용 별지 행의 옛 서술 잔재 제거
+      return;
+    }
     put(row.date, s.date || "");
     put(row.apprDate, monthDayOnly(s.payDay || s.date || ""));
     put(row.apprNum, s.apprNumber || "");

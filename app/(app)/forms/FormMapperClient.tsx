@@ -15,6 +15,24 @@ type Suggestion = { table: number; row: number; col: number; p?: number; role: s
 // 캐시/AI 가 주는 4-요소 키(t,r,c,p)를 매퍼가 쓰는 3-요소 키(t,r,c)로 정규화.
 function trcKey(t: number, r: number, c: number) { return `${t},${r},${c}`; }
 
+// 오매핑 좌표 방어 — 달력 표(일정표 격자)·담당재활사(수기 서명)·일정표 라벨 값칸에 대한
+// 매핑 제안은 버린다. AI 제안·학습 캐시(다른 사용자의 저장 매핑) 양쪽에 적용 —
+// 캐시 경로에 필터가 없으면 한 사용자의 정크 매핑이 같은 구조 양식 전체로 전파된다.
+function filterJunkOverrides(ov: Record<string, string>, sp?: Spec): Record<string, string> {
+  const calT = sp?.scheduleCalendar?.table;
+  const theraKeys = new Set((sp?.therapist ?? []).map((c) => trcKey(c[0], c[1], c[2])));
+  const schedKeys = new Set(
+    (sp?.schedule ?? []).flatMap((s) => (s.coord ? [trcKey(s.coord[0], s.coord[1], s.coord[2])] : [])),
+  );
+  const out: Record<string, string> = {};
+  for (const [k, role] of Object.entries(ov)) {
+    if (calT != null && Number(k.split(",")[0]) === calT) continue;
+    if (theraKeys.has(k) || schedKeys.has(k)) continue;
+    out[k] = role;
+  }
+  return out;
+}
+
 const FIELD_LABEL: Record<string, string> = {
   org: "기관명", name: "이름", birth: "생년월일", date: "날짜",
   start: "시작시간", end: "종료시간", voucher: "바우처(분)", extra: "추가구매",
@@ -156,7 +174,7 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
           const [t, rr, c] = key.split(",").map(Number);
           norm[trcKey(t, rr, c)] = role;
         }
-        setOverrides(norm);
+        setOverrides(filterJunkOverrides(norm, d.spec));
       } else if (betaUx) {
         await runAutoMap(d.grid, kind, d.spec);
       }
@@ -204,27 +222,18 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
       });
       const d = await r.json() as { suggestions?: Suggestion[]; error?: string };
       if (!r.ok) throw new Error(d.error || "AI 매핑 실패");
-      // AI 좌표 방어 — 달력 표(일정표 격자)·담당재활사(수기 서명)·일정표 라벨 값칸 제안은 버린다.
-      // 달력 칸을 날짜·결과로, 서명 칸을 치료사이름으로 오인하는 사고가 실제로 있었다.
+      // AI 좌표 방어 — filterJunkOverrides 로 달력·서명·일정표 라벨 칸 제안을 버린다.
       const sp = specArg ?? result?.spec;
-      const calT = sp?.scheduleCalendar?.table;
-      const theraKeys = new Set((sp?.therapist ?? []).map((c) => trcKey(c[0], c[1], c[2])));
-      const schedKeys = new Set(
-        (sp?.schedule ?? []).flatMap((s) => (s.coord ? [trcKey(s.coord[0], s.coord[1], s.coord[2])] : [])),
-      );
-      const low = new Set<string>();
-      setOverrides((prev) => {
-        const next = { ...prev };
-        for (const s of d.suggestions ?? []) {
-          if (calT != null && s.table === calT) continue;
-          const key = trcKey(s.table, s.row, s.col);
-          if (theraKeys.has(key)) continue;
-          if (schedKeys.has(key)) continue;
-          next[key] = s.role;
-          if ((s.confidence ?? 1) < 0.6) low.add(key);
-        }
-        return next;
-      });
+      const add: Record<string, string> = {};
+      const conf: Record<string, number> = {};
+      for (const s of d.suggestions ?? []) {
+        const key = trcKey(s.table, s.row, s.col);
+        add[key] = s.role;
+        conf[key] = s.confidence ?? 1;
+      }
+      const filtered = filterJunkOverrides(add, sp);
+      const low = new Set<string>(Object.keys(filtered).filter((k) => conf[k] < 0.6));
+      setOverrides((prev) => ({ ...prev, ...filtered }));
       setLowConf(low);
     } catch (e) {
       setError(e instanceof Error ? e.message : "AI 매핑 중 문제가 생겼어요.");
@@ -260,6 +269,15 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
 
   async function saveForm() {
     if (!file || !formName.trim()) { setError("파일과 이름을 확인하세요."); return; }
+    // 작성된 양식(값칸에 이미 내용이 있음)은 출력 때 옛 내용이 남거나 겹치는 사고의
+    // 근원 — 저장 전 반드시 확인을 받는다(작성된 기록지를 양식으로 올린 실사고 있었음).
+    if (filledCells.length > 0) {
+      const ok = window.confirm(
+        `이 양식의 값칸 ${filledCells.length}곳에 이미 작성된 내용이 있어요.\n\n` +
+        `빈 양식이 아니면 출력물에 옛 내용이 남거나 겹칠 수 있어요. 가능하면 내용을 지운 빈 양식으로 다시 올리는 걸 권해요.\n\n그래도 이대로 저장할까요?`,
+      );
+      if (!ok) return;
+    }
     setSavingForm(true); setError(null);
     try {
       const fd = new FormData();
