@@ -139,8 +139,11 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "편집 가능한 .hwpx 가 아니에요." }, { status: 422 });
   }
 
-  // .hwp 원본은 5칸 정리가 없었을 때만 보관 — 정리되면 hwpx 좌표와 .hwp 좌표가 어긋난다.
-  const storeHwp = hwpBuf != null && !trimmed ? hwpBuf : null;
+  // .hwp 원본은 5칸 정리 여부와 무관하게 보관한다 — 정리는 6번째 이후의 '빈' 회기열(오른쪽)·
+  // 빈 결과행(아래쪽)만 지우므로 남는 칸들의 주소는 원본과 동일하다(실측 검증). .hwp 출력은
+  // 원본 모습 그대로(여분 열은 빈 채) 5회기씩 채우고, 6회기 이상은 여러 장(zip)으로 나뉜다.
+  void trimmed;
+  const storeHwp = hwpBuf;
 
   if (editId != null) {
     // 덮어쓰기 — id 가 유지되므로 이 양식을 참조하는 저장 기록지(Record.formId)도 그대로 동작.
