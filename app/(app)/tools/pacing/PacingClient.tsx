@@ -257,7 +257,10 @@ function usePacingTrainer(
         alert("이 브라우저에서는 녹음을 지원하지 않습니다.");
         return false;
       }
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // AGC·노이즈억제가 켜진 채로 열면 녹음 음량이 자동 보정돼 회기 간 비교가 깨진다.
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+      });
       mediaStreamRef.current = stream;
 
       const mediaRecorder = new MediaRecorder(stream);
@@ -552,7 +555,7 @@ function TrainerView({
             <span style={{ fontSize: 13, color: "var(--text-mute)" }}>상태</span>
             <span className="badge" style={{ background: st.bg, color: st.fg, borderColor: "transparent" }}>{t.statusText}</span>
 
-            <span style={{ fontSize: 13, color: "var(--text-mute)" }}>측정 말속도</span>
+            <span style={{ fontSize: 13, color: "var(--text-mute)" }}>낭독 속도(추정)</span>
             <span style={{ fontWeight: 800, color: "var(--primary)" }}>
               {t.measuredSps !== null ? `${t.measuredSps} 음절/초` : "-"}
             </span>
@@ -560,6 +563,12 @@ function TrainerView({
             <span style={{ fontSize: 13, color: "var(--text-mute)" }}>피드백</span>
             <span className="badge" style={{ background: fb.bg, color: fb.fg, borderColor: "transparent" }}>{t.feedback || "-"}</span>
           </div>
+
+          <p style={{ margin: "10px 0 0", fontSize: 12.5, lineHeight: 1.6, color: "var(--text-mute)", background: "var(--surface-2, #FAF7F0)", border: "1px solid var(--border, #E7E0D3)", borderRadius: 8, padding: "8px 10px" }}>
+            ⚠ <b>낭독 속도(추정)</b>은 <b>제시 문구의 음절 수 ÷ 녹음 시간</b>으로 계산한 값이에요.
+            음성을 분석한 값이 아니라서, 대상자가 문구를 끝까지 읽지 않았거나 다른 말을 한 경우에는 실제 말속도와 달라요.
+            실측이 필요하면 <b>말속도</b> 도구를 사용해 주세요.
+          </p>
         </div>
       </div>
 
@@ -652,11 +661,11 @@ function TrainerView({
             : null
         }
         renderSummary={(m) =>
-          `측정 ${m.measuredSps ?? "-"} / 목표 ${m.targetSps ?? "-"} 음절·초${m.feedback ? ` · ${m.feedback}` : ""}${m.mode ? ` (${m.mode})` : ""}`
+          `낭독(추정) ${m.measuredSps ?? "-"} / 목표 ${m.targetSps ?? "-"} 음절·초${m.feedback ? ` · ${m.feedback}` : ""}${m.mode ? ` (${m.mode})` : ""}`
         }
         trend={{
           key: "measuredSps",
-          label: "측정 말속도",
+          label: "낭독 속도(추정)",
           unit: "음절/초",
           color: "#2563EB",
           refKey: "targetSps",
