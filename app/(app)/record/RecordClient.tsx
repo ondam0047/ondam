@@ -612,7 +612,12 @@ export default function RecordClient({
               <select
                 className="select"
                 value={manualCSId === "" ? "" : String(manualCSId)}
-                onChange={(e) => setManualCSId(e.target.value ? Number(e.target.value) : "")}
+                onChange={(e) => {
+                  const v = e.target.value ? Number(e.target.value) : "";
+                  setManualCSId(v);
+                  // 화면이 비었을 때만 바로 시작 — startManual 은 grouped 를 통째로 갈아끼운다(엑셀 다중아동 보호)
+                  if (v && names.length === 0) void startManual(v, manualYm);
+                }}
               >
                 <option value="">— 선택 —</option>
                 {myServices.map((s) => (
