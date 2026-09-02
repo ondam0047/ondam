@@ -564,7 +564,7 @@ export default function RecordClient({
   const names = Object.keys(grouped);
 
   function resetRecord() {
-    if (!window.confirm("정말 초기화할까요? 불러온 내용이 사라져요.")) return;
+    if (!window.confirm("화면에 불러온 내용만 지웁니다. 저장된 기록지는 그대로 있어요. 계속할까요?")) return;
     try {
       localStorage.removeItem(LS_DRAFT);
       localStorage.removeItem(LS_SCROLL);
@@ -597,11 +597,13 @@ export default function RecordClient({
       <div className="card">
         <div className="card-header">
           <span className="step">1</span>
-          <h2>엑셀 없이 직접 시작</h2>
-          <span className="hint">미리 작성 · 일정표 회기를 자동 시드</span>
-          <button type="button" className="btn btn-sm" onClick={resetRecord} style={{ marginLeft: "auto", border: "1px solid var(--border)", background: "#fff", fontWeight: 600 }}>
-            초기화
-          </button>
+          <h2>아동·월 고르고 시작</h2>
+          <span className="hint">일정표에 넣어둔 회기가 자동으로 채워져요</span>
+          {names.length > 0 && (
+            <button type="button" className="btn btn-sm" onClick={resetRecord} style={{ marginLeft: "auto", border: "1px solid var(--border)", background: "#fff", fontWeight: 600 }}>
+              화면 비우기
+            </button>
+          )}
         </div>
         <div className="card-body">
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}>
@@ -648,7 +650,7 @@ export default function RecordClient({
       <div className="card">
         <div className="card-header">
           <span className="step">2</span>
-          <h2>엑셀로 자동완성 (선택)</h2>
+          <h2>월말 엑셀 올리기 (선택)</h2>
           <span className="hint">.xls / .xlsx 모두 지원</span>
         </div>
         <div className="card-body">
@@ -1659,12 +1661,29 @@ function RecordSheet({
         }}
       >
         ✏️ <b style={{ background: "#FFF3D4", padding: "0 4px", borderRadius: 3 }}>노란색 칸</b>은 직접 수정할 수 있어요 — 제공일자(월·일), 시작·종료시간, 바우처(분)·추가구매(분), 총이용금액.
-        하루에 두 번 결제해 날짜가 겹칠 땐 제공일자(월·일) 칸에서 직접 고치면 돼요(일정표는 그대로 유지됩니다).
         바우처 지원금이 소진되는 마지막 회차는 보통 바우처 20분 / 추가구매 30분으로 바꿉니다. 저장하면 이 달 기록에 그대로 남습니다.
-        <div style={{ marginTop: 6 }}>
-          ⏱ 시작·종료시간은 <b>결제내역(엑셀)</b>이 있으면 결제시간, 없으면 <b>일정표 시간</b>으로 자동으로 맞춰져요.
-          직접 고친 칸은 <b>직접 수정</b> 표시가 붙고 그대로 지켜집니다(되돌리려면 그 칸의 ↺ 버튼).
-        </div>
+        <button
+          type="button"
+          className="btn btn-sm"
+          style={{ marginLeft: 6, verticalAlign: "middle" }}
+          onClick={() => {
+            const last = rows.length - 1;
+            if (last < 0) return;
+            setVouchers((p) => p.map((v, i) => (i === last ? "20" : v)));
+            setExtras((p) => p.map((v, i) => (i === last ? "30" : v)));
+            recordTouched.current = true; // 버튼 클릭은 onChangeCapture 가 못 잡는다 → 자동저장 게이트 직접 해제
+          }}
+          title="마지막 회차의 바우처(분)·추가구매(분)만 20 / 30 으로 바꿉니다. 금액은 건드리지 않아요."
+        >
+          마지막 회차 20/30
+        </button>
+        <details style={{ marginTop: 6 }}>
+          <summary style={{ cursor: "pointer" }}>⏱ 시작·종료시간이 자동으로 바뀌는 이유</summary>
+          <div style={{ marginTop: 4 }}>
+            시작·종료시간은 <b>결제내역(엑셀)</b>이 있으면 결제시간, 없으면 <b>일정표 시간</b>으로 자동으로 맞춰져요.
+            직접 고친 칸은 <b>직접 수정</b> 표시가 붙고 그대로 지켜집니다(되돌리려면 그 칸의 ↺ 버튼).
+          </div>
+        </details>
       </div>
       {timeNotice && (
         <div className="tip" style={{ marginBottom: 10 }}>{timeNotice}</div>
@@ -1946,7 +1965,7 @@ function RecordSheet({
         {((!outFormId && recordForm !== "dongtan" && recordForm !== "namyangju") ||
           (savedForms.find((f) => f.id === outFormId)?.hasHwp ?? false)) && (
           <button
-            className="btn btn-primary"
+            className="btn"
             onClick={() => downloadHwpx("hwp")}
             disabled={downloading}
             title="한글 2002~2014 같은 구버전에서도 수정할 수 있는 형식이에요. hwpx가 읽기 전용으로 열리는 센터에 제출할 때 쓰세요."

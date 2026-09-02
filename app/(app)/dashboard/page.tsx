@@ -113,7 +113,16 @@ async function TherapistDashboard({ user, centerId, year: y, month: m, todayDay,
 
       <StartChecklist hasChild={data.hasChild} hasSchedule={data.hasSchedule} hasRecord={data.hasRecord} hasForm={hasForm} />
       {data.hasChild && data.hasSchedule && data.hasRecord && (
-        <MonthFocusBanner month={m} unwrittenCount={data.unwrittenCount} totalSessions={data.totalSessionsThisMonth} />
+        <MonthFocusBanner
+          month={m}
+          unwrittenCount={data.unwrittenCount}
+          totalSessions={data.totalSessionsThisMonth}
+          nextHref={
+            data.unwrittenChildNames[0]
+              ? `/record?cs=${data.unwrittenChildNames[0].csId}&ym=${y}-${m}`
+              : "/record"
+          }
+        />
       )}
 
       <MyStats data={data} />
@@ -227,7 +236,7 @@ function StartChecklist({ hasChild, hasSchedule, hasRecord, hasForm }: { hasChil
 // ─── 이번 달 행동 배너 (온보딩 끝난 사용자 홈) ────────────────────────────
 // 지표판 대신 "지금 할 일"을 맨 위에. 이번 달 일정 없음 → 일정 만들기 /
 // 미작성 있음 → 이어서 작성 / 다 됨 → 일괄 다운로드.
-function MonthFocusBanner({ month, unwrittenCount, totalSessions }: { month: number; unwrittenCount: number; totalSessions: number }) {
+function MonthFocusBanner({ month, unwrittenCount, totalSessions, nextHref }: { month: number; unwrittenCount: number; totalSessions: number; nextHref: string }) {
   const wrap = (accent: string, title: React.ReactNode, desc: string, href: string, cta: string, primary = true) => (
     <div className="card" style={{ borderColor: accent }}>
       <div className="card-body" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
@@ -246,7 +255,7 @@ function MonthFocusBanner({ month, unwrittenCount, totalSessions }: { month: num
     return wrap("var(--primary)", `${month}월 일정을 만들어 시작하세요`, "회기 일정을 짜두면 기록지가 자동으로 채워져요.", "/schedule", "일정표 만들기");
   }
   if (unwrittenCount > 0) {
-    return wrap("var(--danger)", <>이번 달 기록지 <span style={{ color: "var(--danger)" }}>{unwrittenCount}명</span> 작성 남음</>, `${month}월 회기 중 아직 기록지가 없는 아동이에요.`, "/record", "이어서 작성");
+    return wrap("var(--danger)", <>이번 달 기록지 <span style={{ color: "var(--danger)" }}>{unwrittenCount}명</span> 작성 남음</>, `${month}월 회기 중 아직 기록지가 없는 아동이에요.`, nextHref, "이어서 작성");
   }
   return wrap("var(--success)", "이번 달 기록지 모두 작성 완료 🎉", `${month}월 작업이 끝났어요. 여러 명을 한 번에 내려받을 수 있어요.`, "/month", "이번 달 마감", false);
 }
@@ -478,7 +487,11 @@ function UnwrittenCard({
                 </Link>
               ))}
             </div>
-            <Link className="btn btn-primary btn-sm" href="/record" style={{ marginTop: 12, width: "100%", justifyContent: "center" }}>
+            <Link
+              className="btn btn-primary btn-sm"
+              href={unwrittenChildNames[0] ? `/record?cs=${unwrittenChildNames[0].csId}&ym=${ym}` : "/record"}
+              style={{ marginTop: 12, width: "100%", justifyContent: "center" }}
+            >
               기록지 작성하러 가기 →
             </Link>
           </>
