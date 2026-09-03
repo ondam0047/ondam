@@ -324,11 +324,21 @@ export default function RecordClient({
     const ymParam = searchParams.get("ym");
     if (!csParam || !ymParam) return;
     const csId = Number(csParam);
-    if (myServices.some((s) => s.id === csId) && monthOptions.some((o) => o.value === ymParam)) {
+    const cs = myServices.find((s) => s.id === csId);
+    if (cs && monthOptions.some((o) => o.value === ymParam)) {
       setManualCSId(csId);
       setManualYm(ymParam);
       setAutoStarted(true);
-      void startManual(csId, ymParam);
+      // 소비한 파라미터는 지운다 — 안 지우면 이 URL 에서 F5 만 눌러도 자동시작이 다시 돈다.
+      try { window.history.replaceState({}, "", "/record"); } catch {}
+      const tag = cs.hasMultipleServices ? `${cs.name} · ${cs.serviceType}` : cs.name;
+      if (Object.keys(grouped).length > 1) {
+        // 엑셀로 여러 아동을 불러온 화면은 갈아끼우지 않는다(startManual 은 grouped 통째 교체).
+        // 그 아동 탭이 이미 있으면 그쪽으로 이동만.
+        if (grouped[tag]) setCurChild(tag);
+      } else {
+        void startManual(csId, ymParam);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated]);

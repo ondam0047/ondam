@@ -18,6 +18,7 @@ const META: Record<string, { title: string; crumb: string }> = {
   "/approval-check": { title: "결제 겹침 찾기", crumb: "승인내역 엑셀을 올려 시간 겹침·소급결제 확인" },
   "/support":    { title: "기타지원사업", crumb: "바우처 외 사업(마음모아 등) 기록 관리" },
   "/tools":      { title: "바로툴",     crumb: "치료 세션에서 바로 쓰는 음성·말속도 도구" },
+  "/monitor":    { title: "바로모니터", crumb: "대상자별 바로툴 결과 추이 보기" },
 };
 
 export default function Topbar() {

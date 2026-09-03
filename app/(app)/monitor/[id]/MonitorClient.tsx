@@ -38,7 +38,7 @@ const MODULE_INFO: Record<string, { label: string; trends: Series[] }> = {
   },
   pacing: {
     label: "페이싱",
-    trends: [{ key: "measuredSps", label: "측정 말속도", unit: "음절/초" }],
+    trends: [{ key: "measuredSps", label: "낭독 속도(추정)", unit: "음절/초" }],
   },
   spectrogram: {
     label: "스펙트로그램",
@@ -59,7 +59,7 @@ function renderSummary(module: string, m: Record<string, unknown>): string {
     case "loudness":    return `${m.meanF0 ?? "-"}Hz · ${m.meanDb ?? "-"}dB`;
     case "speech-rate": return `${m.sps ?? "-"} SPS (조음 ${m.artSps ?? "-"})`;
     case "fluency":     return `${m.total ?? "-"}회${m.per100 ? ` · 100음절당 ${m.per100}` : ""}`;
-    case "pacing":      return `측정 ${m.measuredSps ?? "-"} / 목표 ${m.targetSps ?? "-"} 음절/초`;
+    case "pacing":      return `낭독(추정) ${m.measuredSps ?? "-"} / 목표 ${m.targetSps ?? "-"} 음절/초`;
     case "spectrogram": return `중심 ${m.centroid ?? "-"}Hz · 체류 ${m.targetPct ?? "-"}%`;
     default:            return JSON.stringify(m).slice(0, 40);
   }
