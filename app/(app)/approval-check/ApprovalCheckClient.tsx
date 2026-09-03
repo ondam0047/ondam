@@ -156,7 +156,8 @@ export default function ApprovalCheckClient() {
     // (소급 행을 건너뛰고, 직전 '비소급' 행과 비교)
     let prevIdx = -1;
     for (let i = 0; i < rows.length; i++) {
-      if (rows[i].payKind.includes("소급")) continue;
+      // 정정 행도 소급과 같다 — 원 결제를 고친 기록이라 결제시간 간격이 겹침의 근거가 못 된다(오탐).
+      if (rows[i].payKind.includes("소급") || rows[i].payKind.includes("정정")) continue;
       if (prevIdx >= 0) {
         const v = checkRowAgainstPrev(rows[prevIdx], rows[i]);
         if (v) out.set(i, v);
@@ -240,7 +241,7 @@ export default function ApprovalCheckClient() {
             <div className="tip" style={{ marginBottom: 12, fontSize: 12.5, lineHeight: 1.6 }}>
               빨간색 행 = 직전 결제와 간격이 40분(50분 ± 10분 허용) 미만 — 이전 회기와 겹침.
               간격이 멀어진 건 휴식·블록 전환으로 보고 검사하지 않아요.
-              소급결제 건은 결제시간 간격이 무의미해 겹침 검사에서 제외하며, 별도 사유서가 필요합니다.
+              소급결제·정정 건은 결제시간 간격이 무의미해 겹침 검사에서 제외합니다(소급결제는 별도 사유서가 필요해요).
             </div>
 
             <div className="scroll">

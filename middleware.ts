@@ -3,7 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 // 미들웨어는 Edge runtime — DB 조회는 못 함. 쿠키 존재 여부만 확인.
 // 진짜 세션 검증은 페이지/라우트에서 getCurrentUser() 로.
 const COOKIE_NAME = "ondam_session";
-const PUBLIC_PATHS = ["/login", "/signup", "/forgot-password", "/reset-password", "/landing"];
+// 약관·처리방침은 가입 동의 체크박스가 링크하는 곳이라 로그아웃 상태에서 열려야 한다.
+const PUBLIC_PATHS = ["/login", "/signup", "/forgot-password", "/reset-password", "/landing", "/terms", "/privacy"];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;

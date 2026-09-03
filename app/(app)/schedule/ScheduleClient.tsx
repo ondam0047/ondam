@@ -1312,6 +1312,23 @@ export default function ScheduleClient({
           </div>
           <div className="card-body">
 
+            {/* 양식의 달력은 5주(5줄)까지다. 달이 6주에 걸치면 마지막 날짜 칸이 없어 조용히 빠진다.
+                칸을 줄여 억지로 맞추지 않고, 빠진다는 사실을 알린다. */}
+            {(() => {
+              const firstDow = new Date(genY, genM - 1, 1).getDay();
+              const dim = new Date(genY, genM, 0).getDate();
+              if (firstDow + dim <= 35) return null;
+              const overflow: number[] = [];
+              for (let d = 1; d <= dim; d++) if (firstDow + d - 1 >= 35) overflow.push(d);
+              return (
+                <div className="flash warn" style={{ marginBottom: 12 }}>
+                  ⚠ {genM}월은 달력이 <b>6주</b>에 걸쳐요. 양식의 달력 칸은 5주까지라
+                  <b> {overflow.join("·")}일</b>은 <b>달력에 안 찍힙니다</b>(아래 회기 목록·회기 수에는 그대로 들어가요).
+                  그 날짜에 회기가 있으면 출력물을 받아 한글에서 한 번 확인해 주세요.
+                </div>
+              );
+            })()}
+
             <table className="meta-tbl">
               <tbody>
                 <tr>

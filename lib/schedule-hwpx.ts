@@ -151,13 +151,16 @@ function rewriteCalendar(
       const dow = (col - 1) / 2;
       const pos = week * 7 + dow;
       const day = pos - offset + 1;
-      if (day >= 1 && day <= dim) {
+      const inMonth = day >= 1 && day <= dim;
+      // 회기 시간이 최우선 — 공휴일에 잡힌 회기의 시간이 사라지면 안 된다(칸 폭이 11자라 이름+시간 병기는 잘림).
+      // 회기 없는 공휴일에만 이름을 쓰고, 날짜 숫자는 위에서 이미 빨강 처리된다.
+      if (inMonth && !sessionMap.get(day)) {
         const hn = holidayMap.get(day);
         if (hn) return setCellText(cellXml, hn, 38);
       }
       let text = "           ";
       let hasSession = false;
-      if (day >= 1 && day <= dim) {
+      if (inMonth) {
         const t = sessionMap.get(day);
         if (t) { text = t.padEnd(11, " ").slice(0, 11); hasSession = true; }
       }

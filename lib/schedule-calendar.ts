@@ -59,17 +59,19 @@ export function buildCalendarEdits(
         // 빨간날=빨강 통일, 평일=검정 통일(없으면 native). 날짜 숫자 크기·모양 일관.
         charPr: isRed ? (opts.redCharPr ?? opts.numCharPr) : opts.numCharPr,
       });
-      // 내용칸: 공휴일이면 공휴일 이름(빨강), 아니면 회기 시간
-      if (holName != null) {
+      // 내용칸: 회기 시간이 최우선(공휴일에 잡힌 회기의 시간이 사라지면 안 된다).
+      // 회기가 없는 공휴일에만 공휴일 이름을 쓴다 — 날짜 숫자는 어차피 빨강이라 공휴일 표시는 남는다.
+      // (한 칸에 이름+시간을 같이 넣는 건 칸 폭 때문에 잘림 — 육안 확인 없이 손대지 않는다)
+      const dTime = d ? (timeByDay.get(d) ?? "") : "";
+      if (holName != null && !dTime) {
         edits.push({
           table: conC[0], row: conC[1], col: conC[2], value: holName,
           charPr: opts.holidayCharPr ?? opts.timeCharPr,
         });
       } else {
-        const time = d ? (timeByDay.get(d) ?? "") : "";
         edits.push({
-          table: conC[0], row: conC[1], col: conC[2], value: time,
-          charPr: time && opts.timeCharPr != null ? opts.timeCharPr : undefined,
+          table: conC[0], row: conC[1], col: conC[2], value: dTime,
+          charPr: dTime && opts.timeCharPr != null ? opts.timeCharPr : undefined,
         });
       }
     }

@@ -528,6 +528,9 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
                 onChange={(e) => {
                   const f = e.target.files?.[0] ?? null;
                   e.target.value = ""; // 같은 파일 다시 고를 수 있게 초기화
+                  // 새 파일을 고르면 무조건 수정 모드 해제 — 분기마다 흩어져 있으면(.hwp 분기에 빠져 있었다)
+                  // '수정' 중에 다른 파일을 골랐을 때 엉뚱한 양식을 조용히 덮어쓴다.
+                  if (f) { setEditingId(null); setHwpOriginal(null); }
                   if (f && /\.hwp$/i.test(f.name)) {
                     setFile(null); setResult(null); setWarning(null);
                     if (hwpAutoConvert) {
@@ -546,8 +549,6 @@ export default function FormMapperClient({ hwpAutoConvert = false }: { hwpAutoCo
                     return;
                   }
                   setFile(f); setResult(null); setError(null); setWarning(null);
-                  setEditingId(null); // 새 파일 선택 = 수정 모드 해제(새 양식 저장)
-                  setHwpOriginal(null); // .hwpx 직접 선택 = 원본 .hwp 없음
                   if (f) void analyze(f);
                 }} />
             </label>

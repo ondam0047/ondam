@@ -262,6 +262,17 @@ function MonthFocusBanner({ month, unwrittenCount, totalSessions, nextHref }: { 
 
 // ─── 데이터 로딩 헬퍼 ────────────────────────────────────────────────────
 
+// 이번 주가 걸쳐 있는 (연,월) 목록 — 달 경계 주(8/31~9/5 등)에선 2개가 된다.
+function weekMonths(y: number, m: number, weekDates: { d: Date }[]) {
+  const seen = new Map<string, { year: number; month: number }>();
+  seen.set(`${y}-${m}`, { year: y, month: m });
+  for (const { d } of weekDates) {
+    const year = d.getFullYear(), month = d.getMonth() + 1;
+    seen.set(`${year}-${month}`, { year, month });
+  }
+  return [...seen.values()];
+}
+
 async function loadMyStats(
   centerId: number,
   therapistId: number | null,
@@ -271,20 +282,25 @@ async function loadMyStats(
   todayDay: number,
 ) {
   const tid = therapistId ?? -1;
-  const [myServices, mySchedules] = await Promise.all([
+  const [myServices, weekSchedules] = await Promise.all([
     prisma.childService.findMany({
       where: { active: true, therapistId: tid, child: { centerId, active: true } },
       include: { child: true },
       orderBy: [{ child: { name: "asc" } }, { id: "asc" }],
     }),
+    // 이번 주가 달을 걸치면(8/31~9/5 등) 옆 달 일정표도 같이 읽는다.
+    // 안 읽으면 주간 카드가 그 날짜를 "회기 없음"으로 잘못 표시한다.
     prisma.schedule.findMany({
       where: {
-        year: y, month: m,
+        OR: weekMonths(y, m, weekDates).map(({ year, month }) => ({ year, month })),
         childService: { therapistId: tid, child: { centerId } },
       },
       include: { sessions: true, childService: { include: { child: true } } },
     }),
   ]);
+
+  // 이번 달 통계는 이번 달 것만 — 주간 카드만 옆 달을 함께 쓴다.
+  const mySchedules = weekSchedules.filter((s) => s.year === y && s.month === m);
 
   // 미작성 = 일정표는 있는데 기록지가 없는 ChildService
   const csIdsWithSchedule = [...new Set(mySchedules.map((s) => s.childServiceId))];
@@ -325,18 +341,17 @@ async function loadMyStats(
 
   const weekSessions = weekDates.map(({ d, weekday, isToday }) => {
     const items: { time: string; name: string; svc: string }[] = [];
-    if (d.getMonth() + 1 === m && d.getFullYear() === y) {
-      const dayN = d.getDate();
-      for (const sch of mySchedules) {
-        const sess = sch.sessions.find((s) => s.day === dayN);
-        if (sess) items.push({
-          time: sess.time.split("~")[0],
-          name: sch.childService.child.name,
-          svc: sch.serviceType,
-        });
-      }
-      items.sort((a, b) => a.time.localeCompare(b.time));
+    const yy = d.getFullYear(), mm = d.getMonth() + 1, dayN = d.getDate();
+    for (const sch of weekSchedules) {
+      if (sch.year !== yy || sch.month !== mm) continue;
+      const sess = sch.sessions.find((s) => s.day === dayN);
+      if (sess) items.push({
+        time: sess.time.split("~")[0],
+        name: sch.childService.child.name,
+        svc: sch.serviceType,
+      });
     }
+    items.sort((a, b) => a.time.localeCompare(b.time));
     return { day: weekday, date: `${d.getMonth() + 1}.${d.getDate()}`, isToday, items };
   });
 

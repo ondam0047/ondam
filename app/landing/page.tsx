@@ -359,9 +359,10 @@ export default function LandingPage() {
             <div className="text-sm">
               <div className="font-bold mb-3">법무</div>
               <ul className="space-y-1 text-[var(--text-soft)]">
-                <li><Link href="/legal/terms">이용약관</Link></li>
-                <li><Link href="/legal/privacy">개인정보처리방침</Link></li>
-                <li><Link href="/legal/refund">환불 정책</Link></li>
+                {/* 라우트 그룹 (legal) 은 URL 에 안 붙는다 — 실 경로는 /terms·/privacy.
+                    환불 정책은 페이지가 없어(결제 미도입) 링크를 내린다. */}
+                <li><Link href="/terms">이용약관</Link></li>
+                <li><Link href="/privacy">개인정보처리방침</Link></li>
               </ul>
             </div>
             <div className="text-sm">
