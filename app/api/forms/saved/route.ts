@@ -51,8 +51,19 @@ export async function GET(req: NextRequest) {
         (r) => !!r.status && (!r.result || r.status.join(",") !== r.result.join(",")),
       );
     } catch { /* noop */ }
+    // 달력 기하 — 일정표 화면이 "6주 달인데 이 양식은 몇 줄짜리인가"를 판단해
+    // 5주 양식일 때만 경고를 띄우게 한다(6줄 양식엔 오경보였다).
+    let calWeeks: number | null = null;
+    let calLeftmostDow: number | null = null;
+    try {
+      const cal = (JSON.parse(spec) as { scheduleCalendar?: { weeks?: unknown[]; leftmostDow?: number } }).scheduleCalendar;
+      if (cal?.weeks?.length) {
+        calWeeks = cal.weeks.length;
+        calLeftmostDow = typeof cal.leftmostDow === "number" ? cal.leftmostDow : 0;
+      }
+    } catch { /* noop */ }
     // hasHwp: .hwp 원본 보관 양식 — 기록지 화면이 "구버전용(.hwp)" 버튼을 열지 판단.
-    return { ...f, hasStatus, hasHwp: templateHwp != null };
+    return { ...f, hasStatus, hasHwp: templateHwp != null, calWeeks, calLeftmostDow };
   });
   const planRow = await prisma.user.findUnique({ where: { id: user.id }, select: { plan: true, trialEndsAt: true } });
   const planUser = { plan: planRow?.plan ?? "trial", trialEndsAt: planRow?.trialEndsAt ?? null };

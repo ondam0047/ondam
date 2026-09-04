@@ -148,7 +148,9 @@ export default function ScheduleClient({
   const forceOverwriteRef = useRef(false);
   const [saveTick, setSaveTick] = useState(0);
   // 저장한 우리 센터 일정표 양식 — 있으면 출력 양식 선택
-  const [savedForms, setSavedForms] = useState<Array<{ id: number; name: string }>>([]);
+  const [savedForms, setSavedForms] = useState<
+    Array<{ id: number; name: string; calWeeks?: number | null; calLeftmostDow?: number | null }>
+  >([]);
   const [outFormId, setOutFormId] = useState<number | "">("");
   useEffect(() => {
     fetch("/api/forms/saved")
@@ -1312,20 +1314,32 @@ export default function ScheduleClient({
           </div>
           <div className="card-body">
 
-            {/* 내장 서식의 달력은 6줄이라 6주 달도 다 들어간다. 하지만 센터가 올린 양식은
-                대개 5줄이라 마지막 날짜가 조용히 빠진다 — 그 경우에만 알린다. */}
+            {/* 달력 줄 수는 양식마다 다르다(내장 6줄, 센터 양식은 5줄도 6줄도 있다).
+                선택한 양식의 실제 줄 수·시작 요일로 빠지는 날짜를 계산해, 진짜 빠질 때만 알린다.
+                주 묶음 규칙은 출력(buildCalendarEdits)과 동일: 맨 왼쪽 요일을 만나면 다음 주. */}
             {(() => {
-              if (!outFormId) return null;   // 발달바우처 기본 서식 = 6주 지원
-              const firstDow = new Date(genY, genM - 1, 1).getDay();
+              if (!outFormId) return null;   // 발달바우처 기본 서식 = 6주라 항상 들어감
+              const form = savedForms.find((f) => f.id === outFormId);
+              const weeks = form?.calWeeks ?? 5;            // 구버전 양식(기하 미상)은 5줄로 가정
+              const leftmost = form?.calLeftmostDow ?? 0;
+              const known = !!form?.calWeeks;
               const dim = new Date(genY, genM, 0).getDate();
-              if (firstDow + dim <= 35) return null;
+              const firstDow = new Date(genY, genM - 1, 1).getDay();
               const overflow: number[] = [];
-              for (let d = 1; d <= dim; d++) if (firstDow + d - 1 >= 35) overflow.push(d);
+              let w = 0;
+              for (let d = 1; d <= dim; d++) {
+                const dow = (firstDow + d - 1) % 7;
+                if (d > 1 && dow === leftmost) w++;
+                if (w >= weeks) overflow.push(d);
+              }
+              if (overflow.length === 0) return null;
               return (
                 <div className="flash warn" style={{ marginBottom: 12 }}>
-                  ⚠ {genM}월은 달력이 <b>6주</b>에 걸쳐요. 우리 센터 양식의 달력 칸이 5주까지면
-                  <b> {overflow.join("·")}일</b>이 <b>달력에 안 찍힐 수 있어요</b>(아래 회기 목록·회기 수에는 그대로 들어가요).
-                  출력물을 한글에서 한 번 확인하거나, 발달바우처 기본 서식으로 받으면 6주까지 다 나옵니다.
+                  ⚠ {genM}월은 달력이 <b>{w + 1}주</b>에 걸치는데, 이 양식의 달력 칸은 <b>{weeks}줄</b>
+                  {known ? "" : "로 보여"}입니다 —{" "}
+                  <b>{overflow.join("·")}일</b>이 <b>달력에 안 찍{known ? "힙니다" : "힐 수 있어요"}</b>
+                  (아래 회기 목록·회기 수에는 그대로 들어가요).
+                  발달바우처 기본 서식으로 받으면 6주까지 다 나옵니다.
                 </div>
               );
             })()}
