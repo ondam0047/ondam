@@ -43,6 +43,20 @@ type SessionRow = {
 
 type Grouped = Record<string, SessionRow[]>;
 
+// 자동시작(=grouped 통째 교체)을 막을지 판단하는 단일 기준.
+// 화면에 몇 명이 떠 있느냐가 아니라 "엑셀에서 온 데이터냐"가 본질 — 승인번호는 엑셀에만 있다.
+// 아동 1명짜리 엑셀도 지켜야 하므로 개수로 세면 안 된다.
+function hasExcelData(g: Grouped): boolean {
+  return Object.values(g).some((rows) => rows.some((r) => r.appr));
+}
+
+// 그 아동의 탭 찾기 — 엑셀 라벨은 이름만, 앱 라벨은 "이름 · 서비스종류" 라 형식이 다를 수 있다.
+function findTab(g: Grouped, cs: { name: string; serviceType: string; hasMultipleServices?: boolean }): string | null {
+  const exact = cs.hasMultipleServices ? `${cs.name} · ${cs.serviceType}` : cs.name;
+  if (g[exact]) return exact;
+  return Object.keys(g).find((k) => k === cs.name || k.startsWith(`${cs.name} · `)) ?? null;
+}
+
 function parseYMD(s: string): { y: number; mo: number; d: number } | null {
   const m = String(s).match(/(\d{4})[.\-\/]\s*(\d{1,2})[.\-\/]\s*(\d{1,2})/);
   return m ? { y: +m[1], mo: +m[2], d: +m[3] } : null;
@@ -331,11 +345,11 @@ export default function RecordClient({
       setAutoStarted(true);
       // 소비한 파라미터는 지운다 — 안 지우면 이 URL 에서 F5 만 눌러도 자동시작이 다시 돈다.
       try { window.history.replaceState({}, "", "/record"); } catch {}
-      const tag = cs.hasMultipleServices ? `${cs.name} · ${cs.serviceType}` : cs.name;
-      if (Object.keys(grouped).length > 1) {
-        // 엑셀로 여러 아동을 불러온 화면은 갈아끼우지 않는다(startManual 은 grouped 통째 교체).
-        // 그 아동 탭이 이미 있으면 그쪽으로 이동만.
-        if (grouped[tag]) setCurChild(tag);
+      // 엑셀로 불러온 화면은 갈아끼우지 않는다(startManual 은 grouped 통째 교체) — 아동이 1명이어도.
+      // 그 아동 탭이 있으면 이동만 한다.
+      if (hasExcelData(grouped)) {
+        const tab = findTab(grouped, cs);
+        if (tab) setCurChild(tab);
       } else {
         void startManual(csId, ymParam);
       }
@@ -625,8 +639,15 @@ export default function RecordClient({
                 onChange={(e) => {
                   const v = e.target.value ? Number(e.target.value) : "";
                   setManualCSId(v);
-                  // 화면이 비었을 때만 바로 시작 — startManual 은 grouped 를 통째로 갈아끼운다(엑셀 다중아동 보호)
-                  if (v && names.length === 0) void startManual(v, manualYm);
+                  if (!v) return;
+                  // URL 자동시작과 같은 기준: 엑셀 화면은 안 건드리고 탭 이동만, 그 외엔 바로 시작.
+                  if (hasExcelData(grouped)) {
+                    const cs = myServices.find((s) => s.id === v);
+                    const tab = cs ? findTab(grouped, cs) : null;
+                    if (tab) setCurChild(tab);
+                  } else if (names.length === 0) {
+                    void startManual(v, manualYm);
+                  }
                 }}
               >
                 <option value="">— 선택 —</option>
