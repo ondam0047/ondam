@@ -60,9 +60,11 @@ async function runFill(templateHwp: Buffer, edits: FillEdit[]): Promise<Buffer> 
     await writeFile(editsPath, JSON.stringify(edits), "utf8");
     await new Promise<void>((resolve, reject) => {
       const proc = spawn(JAVA, ["-jar", JAR, "fill", inPath, editsPath, outPath], {
-        stdio: ["ignore", "ignore", "pipe"],
+        stdio: ["ignore", "pipe", "pipe"],
       });
       let err = "";
+      let out = "";
+      proc.stdout.on("data", (d) => (out += String(d)));
       proc.stderr.on("data", (d) => (err += String(d)));
       const timer = setTimeout(() => {
         proc.kill("SIGKILL");
@@ -74,8 +76,22 @@ async function runFill(templateHwp: Buffer, edits: FillEdit[]): Promise<Buffer> 
       });
       proc.on("close", (code) => {
         clearTimeout(timer);
-        if (code === 0) resolve();
-        else reject(new Error(`.hwp 채우기 실패${err.trim() ? ` [${err.trim().slice(0, 200)}]` : ""}`));
+        if (code !== 0) {
+          reject(new Error(`.hwp 채우기 실패${err.trim() ? ` [${err.trim().slice(0, 200)}]` : ""}`));
+          return;
+        }
+        // 종료코드 0 이어도 한 칸도 못 채웠을 수 있다 — 그러면 빈 문서가 200 으로 나간다.
+        // CLI 가 마지막에 찍는 "FILL_DONE ok=N miss=M" 을 읽어 그 경우를 실패로 돌린다.
+        // (그 줄이 없는 구버전 jar 이면 판별 불가 → 기존대로 통과)
+        const m = [...out.matchAll(/FILL_DONE ok=(\d+) miss=(\d+)/g)].pop();
+        if (m && Number(m[1]) === 0 && Number(m[2]) > 0) {
+          reject(new Error(
+            `기록지 양식에서 채울 칸을 하나도 못 찾았어요(${m[2]}칸 모두 실패). ` +
+            `양식이 바뀌었을 수 있어요 — 우리 센터 양식을 다시 올리거나 매핑을 확인해 주세요.`
+          ));
+          return;
+        }
+        resolve();
       });
     });
     return await readFile(outPath);
