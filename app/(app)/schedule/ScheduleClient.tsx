@@ -895,7 +895,8 @@ export default function ScheduleClient({
         cycle,
         target,
         formId: outFormId || undefined,
-        calTypeLabel: showTypeInCal ? serviceTypeAbbrev(serviceType) : undefined,
+        // 기본 서식은 이 표시를 지원하지 않는다 — 화면에서도 못 켜므로 요청에서도 뺀다(표시↔출력 일치).
+        calTypeLabel: showTypeInCal && outFormId ? serviceTypeAbbrev(serviceType) : undefined,
         sessions: days.map((d) => ({
           day: d,
           weekday: WEEK[new Date(genY, genM - 1, d).getDay()],
@@ -1368,11 +1369,27 @@ export default function ScheduleClient({
               <span style={{ marginLeft: 12 }}>날짜를 탭하면 회기 추가·시간 변경·제거 가능</span>
             </div>
 
-            <label style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, fontSize: 13, color: "var(--text-soft)", cursor: "pointer" }}
+            {/* 이 옵션은 커스텀 양식 출력 경로에만 구현돼 있다(schedule-fill-spec).
+                내장 서식은 달력 칸이 11자 고정이라 서비스 종류를 넣을 자리가 없어 무시된다 —
+                켜도 아무 일이 없으면 "고장"으로 읽히니, 아예 못 켜게 하고 이유를 밝힌다. */}
+            <label style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, fontSize: 13, color: "var(--text-soft)", cursor: outFormId ? "pointer" : "default" }}
               onChangeCapture={() => { schedTouched.current = true; }}>
-              <input type="checkbox" checked={showTypeInCal} onChange={(e) => setShowTypeInCal(e.target.checked)} />
-              출력 달력의 회기 칸에 서비스 종류 표시 (예: {serviceTypeAbbrev(serviceType) || "언어"} + 시간)
+              <input
+                type="checkbox"
+                checked={outFormId ? showTypeInCal : false}
+                disabled={!outFormId}
+                onChange={(e) => setShowTypeInCal(e.target.checked)}
+              />
+              <span style={{ opacity: outFormId ? 1 : 0.55 }}>
+                출력 달력의 회기 칸에 서비스 종류 표시 (예: {serviceTypeAbbrev(serviceType) || "언어"} + 시간)
+              </span>
             </label>
+            {!outFormId && (
+              <div className="sub-mute" style={{ fontSize: 12, marginTop: 4, lineHeight: 1.5 }}>
+                발달바우처 기본 서식은 달력 칸 폭이 고정이라 이 표시를 넣을 자리가 없어요.
+                우리 센터 양식을 올려서 출력하면 쓸 수 있습니다.
+              </div>
+            )}
 
             <div className="label-block" style={{ marginTop: 22 }}>서비스 제공현황</div>
             <div className="scroll">
