@@ -133,7 +133,9 @@ function rewriteCalendar(
     const row = Number(addrTag.match(/rowAddr="(\d+)"/)?.[1] ?? -1);
     if (col < 0 || row < 0) return cellXml;
 
-    if (row >= 1 && row <= 9 && row % 2 === 1 && col >= 0 && col <= 12 && col % 2 === 0) {
+    // 달력 표는 6주(숫자행 1·3·5·7·9·11 / 내용행 2·4·6·8·10·12).
+    // 6주에 걸치는 달(2026-08 등)의 30·31일이 빠지지 않도록 2026-09 서식부터 6줄.
+    if (row >= 1 && row <= 11 && row % 2 === 1 && col >= 0 && col <= 12 && col % 2 === 0) {
       const week = (row - 1) / 2;
       const dow = col / 2;
       const pos = week * 7 + dow;
@@ -146,7 +148,7 @@ function rewriteCalendar(
       return setCellText(cellXml, text, pid);
     }
 
-    if (row >= 2 && row <= 10 && row % 2 === 0 && col >= 1 && col <= 13 && col % 2 === 1) {
+    if (row >= 2 && row <= 12 && row % 2 === 0 && col >= 1 && col <= 13 && col % 2 === 1) {
       const week = (row - 2) / 2;
       const dow = (col - 1) / 2;
       const pos = week * 7 + dow;

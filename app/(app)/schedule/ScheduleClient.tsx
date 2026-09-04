@@ -1312,9 +1312,10 @@ export default function ScheduleClient({
           </div>
           <div className="card-body">
 
-            {/* 양식의 달력은 5주(5줄)까지다. 달이 6주에 걸치면 마지막 날짜 칸이 없어 조용히 빠진다.
-                칸을 줄여 억지로 맞추지 않고, 빠진다는 사실을 알린다. */}
+            {/* 내장 서식의 달력은 6줄이라 6주 달도 다 들어간다. 하지만 센터가 올린 양식은
+                대개 5줄이라 마지막 날짜가 조용히 빠진다 — 그 경우에만 알린다. */}
             {(() => {
+              if (!outFormId) return null;   // 발달바우처 기본 서식 = 6주 지원
               const firstDow = new Date(genY, genM - 1, 1).getDay();
               const dim = new Date(genY, genM, 0).getDate();
               if (firstDow + dim <= 35) return null;
@@ -1322,9 +1323,9 @@ export default function ScheduleClient({
               for (let d = 1; d <= dim; d++) if (firstDow + d - 1 >= 35) overflow.push(d);
               return (
                 <div className="flash warn" style={{ marginBottom: 12 }}>
-                  ⚠ {genM}월은 달력이 <b>6주</b>에 걸쳐요. 양식의 달력 칸은 5주까지라
-                  <b> {overflow.join("·")}일</b>은 <b>달력에 안 찍힙니다</b>(아래 회기 목록·회기 수에는 그대로 들어가요).
-                  그 날짜에 회기가 있으면 출력물을 받아 한글에서 한 번 확인해 주세요.
+                  ⚠ {genM}월은 달력이 <b>6주</b>에 걸쳐요. 우리 센터 양식의 달력 칸이 5주까지면
+                  <b> {overflow.join("·")}일</b>이 <b>달력에 안 찍힐 수 있어요</b>(아래 회기 목록·회기 수에는 그대로 들어가요).
+                  출력물을 한글에서 한 번 확인하거나, 발달바우처 기본 서식으로 받으면 6주까지 다 나옵니다.
                 </div>
               );
             })()}
