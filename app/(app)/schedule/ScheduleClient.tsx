@@ -1337,7 +1337,7 @@ export default function ScheduleClient({
               return (
                 <div className="flash warn" style={{ marginBottom: 12 }}>
                   ⚠ {genM}월은 달력이 <b>{w + 1}주</b>에 걸치는데, 이 양식의 달력 칸은 <b>{weeks}줄</b>
-                  {known ? "" : "로 보여"}입니다 —{" "}
+                  {known ? "입니다" : "로 보입니다"} —{" "}
                   <b>{overflow.join("·")}일</b>이 <b>달력에 안 찍{known ? "힙니다" : "힐 수 있어요"}</b>
                   (아래 회기 목록·회기 수에는 그대로 들어가요).
                   발달바우처 기본 서식으로 받으면 6주까지 다 나옵니다.

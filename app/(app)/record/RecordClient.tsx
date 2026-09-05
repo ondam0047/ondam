@@ -644,7 +644,9 @@ export default function RecordClient({
                   if (hasExcelData(grouped)) {
                     const cs = myServices.find((s) => s.id === v);
                     const tab = cs ? findTab(grouped, cs) : null;
-                    if (tab) setCurChild(tab);
+                    // 탭이 없으면 아무 일도 안 일어나 "왜 안 되지"만 남는다 — 이유와 다음 행동을 알린다.
+                    if (tab) { setCurChild(tab); setError(""); }
+                    else setError(`올린 엑셀에 '${cs?.name ?? "이 아동"}' 회기가 없어요. 이 아동만 따로 작성하려면 위 '화면 비우기' 후 다시 골라주세요.`);
                   } else if (names.length === 0) {
                     void startManual(v, manualYm);
                   }
